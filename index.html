@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Sitio de Prueba - Fundación Capacítamente Chatbot</title>
+</head>
+<body>
+
+    <button id="chat-toggle">🤖 Chatea con Lyro</button>
+    
+    <div id="chat-container">
+        <div id="chat-messages">
+            <div class="message bot">Hola, soy Lyro-Capacítamente, tu asistente de IA. ¿En qué puedo ayudarte hoy?</div>
+        </div>
+        <div id="chat-input-area">
+            <input type="text" id="chat-input" placeholder="Escribe tu pregunta...">
+            <button id="send-button">Enviar</button>
+        </div>
+    </div>
+
+    <style>
+        /* Estilos básicos para el widget flotante */
+        #chat-toggle {
+            position: fixed; bottom: 20px; right: 20px; 
+            padding: 15px 20px; background: #007bff; color: white; border: none;
+            border-radius: 30px; cursor: pointer; z-index: 1001;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        #chat-container {
+            display: none; /* Inicialmente oculto */
+            flex-direction: column; position: fixed; bottom: 80px; right: 20px; 
+            width: 300px; height: 400px; background: #f9f9f9; border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); z-index: 1000;
+        }
+        #chat-messages {
+            flex-grow: 1; padding: 10px; overflow-y: auto; background: #fff;
+        }
+        #chat-input-area { display: flex; padding: 10px; border-top: 1px solid #ddd; }
+        #chat-input { flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px 0 0 4px; }
+        #send-button { padding: 8px 15px; background: #28a745; color: white; border: none; border-radius: 0 4px 4px 0; cursor: pointer; }
+        .message { margin-bottom: 10px; padding: 8px; border-radius: 6px; max-width: 80%; }
+        .user { background: #dcf8c6; align-self: flex-end; margin-left: auto; }
+        .bot { background: #f1f0f0; align-self: flex-start; }
+    </style>
+
+    <script>
+        // 🛑 CRÍTICO: DEBES REEMPLAZAR 'http://localhost:3000' con la URL PÚBLICA de tu servidor en la nube
+        const SERVER_URL = 'http://localhost:3000'; 
+        
+        const toggleButton = document.getElementById('chat-toggle');
+        const chatContainer = document.getElementById('chat-container');
+        const sendButton = document.getElementById('send-button');
+        const chatInput = document.getElementById('chat-input');
+        const chatMessages = document.getElementById('chat-messages');
+
+        function addMessage(text, sender) {
+            const msg = document.createElement('div');
+            msg.className = `message ${sender}`;
+            msg.innerText = text;
+            chatMessages.appendChild(msg);
+            chatMessages.scrollTop = chatMessages.scrollHeight; // Auto-scroll
+        }
+
+        toggleButton.onclick = () => {
+            chatContainer.style.display = chatContainer.style.display === 'none' ? 'flex' : 'none';
+        };
+
+        async function sendMessage() {
+            const message = chatInput.value.trim();
+            if (message === '') return;
+
+            addMessage(message, 'user');
+            chatInput.value = '';
+
+            try {
+                const response = await fetch(`${SERVER_URL}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message })
+                });
+
+                const data = await response.json();
+                const botReply = data.reply || data.error || "Error al obtener respuesta.";
+                addMessage(botReply, 'bot');
+
+            } catch (error) {
+                console.error('Error de conexión con el servidor:', error);
+                addMessage("Lo siento, el servidor del chatbot no está disponible. [Error de Conexión]", 'bot');
+            }
+        }
+
+        sendButton.onclick = sendMessage;
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
