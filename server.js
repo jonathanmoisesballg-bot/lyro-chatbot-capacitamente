@@ -7,12 +7,16 @@ const express = require('express');
 const cors = require('cors');
 
 const app = express();
-const port = 3000; 
+const port = process.env.PORT || 3000; 
 
-// Inicializar la API de Gemini (usa la clave del archivo .env)
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// Inicializar la API de Gemini 
+const apiKey = process.env.GEMINI_API_KEY;
+if (!apiKey) {
+    console.error("Error: GEMINI_API_KEY no está configurada. Verifica las Variables de Entorno de Render.");
+}
+const ai = new GoogleGenAI({ apiKey: apiKey }); 
 
-// 2. MIDDLEWARE: Permite que tu web acceda a este servidor
+// 2. MIDDLEWARE
 app.use(cors()); 
 app.use(express.json()); 
 
@@ -22,7 +26,6 @@ Eres Lyro-Capacítamente, un asistente virtual amable y servicial. Tu objetivo e
 
 Utiliza la siguiente información para las consultas sobre la Fundación:
 - Misión Principal: Ofrecer capacitación de alto valor en habilidades blandas y digitales esenciales para el desarrollo profesional y empresarial.
-- Cursos Principales: Ofrecemos una amplia variedad de cursos especializados en habilidades blandas y digitales. Consulta los detalles, costos e instructores a continuación.
 - Cursos con Certificado (Costo e Instructor): Estos cursos tienen un costo y ofrecen un certificado de culminación:
     - Formador de Formadores ($120): Impartido por Tatiana Arias.
     - Inteligencia Emocional ($15): Impartido por Tatiana Arias.
@@ -35,48 +38,47 @@ Utiliza la siguiente información para las consultas sobre la Fundación:
     - Metodología de la Pregunta (Próximamente): Impartido por Tatiana Arias.
     - Neuroeducación… También en casa (Próximamente): Impartido por Prosandoval.
 - Docentes: Los cursos son impartidos por profesionales expertos. Los instructores clave son Tatiana Arias, Yadira Suárez, E Arias y Prosendovel. Todos son expertos reconocidos en sus áreas.
-- Donaciones: La Fundación acepta donaciones a través de su sitio web para apoyar sus programas de capacitación y crecimiento.
-- Horarios: Todos los cursos se ofrecen en modalidad online y en vivo. Las sesiones están convenientemente programadas para las noches (martes y jueves).
 - Contacto y Ubicación:
     - Celular: 0983222358
     - Teléfono fijo: 046026948
     - Correo electrónico para consultas e inscripción: info@fundacioncapacitamente.com y cursos@fundacioncapacitamente.com
     - Ubicación: Guayaquil - Ecuador
 - Inscripción: Es un proceso simple: se completa el formulario en la web y se envía el comprobante de pago al correo de inscripción.
+- **Donaciones (Guía Paso a Paso):** La Fundación acepta donaciones para apoyar su causa. El proceso es online: 1. Ingresar a la sección de Donaciones y haz clic en el botón "Donar ahora". 2. Elegir Cantidad: Selecciona un monto (ej. $10, $25, $100, etc.) o ingresa una "Cantidad personalizada". Luego presiona "Continuar". 3. Tus Datos: Llena el formulario con tu Nombre, Apellidos y Dirección de correo electrónico. 4. Método de Pago: Elige entre "Donar con Transferencia Bancaria" o "Donar con PayPal". 5. Finalizar: Haz clic en el botón verde "Donar ahora" para completar el proceso de forma segura.
 
 Tu respuesta debe ser siempre amable, profesional y motivadora. Si la pregunta no es sobre la Fundación, utiliza tu conocimiento general para responder de forma útil y eficiente, manteniendo tu personalidad de asistente.
 `;
 
-// 4. ENDPOINT: La ruta de la API que recibe la pregunta
+// 4. ENDPOINT
 app.post('/chat', async (req, res) => {
     try {
         const userMessage = req.body.message;
 
-        // Validación robusta para evitar errores con mensajes vacíos o muy cortos
         if (!userMessage || userMessage.trim().length === 0) {
-            return res.status(400).json({ error: "Mensaje no proporcionado." });
+            return res.status(400).json({ reply: "Mensaje no proporcionado." });
         }
-
-        // Llamada a la API de Gemini con el contexto de la fundación
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash', 
-            contents: userMessage,
+        
+        const model = genAI.getGenerativeModel({ 
+            model: 'gemini-2.5-flash',
             config: {
-                systemInstruction: systemInstruction, 
+                 systemInstruction: systemInstruction,
             }
         });
-
-        const botReply = response.text.trim();
-        res.json({ reply: botReply }); 
+        
+        const chat = model.startChat({});
+        
+        const result = await chat.sendMessage({ message: userMessage });
+        const botReply = result.text;
+        
+        res.json({ reply: botReply });
 
     } catch (error) {
         console.error("Error al generar contenido:", error);
-        // Respuesta de error amigable, aunque el servidor siga en pie
         res.status(500).json({ reply: "Lo siento, hubo un error interno. Intenta de nuevo más tarde." });
     }
 });
 
 // 5. Iniciar el servidor
 app.listen(port, () => {
-    console.log(`Servidor de Chatbot iniciado en http://localhost:${port}`);
+    console.log(`Servidor Node.js escuchando en el puerto ${port}`);
 });
