@@ -2,15 +2,32 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Sitio de Prueba - Fundación Capacítamente Chatbot</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot Lyro - Fundación Capacítamente</title>
 </head>
 <body>
 
     <button id="chat-toggle">🤖 Chatea con Lyro</button>
     
-    <div id="chat-container">
+    <a href="https://wa.me/593991667561" target="_blank">
+        <button id="whatsapp-toggle">
+             WhatsApp
+        </button>
+    </a>
+
+    <div id="chat-container" style="display: none;">
+        <div id="chat-header">
+            Lyro-Capacítamente (Asistente IA)
+        </div>
+        
         <div id="chat-messages">
             <div class="message bot">Hola, soy Lyro-Capacítamente, tu asistente de IA. ¿En qué puedo ayudarte hoy?</div>
+        </div>
+        
+        <div id="suggestion-buttons">
+            <button class="suggestion" data-question="¿Qué cursos de pago tienen y sus precios?">Cursos y Precios</button>
+            <button class="suggestion" data-question="¿Cómo me contacto o hago una inscripción?">Contacto y Inscripción</button>
+            <button class="suggestion" data-question="¿Cuál es la guía para hacer una donación?">Guía de Donación</button>
         </div>
         <div id="chat-input-area">
             <input type="text" id="chat-input" placeholder="Escribe tu pregunta...">
@@ -19,82 +36,149 @@
     </div>
 
     <style>
-        /* Estilos básicos para el widget flotante */
+        /* Estilos generales */
+        body { margin: 0; padding: 0; }
+        
+        /* Botón de Abrir/Cerrar Chatbot */
         #chat-toggle {
-            position: fixed; bottom: 20px; right: 20px; 
-            padding: 15px 20px; background: #007bff; color: white; border: none;
-            border-radius: 30px; cursor: pointer; z-index: 1001;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            position: fixed; bottom: 20px; right: 20px; padding: 15px 20px; background: #1E90FF; color: white; border: none; border-radius: 30px; cursor: pointer; z-index: 1001; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); font-weight: bold; transition: background-color 0.3s, transform 0.1s;
         }
+        #chat-toggle:hover { background: #1C86EE; transform: translateY(-2px); }
+        
+        /* Botón de WhatsApp */
+        #whatsapp-toggle {
+            position: fixed; bottom: 20px; right: 200px; padding: 15px 20px; background: #25D366; color: white; border: none; border-radius: 30px; cursor: pointer; z-index: 1001; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); font-weight: bold; transition: background-color 0.3s, transform 0.1s;
+        }
+        
+        /* Contenedor del chatbot */
         #chat-container {
-            display: none; /* Inicialmente oculto */
-            flex-direction: column; position: fixed; bottom: 80px; right: 20px; 
-            width: 300px; height: 400px; background: #f9f9f9; border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); z-index: 1000;
+            display: none; position: fixed; bottom: 80px; right: 20px; width: 350px; height: 450px; background: #FFFFFF; border-radius: 12px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3); z-index: 1000; display: flex; flex-direction: column; overflow: hidden; font-family: Arial, sans-serif;
         }
-        #chat-messages {
-            flex-grow: 1; padding: 10px; overflow-y: auto; background: #fff;
+        
+        /* Encabezado del chat */
+        #chat-header {
+            background: #1E90FF; color: white; padding: 15px; text-align: center; font-weight: bold; font-size: 1.1em; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
-        #chat-input-area { display: flex; padding: 10px; border-top: 1px solid #ddd; }
-        #chat-input { flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px 0 0 4px; }
-        #send-button { padding: 8px 15px; background: #28a745; color: white; border: none; border-radius: 0 4px 4px 0; cursor: pointer; }
-        .message { margin-bottom: 10px; padding: 8px; border-radius: 6px; max-width: 80%; }
-        .user { background: #dcf8c6; align-self: flex-end; margin-left: auto; }
-        .bot { background: #f1f0f0; align-self: flex-start; }
+
+        /* Área de Sugerencias */
+        #suggestion-buttons {
+            padding: 10px; background: #F4F7F9; display: flex; flex-wrap: wrap; gap: 5px; border-top: 1px solid #EEEEEE;
+        }
+        
+        .suggestion {
+            background: #FFFFFF; color: #1E90FF; border: 1px solid #1E90FF; padding: 8px 12px; border-radius: 20px; cursor: pointer; font-size: 0.85em; transition: background-color 0.2s, color 0.2s;
+        }
+        
+        .suggestion:hover {
+            background: #1E90FF; color: white;
+        }
+        
+        /* Resto de estilos (Mensajes, Input, Responsivo) */
+        #chat-messages { flex-grow: 1; padding: 10px; overflow-y: auto; background: #F4F7F9; }
+        .message { padding: 8px 12px; margin-bottom: 10px; border-radius: 18px; max-width: 80%; line-height: 1.4; word-wrap: break-word; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); }
+        .user { background: #DCF8C6; align-self: flex-end; margin-left: auto; }
+        .bot { background: #FFFFFF; align-self: flex-start; margin-right: auto; border: 1px solid #E0E0E0; }
+        #chat-input-area { display: flex; padding: 10px; border-top: 1px solid #EEEEEE; background: white; }
+        #chat-input { flex-grow: 1; padding: 10px; border: 1px solid #E0E0E0; border-radius: 20px; margin-right: 8px; font-size: 1em; outline: none; }
+        #send-button { background: #1E90FF; color: white; border: none; border-radius: 20px; padding: 10px 15px; font-weight: bold; transition: background-color 0.3s; }
+        /* Media Queries omitidas para brevedad... */
     </style>
 
     <script>
-        // 🛑 CRÍTICO: DEBES REEMPLAZAR 'http://localhost:3000' con la URL PÚBLICA de tu servidor en la nube
-        const SERVER_URL = 'http://localhost:3000'; 
-        
+        const SERVER_URL = 'https://lyro-chatbot-capacitamente-1.onrender.com'; 
+
         const toggleButton = document.getElementById('chat-toggle');
         const chatContainer = document.getElementById('chat-container');
         const sendButton = document.getElementById('send-button');
         const chatInput = document.getElementById('chat-input');
         const chatMessages = document.getElementById('chat-messages');
+        const suggestionButtons = document.querySelectorAll('#suggestion-buttons .suggestion');
 
         function addMessage(text, sender) {
             const msg = document.createElement('div');
-            msg.className = `message ${sender}`;
+            msg.className = 'message ' + sender;
             msg.innerText = text;
             chatMessages.appendChild(msg);
-            chatMessages.scrollTop = chatMessages.scrollHeight; // Auto-scroll
+            chatMessages.scrollTop = chatMessages.scrollHeight; 
         }
 
-        toggleButton.onclick = () => {
-            chatContainer.style.display = chatContainer.style.display === 'none' ? 'flex' : 'none';
-        };
+        async function sendMessage(questionText = null) {
+            let userMessage;
+            
+            // Determina si el mensaje viene del input o de un botón de sugerencia
+            if (questionText) {
+                userMessage = questionText;
+            } else {
+                userMessage = chatInput.value.trim();
+                if (userMessage === '') return;
+            }
 
-        async function sendMessage() {
-            const message = chatInput.value.trim();
-            if (message === '') return;
-
-            addMessage(message, 'user');
+            addMessage(userMessage, 'user');
             chatInput.value = '';
 
+            chatInput.disabled = true;
+            sendButton.disabled = true;
+            sendButton.innerText = 'Cargando...'; 
+
             try {
-                const response = await fetch(`${SERVER_URL}/chat`, {
+                const response = await fetch(SERVER_URL + '/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: message })
+                    body: JSON.stringify({ message: userMessage })
                 });
 
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: El servidor de IA falló.`);
+                }
+
                 const data = await response.json();
-                const botReply = data.reply || data.error || "Error al obtener respuesta.";
-                addMessage(botReply, 'bot');
+                const botResponse = data.reply || data.error; // Maneja el formato de respuesta de Node.js
+                
+                if (!botResponse) {
+                   throw new Error('Respuesta de API vacía o malformada.');
+                }
+                
+                addMessage(botResponse, 'bot');
 
             } catch (error) {
-                console.error('Error de conexión con el servidor:', error);
-                addMessage("Lo siento, el servidor del chatbot no está disponible. [Error de Conexión]", 'bot');
+                console.error("Error al obtener la respuesta de Lyro:", error);
+                addMessage('Lo siento, estoy teniendo problemas de conexión. Por favor intenta más tarde.', 'bot');
+            } finally {
+                chatInput.disabled = false;
+                sendButton.disabled = false;
+                sendButton.innerText = 'Enviar';
+                chatInput.focus();
             }
         }
 
-        sendButton.onclick = sendMessage;
-        chatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
+        // Event Listener para Abrir/Cerrar
+        toggleButton.onclick = () => {
+            const isVisible = chatContainer.style.display === 'flex';
+            chatContainer.style.display = isVisible ? 'none' : 'flex';
+            if (!isVisible) setTimeout(() => chatInput.focus(), 100);
+        };
+
+        sendButton.onclick = () => sendMessage();
+
+        chatInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') { 
+                event.preventDefault(); 
                 sendMessage();
             }
         });
+        
+        // Event Listeners para los botones de Sugerencia
+        suggestionButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const question = button.getAttribute('data-question');
+                sendMessage(question); // Llama a sendMessage con la pregunta del botón
+            });
+        });
+        
+        // Foco inicial al abrir la ventana
+        if (chatContainer.style.display === 'flex') {
+             chatInput.focus();
+        }
     </script>
 </body>
 </html>
