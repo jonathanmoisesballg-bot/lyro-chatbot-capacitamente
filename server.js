@@ -7,7 +7,8 @@ const express = require('express');
 const cors = require('cors');
 
 const app = express();
-const port = process.env.PORT || 3000; 
+// CORRECCIÓN 1: Usamos PORT o 10000 como default, que es lo que Render requiere.
+const port = process.env.PORT || 10000; 
 
 // Inicializar la API de Gemini 
 const apiKey = process.env.GEMINI_API_KEY;
@@ -26,14 +27,14 @@ Eres Lyro-Capacítamente, un asistente virtual amable y servicial. Tu objetivo e
 
 Utiliza la siguiente información para las consultas sobre la Fundación:
 - Misión Principal: Ofrecer capacitación de alto valor en habilidades blandas y digitales esenciales para el desarrollo profesional y empresarial.
-- Cursos con Certificado (Costo e Instructor): Estos cursos tienen un costo y ofrecen un certificado de culminación:
+- Cursos con Certificado (Costo e Instructor):
     - Formador de Formadores ($120): Impartido por Tatiana Arias.
     - Inteligencia Emocional ($15): Impartido por Tatiana Arias.
     - TECNOLOGÍA PARA PADRES ($15): Impartido por Yadira Suárez.
     - Contabilidad para no contadores (Próximamente - $20): Impartido por E Arias.
     - Docencia Virtual (Próximamente - $20): Impartido por Tatiana Arias.
     - Habilidades Cognitivas y Emocionales. Metodología Aprender a Pensar (Próximamente - $20): Impartido por Tatiana Arias.
-- Cursos Gratuitos (Instructor): Estos cursos se ofrecen sin costo:
+- Cursos Gratuitos (Instructor):
     - Tecnología para Educadores: Impartido por Tatiana Arias.
     - Metodología de la Pregunta (Próximamente): Impartido por Tatiana Arias.
     - Neuroeducación… También en casa (Próximamente): Impartido por Prosandoval.
@@ -44,7 +45,7 @@ Utiliza la siguiente información para las consultas sobre la Fundación:
     - Correo electrónico para consultas e inscripción: info@fundacioncapacitamente.com y cursos@fundacioncapacitamente.com
     - Ubicación: Guayaquil - Ecuador
 - Inscripción: Es un proceso simple: se completa el formulario en la web y se envía el comprobante de pago al correo de inscripción.
-- **Donaciones (Guía Paso a Paso):** La Fundación acepta donaciones para apoyar su causa. El proceso es online: 1. Ingresar a la sección de Donaciones y haz clic en el botón "Donar ahora". 2. Elegir Cantidad: Selecciona un monto (ej. $10, $25, $100, etc.) o ingresa una "Cantidad personalizada". Luego presiona "Continuar". 3. Tus Datos: Llena el formulario con tu Nombre, Apellidos y Dirección de correo electrónico. 4. Método de Pago: Elige entre "Donar con Transferencia Bancaria" o "Donar con PayPal". 5. Finalizar: Haz clic en el botón verde "Donar ahora" para completar el proceso de forma segura.
+- **Donaciones (Guía Paso a Paso):** Para realizar una donación a la Fundación Capacítamente, sigue estos pasos: 1. Ingresar a la sección de Donaciones y haz clic en el botón "Donar ahora". 2. Elegir Cantidad: Selecciona un monto (ej. $10, $25, $100, etc.) o ingresa una "Cantidad personalizada". Luego presiona "Continuar". 3. Tus Datos: Llena el formulario con tu Nombre, Apellidos y Dirección de correo electrónico. 4. Método de Pago: Elige entre "Donar con Transferencia Bancaria" o "Donar con PayPal". 5. Finalizar: Haz clic en el botón verde "Donar ahora" para completar el proceso de forma segura.
 
 Tu respuesta debe ser siempre amable, profesional y motivadora. Si la pregunta no es sobre la Fundación, utiliza tu conocimiento general para responder de forma útil y eficiente, manteniendo tu personalidad de asistente.
 `;
@@ -58,7 +59,7 @@ app.post('/chat', async (req, res) => {
             return res.status(400).json({ reply: "Mensaje no proporcionado." });
         }
         
-        const model = genAI.getGenerativeModel({ 
+        const model = ai.getGenerativeModel({ 
             model: 'gemini-2.5-flash',
             config: {
                  systemInstruction: systemInstruction,
@@ -79,6 +80,7 @@ app.post('/chat', async (req, res) => {
 });
 
 // 5. Iniciar el servidor
-app.listen(port, () => {
+// CORRECCIÓN 2: Se añade '0.0.0.0' para bindear el host, lo que soluciona el error 502 de Render.
+app.listen(port, '0.0.0.0', () => { 
     console.log(`Servidor Node.js escuchando en el puerto ${port}`);
 });
