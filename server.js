@@ -7,8 +7,7 @@ const express = require('express');
 const cors = require('cors');
 
 const app = express();
-// CORRECCIÓN 1: Usamos PORT o 10000 como default, que es lo que Render requiere.
-const port = process.env.PORT || 10000; 
+const port = process.env.PORT || 10000; // CORRECCIÓN 1: Render usa 10000
 
 // Inicializar la API de Gemini 
 const apiKey = process.env.GEMINI_API_KEY;
