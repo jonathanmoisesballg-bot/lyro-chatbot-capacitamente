@@ -1,26 +1,28 @@
 // server.js
 
-// 1. Cargar dependencias y la clave API de .env
+// 1. Cargar dependencias
 require('dotenv').config();
-const { GoogleGenAI } = require('@google/genai');
+const { GoogleGenerativeAI } = require('@google/generative-ai'); // Usamos la librería correcta
 const express = require('express');
 const cors = require('cors');
 
 const app = express();
-const port = process.env.PORT || 10000; // CORRECCIÓN 1: Render usa 10000
+// CORRECCIÓN 1: Puerto 10000 para Render
+const port = process.env.PORT || 10000; 
 
 // Inicializar la API de Gemini 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
-    console.error("Error: GEMINI_API_KEY no está configurada. Verifica las Variables de Entorno de Render.");
+    console.error("Error: GEMINI_API_KEY no está configurada.");
 }
-const ai = new GoogleGenAI({ apiKey: apiKey }); 
+// CORRECCIÓN 2: Usamos 'genAI' como nombre estándar
+const genAI = new GoogleGenerativeAI(apiKey);
 
 // 2. MIDDLEWARE
 app.use(cors()); 
 app.use(express.json()); 
 
-// 3. DEFINICIÓN: Base de Conocimiento de la Fundación Capacítamente (FINAL, EFICIENTE Y COMPLETA)
+// 3. DEFINICIÓN: Base de Conocimiento (Tu información completa de la Fundación)
 const systemInstruction = `
 Eres Lyro-Capacítamente, un asistente virtual amable y servicial. Tu objetivo es proporcionar información precisa, completa y concisa sobre la Fundación Capacítamente (https://fundacioncapacitamente.com/) y sus actividades, además de responder preguntas de conocimiento general.
 
@@ -41,7 +43,7 @@ Utiliza la siguiente información para las consultas sobre la Fundación:
 - Contacto y Ubicación:
     - Celular: 0983222358
     - Teléfono fijo: 046026948
-    - Correo electrónico para consultas e inscripción: info@fundacioncapacitamente.com y cursos@fundacioncapacitamente.com
+    - Correo electrónico: info@fundacioncapacitamente.com y cursos@fundacioncapacitamente.com
     - Ubicación: Guayaquil - Ecuador
 - Inscripción: Es un proceso simple: se completa el formulario en la web y se envía el comprobante de pago al correo de inscripción.
 - **Donaciones (Guía Paso a Paso):** Para realizar una donación a la Fundación Capacítamente, sigue estos pasos: 1. Ingresar a la sección de Donaciones y haz clic en el botón "Donar ahora". 2. Elegir Cantidad: Selecciona un monto (ej. $10, $25, $100, etc.) o ingresa una "Cantidad personalizada". Luego presiona "Continuar". 3. Tus Datos: Llena el formulario con tu Nombre, Apellidos y Dirección de correo electrónico. 4. Método de Pago: Elige entre "Donar con Transferencia Bancaria" o "Donar con PayPal". 5. Finalizar: Haz clic en el botón verde "Donar ahora" para completar el proceso de forma segura.
@@ -58,17 +60,29 @@ app.post('/chat', async (req, res) => {
             return res.status(400).json({ reply: "Mensaje no proporcionado." });
         }
         
-        const model = ai.getGenerativeModel({ 
-            model: 'gemini-2.5-flash',
-            config: {
-                 systemInstruction: systemInstruction,
-            }
+        // CORRECCIÓN 3: Sintaxis correcta para llamar al modelo
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-1.5-flash",
+            systemInstruction: systemInstruction // Instrucción del sistema va aquí en la nueva versión
         });
         
-        const chat = model.startChat({});
+        // Iniciar chat (sin historial previo por simplicidad en este punto)
+        const chat = model.startChat({
+             history: [
+                {
+                    role: "user",
+                    parts: [{ text: "Hola, eres Lyro." }],
+                },
+                {
+                    role: "model",
+                    parts: [{ text: "¡Hola! Soy Lyro-Capacítamente. ¿En qué puedo ayudarte?" }],
+                },
+            ],
+        });
         
-        const result = await chat.sendMessage({ message: userMessage });
-        const botReply = result.text;
+        const result = await chat.sendMessage(userMessage);
+        const response = await result.response;
+        const botReply = response.text();
         
         res.json({ reply: botReply });
 
@@ -79,7 +93,6 @@ app.post('/chat', async (req, res) => {
 });
 
 // 5. Iniciar el servidor
-// CORRECCIÓN 2: Se añade '0.0.0.0' para bindear el host, lo que soluciona el error 502 de Render.
 app.listen(port, '0.0.0.0', () => { 
     console.log(`Servidor Node.js escuchando en el puerto ${port}`);
 });
