@@ -7,7 +7,7 @@ const express = require('express');
 const cors = require('cors');
 
 const app = express();
-// Puerto 10000 para Render, o usa el puerto por defecto (3000) si no se especifica.
+// Puerto para Render
 const port = process.env.PORT || 10000; 
 
 // Inicializar la API de Gemini 
@@ -24,7 +24,7 @@ const genAI = new GoogleGenerativeAI(apiKey);
 app.use(cors()); 
 app.use(express.json()); 
 
-// 3. DEFINICIÓN: Base de Conocimiento y Modelo (Inicializado una sola vez)
+// 3. DEFINICIÓN: Base de Conocimiento
 const systemInstruction = `
 Eres Lyro-Capacítamente, un asistente virtual amable y servicial. Tu objetivo es proporcionar información precisa, completa y concisa sobre la Fundación Capacítamente (https://fundacioncapacitamente.com/) y sus actividades, además de responder preguntas de conocimiento general.
 
@@ -56,16 +56,21 @@ Utiliza la siguiente información para las consultas sobre la Fundación:
 Si la pregunta no es sobre la Fundación, usa tu conocimiento general.
 `;
 
-// CORRECCIÓN Y OPTIMIZACIÓN: Inicializamos el modelo solo una vez.
-// Esto es más eficiente que hacerlo en cada solicitud.
+// CORRECCIÓN CRÍTICA y OPTIMIZACIÓN: Inicializamos el modelo solo una vez.
 const model = genAI.getGenerativeModel({ 
-    // CORRECCIÓN CRÍTICA: Usamos el nombre de modelo actual.
+    // ¡ESTO SOLUCIONA EL ERROR 404!
     model: "gemini-2.5-flash", 
     systemInstruction: systemInstruction
 });
 
 
-// 4. ENDPOINT
+// RUTA OPCIONAL: Para verificar que el servidor está activo (GET /)
+app.get('/', (req, res) => {
+    res.status(200).send("Chatbot Lyro está activo y esperando solicitudes POST a /chat.");
+});
+
+
+// 4. ENDPOINT PRINCIPAL: Maneja la solicitud POST para el chat
 app.post('/chat', async (req, res) => {
     try {
         const userMessage = req.body.message;
@@ -74,8 +79,7 @@ app.post('/chat', async (req, res) => {
             return res.status(400).json({ reply: "Mensaje no proporcionado." });
         }
         
-        // 🚨 CAMBIO: Usamos generateContent directamente en el modelo preconfigurado
-        // Esto es ideal para una interacción pregunta/respuesta sin historial.
+        // 🚨 USO EFICIENTE: generateContent en el modelo preconfigurado
         const result = await model.generateContent(userMessage);
         
         const botReply = result.text;
@@ -84,6 +88,7 @@ app.post('/chat', async (req, res) => {
 
     } catch (error) {
         console.error("Error al generar contenido:", error);
+        // Si el error es una llamada fallida a Gemini, el estado 500 es apropiado.
         res.status(500).json({ reply: "Lo siento, hubo un error interno. Intenta de nuevo más tarde." });
     }
 });
