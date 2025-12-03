@@ -2,32 +2,35 @@
 
 // 1. Cargar dependencias
 require('dotenv').config();
-const { GoogleGenerativeAI } = require('@google/generative-ai'); // Usamos la librería correcta
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const express = require('express');
 const cors = require('cors');
 
 const app = express();
-// CORRECCIÓN 1: Puerto 10000 para Render
+// Puerto 10000 para Render, o usa el puerto por defecto (3000) si no se especifica.
 const port = process.env.PORT || 10000; 
 
 // Inicializar la API de Gemini 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
     console.error("Error: GEMINI_API_KEY no está configurada.");
+    // Detener la ejecución si no hay clave API
+    process.exit(1); 
 }
-// CORRECCIÓN 2: Usamos 'genAI' como nombre estándar
+
 const genAI = new GoogleGenerativeAI(apiKey);
 
 // 2. MIDDLEWARE
 app.use(cors()); 
 app.use(express.json()); 
 
-// 3. DEFINICIÓN: Base de Conocimiento (Tu información completa de la Fundación)
+// 3. DEFINICIÓN: Base de Conocimiento y Modelo (Inicializado una sola vez)
 const systemInstruction = `
 Eres Lyro-Capacítamente, un asistente virtual amable y servicial. Tu objetivo es proporcionar información precisa, completa y concisa sobre la Fundación Capacítamente (https://fundacioncapacitamente.com/) y sus actividades, además de responder preguntas de conocimiento general.
 
 Utiliza la siguiente información para las consultas sobre la Fundación:
 - Misión Principal: Ofrecer capacitación de alto valor en habilidades blandas y digitales esenciales para el desarrollo profesional y empresarial.
+- Cursos Principales: Ofrecemos una amplia variedad de cursos especializados en habilidades blandas y digitales.
 - Cursos con Certificado (Costo e Instructor):
     - Formador de Formadores ($120): Impartido por Tatiana Arias.
     - Inteligencia Emocional ($15): Impartido por Tatiana Arias.
@@ -39,17 +42,28 @@ Utiliza la siguiente información para las consultas sobre la Fundación:
     - Tecnología para Educadores: Impartido por Tatiana Arias.
     - Metodología de la Pregunta (Próximamente): Impartido por Tatiana Arias.
     - Neuroeducación… También en casa (Próximamente): Impartido por Prosandoval.
-- Docentes: Los cursos son impartidos por profesionales expertos. Los instructores clave son Tatiana Arias, Yadira Suárez, E Arias y Prosendovel. Todos son expertos reconocidos en sus áreas.
-- Contacto y Ubicación:
+- Docentes: Tatiana Arias, Yadira Suárez, E Arias, Prosandoval.
+- Contacto: 
     - Celular: 0983222358
-    - Teléfono fijo: 046026948
-    - Correo electrónico: info@fundacioncapacitamente.com y cursos@fundacioncapacitamente.com
+    - Correo: info@fundacioncapacitamente.com
     - Ubicación: Guayaquil - Ecuador
-- Inscripción: Es un proceso simple: se completa el formulario en la web y se envía el comprobante de pago al correo de inscripción.
-- **Donaciones (Guía Paso a Paso):** Para realizar una donación a la Fundación Capacítamente, sigue estos pasos: 1. Ingresar a la sección de Donaciones y haz clic en el botón "Donar ahora". 2. Elegir Cantidad: Selecciona un monto (ej. $10, $25, $100, etc.) o ingresa una "Cantidad personalizada". Luego presiona "Continuar". 3. Tus Datos: Llena el formulario con tu Nombre, Apellidos y Dirección de correo electrónico. 4. Método de Pago: Elige entre "Donar con Transferencia Bancaria" o "Donar con PayPal". 5. Finalizar: Haz clic en el botón verde "Donar ahora" para completar el proceso de forma segura.
+- **Donaciones (Guía Paso a Paso):** 1. Ingresar a la sección de Donaciones en la web y haz clic en "Donar ahora". 
+    2. Elegir Cantidad ($10, $25, etc.) o personalizada. Clic en "Continuar". 
+    3. Llenar tus Datos (Nombre, Apellidos, Correo). 
+    4. Elegir Método de Pago (Transferencia o PayPal). 
+    5. Clic en "Donar ahora" para finalizar.
 
-Tu respuesta debe ser siempre amable, profesional y motivadora. Si la pregunta no es sobre la Fundación, utiliza tu conocimiento general para responder de forma útil y eficiente, manteniendo tu personalidad de asistente.
+Si la pregunta no es sobre la Fundación, usa tu conocimiento general.
 `;
+
+// CORRECCIÓN Y OPTIMIZACIÓN: Inicializamos el modelo solo una vez.
+// Esto es más eficiente que hacerlo en cada solicitud.
+const model = genAI.getGenerativeModel({ 
+    // CORRECCIÓN CRÍTICA: Usamos el nombre de modelo actual.
+    model: "gemini-2.5-flash", 
+    systemInstruction: systemInstruction
+});
+
 
 // 4. ENDPOINT
 app.post('/chat', async (req, res) => {
@@ -60,29 +74,11 @@ app.post('/chat', async (req, res) => {
             return res.status(400).json({ reply: "Mensaje no proporcionado." });
         }
         
-        // CORRECCIÓN 3: Sintaxis correcta para llamar al modelo
-        const model = genAI.getGenerativeModel({ 
-            model: "gemini-1.5-flash",
-            systemInstruction: systemInstruction // Instrucción del sistema va aquí en la nueva versión
-        });
+        // 🚨 CAMBIO: Usamos generateContent directamente en el modelo preconfigurado
+        // Esto es ideal para una interacción pregunta/respuesta sin historial.
+        const result = await model.generateContent(userMessage);
         
-        // Iniciar chat (sin historial previo por simplicidad en este punto)
-        const chat = model.startChat({
-             history: [
-                {
-                    role: "user",
-                    parts: [{ text: "Hola, eres Lyro." }],
-                },
-                {
-                    role: "model",
-                    parts: [{ text: "¡Hola! Soy Lyro-Capacítamente. ¿En qué puedo ayudarte?" }],
-                },
-            ],
-        });
-        
-        const result = await chat.sendMessage(userMessage);
-        const response = await result.response;
-        const botReply = response.text();
+        const botReply = result.text;
         
         res.json({ reply: botReply });
 
@@ -92,7 +88,7 @@ app.post('/chat', async (req, res) => {
     }
 });
 
-// 5. Iniciar el servidor
+// 5. Iniciar el servidor (Bind 0.0.0.0 para Render)
 app.listen(port, '0.0.0.0', () => { 
     console.log(`Servidor Node.js escuchando en el puerto ${port}`);
 });
