@@ -1,184 +1,221 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chatbot Lyro - Fundación Capacítamente</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chatbot Lyro - Fundación Capacítamente</title>
+
+  <style>
+    body { margin: 0; padding: 0; }
+
+    /* Botón Abrir/Cerrar */
+    #chat-toggle{
+      position: fixed; bottom: 20px; right: 20px;
+      padding: 15px 20px; background: #1E90FF; color: white;
+      border: none; border-radius: 30px; cursor: pointer;
+      z-index: 1001; box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      font-weight: bold; transition: background-color 0.3s, transform 0.1s;
+    }
+    #chat-toggle:hover { background: #1C86EE; transform: translateY(-2px); }
+
+    /* WhatsApp (como link-botón) */
+    #whatsapp-toggle{
+      position: fixed; bottom: 20px; right: 200px;
+      padding: 15px 20px; background: #25D366; color: white;
+      border-radius: 30px; cursor: pointer; z-index: 1001;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      font-weight: bold; text-decoration: none;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: transform 0.1s;
+    }
+    #whatsapp-toggle:hover { transform: translateY(-2px); }
+
+    /* Contenedor del chatbot */
+    #chat-container{
+      position: fixed; bottom: 80px; right: 20px;
+      width: 350px; height: 450px;
+      background: #FFFFFF; border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+      z-index: 1000;
+      display: none;              /* cerrado por defecto */
+      flex-direction: column;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+    #chat-container.open{ display: flex; } /* abierto */
+
+    #chat-header{
+      background: #1E90FF; color: white; padding: 15px;
+      text-align: center; font-weight: bold; font-size: 1.1em;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    #chat-messages{
+      flex-grow: 1;
+      padding: 10px;
+      overflow-y: auto;
+      background: #F4F7F9;
+      display: flex;              /* ✅ necesario para align-self */
+      flex-direction: column;     /* ✅ */
+    }
+
+    .message{
+      padding: 8px 12px; margin-bottom: 10px;
+      border-radius: 18px; max-width: 80%;
+      line-height: 1.4; word-wrap: break-word;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .user{ background: #DCF8C6; align-self: flex-end; margin-left: auto; }
+    .bot{ background: #FFFFFF; align-self: flex-start; margin-right: auto; border: 1px solid #E0E0E0; }
+
+    #suggestion-buttons{
+      padding: 10px; background: #F4F7F9;
+      display: flex; flex-wrap: wrap; gap: 5px;
+      border-top: 1px solid #EEEEEE;
+    }
+    .suggestion{
+      background: #FFFFFF; color: #1E90FF;
+      border: 1px solid #1E90FF;
+      padding: 8px 12px; border-radius: 20px;
+      cursor: pointer; font-size: 0.85em;
+      transition: background-color 0.2s, color 0.2s;
+    }
+    .suggestion:hover{ background: #1E90FF; color: white; }
+
+    #chat-input-area{
+      display: flex; padding: 10px;
+      border-top: 1px solid #EEEEEE;
+      background: white;
+    }
+    #chat-input{
+      flex-grow: 1; padding: 10px;
+      border: 1px solid #E0E0E0;
+      border-radius: 20px; margin-right: 8px;
+      font-size: 1em; outline: none;
+    }
+    #send-button{
+      background: #1E90FF; color: white;
+      border: none; border-radius: 20px;
+      padding: 10px 15px; font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    #send-button:disabled{ opacity: 0.7; cursor: not-allowed; }
+  </style>
 </head>
+
 <body>
+  <button id="chat-toggle">🤖 Chatea con Lyro</button>
 
-    <button id="chat-toggle">🤖 Chatea con Lyro</button>
-    
-    <a href="https://wa.me/593991667561" target="_blank">
-        <button id="whatsapp-toggle">
-             WhatsApp
-        </button>
-    </a>
+  <a id="whatsapp-toggle" href="https://wa.me/593991667561" target="_blank" rel="noopener noreferrer">
+    WhatsApp
+  </a>
 
-    <div id="chat-container" style="display: none;">
-        <div id="chat-header">
-            Lyro-Capacítamente (Asistente IA)
-        </div>
-        
-        <div id="chat-messages">
-            <div class="message bot">Hola, soy Lyro-Capacítamente, tu asistente de IA. ¿En qué puedo ayudarte hoy?</div>
-        </div>
-        
-        <div id="suggestion-buttons">
-            <button class="suggestion" data-question="¿Qué cursos de pago tienen y sus precios?">Cursos y Precios</button>
-            <button class="suggestion" data-question="¿Cómo me contacto o hago una inscripción?">Contacto e Inscripción</button>
-            <button class="suggestion" data-question="¿Cómo hago para hacer una donación?">Donación</button>
-        </div>
-        <div id="chat-input-area">
-            <input type="text" id="chat-input" placeholder="Escribe tu pregunta...">
-            <button id="send-button">Enviar</button>
-        </div>
+  <div id="chat-container">
+    <div id="chat-header">Lyro-Capacítamente (Asistente IA)</div>
+
+    <div id="chat-messages">
+      <div class="message bot">Hola, soy Lyro-Capacítamente, tu asistente de IA. ¿En qué puedo ayudarte hoy?</div>
     </div>
 
-    <style>
-        /* Estilos generales */
-        body { margin: 0; padding: 0; }
-        
-        /* Botón de Abrir/Cerrar Chatbot */
-        #chat-toggle {
-            position: fixed; bottom: 20px; right: 20px; padding: 15px 20px; background: #1E90FF; color: white; border: none; border-radius: 30px; cursor: pointer; z-index: 1001; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); font-weight: bold; transition: background-color 0.3s, transform 0.1s;
-        }
-        #chat-toggle:hover { background: #1C86EE; transform: translateY(-2px); }
-        
-        /* Botón de WhatsApp */
-        #whatsapp-toggle {
-            position: fixed; bottom: 20px; right: 200px; padding: 15px 20px; background: #25D366; color: white; border: none; border-radius: 30px; cursor: pointer; z-index: 1001; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); font-weight: bold; transition: background-color 0.3s, transform 0.1s;
-        }
-        
-        /* Contenedor del chatbot */
-        #chat-container {
-            display: none; position: fixed; bottom: 80px; right: 20px; width: 350px; height: 450px; background: #FFFFFF; border-radius: 12px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3); z-index: 1000; display: flex; flex-direction: column; overflow: hidden; font-family: Arial, sans-serif;
-        }
-        
-        /* Encabezado del chat */
-        #chat-header {
-            background: #1E90FF; color: white; padding: 15px; text-align: center; font-weight: bold; font-size: 1.1em; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
+    <div id="suggestion-buttons">
+      <button class="suggestion" data-question="¿Qué cursos de pago tienen y sus precios?">Cursos y Precios</button>
+      <button class="suggestion" data-question="¿Cómo me contacto o hago una inscripción?">Contacto e Inscripción</button>
+      <button class="suggestion" data-question="¿Cómo hago para hacer una donación?">Donación</button>
+      <button class="suggestion" data-question="¿Qué cursos gratuitos ofrece la fundación?">Cursos Gratuitos</button>
+    </div>
 
-        /* Área de Sugerencias */
-        #suggestion-buttons {
-            padding: 10px; background: #F4F7F9; display: flex; flex-wrap: wrap; gap: 5px; border-top: 1px solid #EEEEEE;
-        }
-        
-        .suggestion {
-            background: #FFFFFF; color: #1E90FF; border: 1px solid #1E90FF; padding: 8px 12px; border-radius: 20px; cursor: pointer; font-size: 0.85em; transition: background-color 0.2s, color 0.2s;
-        }
-        
-        .suggestion:hover {
-            background: #1E90FF; color: white;
-        }
-        
-        /* Resto de estilos (Mensajes, Input, Responsivo) */
-        #chat-messages { flex-grow: 1; padding: 10px; overflow-y: auto; background: #F4F7F9; }
-        .message { padding: 8px 12px; margin-bottom: 10px; border-radius: 18px; max-width: 80%; line-height: 1.4; word-wrap: break-word; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); }
-        .user { background: #DCF8C6; align-self: flex-end; margin-left: auto; }
-        .bot { background: #FFFFFF; align-self: flex-start; margin-right: auto; border: 1px solid #E0E0E0; }
-        #chat-input-area { display: flex; padding: 10px; border-top: 1px solid #EEEEEE; background: white; }
-        #chat-input { flex-grow: 1; padding: 10px; border: 1px solid #E0E0E0; border-radius: 20px; margin-right: 8px; font-size: 1em; outline: none; }
-        #send-button { background: #1E90FF; color: white; border: none; border-radius: 20px; padding: 10px 15px; font-weight: bold; transition: background-color 0.3s; }
-        /* Media Queries omitidas para brevedad... */
-    </style>
+    <div id="chat-input-area">
+      <input type="text" id="chat-input" placeholder="Escribe tu pregunta..." />
+      <button id="send-button">Enviar</button>
+    </div>
+  </div>
 
-    <script>
-       const SERVER_URL = 'https://lyro-chatbot-capacitamente.onrender.com';
+  <script>
+    const SERVER_URL = "https://lyro-chatbot-capacitamente.onrender.com";
 
-        const toggleButton = document.getElementById('chat-toggle');
-        const chatContainer = document.getElementById('chat-container');
-        const sendButton = document.getElementById('send-button');
-        const chatInput = document.getElementById('chat-input');
-        const chatMessages = document.getElementById('chat-messages');
-        const suggestionButtons = document.querySelectorAll('#suggestion-buttons .suggestion');
+    // ✅ sessionId limpio (sin caracteres raros)
+    let currentSessionId = localStorage.getItem("chatSessionId");
+    if (!currentSessionId) {
+      currentSessionId = "session-" + Date.now() + Math.random().toString(36).substring(2, 9);
+      localStorage.setItem("chatSessionId", currentSessionId);
+    }
 
-        function addMessage(text, sender) {
-            const msg = document.createElement('div');
-            msg.className = 'message ' + sender;
-            msg.innerText = text;
-            chatMessages.appendChild(msg);
-            chatMessages.scrollTop = chatMessages.scrollHeight; 
-        }
+    const toggleButton = document.getElementById("chat-toggle");
+    const chatContainer = document.getElementById("chat-container");
+    const sendButton = document.getElementById("send-button");
+    const chatInput = document.getElementById("chat-input");
+    const chatMessages = document.getElementById("chat-messages");
+    const suggestionButtons = document.querySelectorAll("#suggestion-buttons .suggestion");
 
-        async function sendMessage(questionText = null) {
-            let userMessage;
-            
-            // Determina si el mensaje viene del input o de un botón de sugerencia
-            if (questionText) {
-                userMessage = questionText;
-            } else {
-                userMessage = chatInput.value.trim();
-                if (userMessage === '') return;
-            }
+    function addMessage(text, sender) {
+      const msg = document.createElement("div");
+      msg.className = "message " + sender;
+      msg.textContent = text;
+      chatMessages.appendChild(msg);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+      return msg;
+    }
 
-            addMessage(userMessage, 'user');
-            chatInput.value = '';
+    async function sendMessage(questionText = null) {
+      const userMessage = (questionText ?? chatInput.value.trim());
+      if (!userMessage) return;
 
-            chatInput.disabled = true;
-            sendButton.disabled = true;
-            sendButton.innerText = 'Cargando...'; 
+      addMessage(userMessage, "user");
+      chatInput.value = "";
 
-            try {
-                const response = await fetch(SERVER_URL + '/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: userMessage })
-                });
+      chatInput.disabled = true;
+      sendButton.disabled = true;
 
-                if (!response.ok) {
-                    throw new Error(`Error ${response.status}: El servidor de IA falló.`);
-                }
+      const typing = addMessage("Escribiendo…", "bot");
 
-                const data = await response.json();
-                const botResponse = data.reply || data.error; // Maneja el formato de respuesta de Node.js
-                
-                if (!botResponse) {
-                   throw new Error('Respuesta de API vacía o malformada.');
-                }
-                
-                addMessage(botResponse, 'bot');
-
-            } catch (error) {
-                console.error("Error al obtener la respuesta de Lyro:", error);
-                addMessage('Lo siento, estoy teniendo problemas de conexión. Por favor intenta más tarde.', 'bot');
-            } finally {
-                chatInput.disabled = false;
-                sendButton.disabled = false;
-                sendButton.innerText = 'Enviar';
-                chatInput.focus();
-            }
-        }
-
-        // Event Listener para Abrir/Cerrar
-        toggleButton.onclick = () => {
-            const isVisible = chatContainer.style.display === 'flex';
-            chatContainer.style.display = isVisible ? 'none' : 'flex';
-            if (!isVisible) setTimeout(() => chatInput.focus(), 100);
-        };
-
-        sendButton.onclick = () => sendMessage();
-
-        chatInput.addEventListener('keypress', (event) => {
-            if (event.key === 'Enter') { 
-                event.preventDefault(); 
-                sendMessage();
-            }
+      try {
+        const response = await fetch(SERVER_URL + "/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: userMessage, sessionId: currentSessionId })
         });
-        
-        // Event Listeners para los botones de Sugerencia
-        suggestionButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                const question = button.getAttribute('data-question');
-                sendMessage(question); // Llama a sendMessage con la pregunta del botón
-            });
-        });
-        
-        // Foco inicial al abrir la ventana
-        if (chatContainer.style.display === 'flex') {
-             chatInput.focus();
+
+        if (!response.ok) {
+          const raw = await response.text().catch(() => "");
+          throw new Error("HTTP " + response.status + " " + raw);
         }
-    </script>
+
+        const data = await response.json();
+        const botResponse = (data && (data.reply || data.error)) || "No recibí respuesta del servidor.";
+
+        typing.textContent = botResponse;
+
+      } catch (error) {
+        console.error("Error al obtener la respuesta de Lyro:", error);
+        typing.textContent = "Lo siento, estoy teniendo problemas de conexión. Intenta más tarde.";
+      } finally {
+        chatInput.disabled = false;
+        sendButton.disabled = false;
+        chatInput.focus();
+      }
+    }
+
+    // ✅ toggle con clase (más robusto)
+    toggleButton.addEventListener("click", () => {
+      chatContainer.classList.toggle("open");
+      if (chatContainer.classList.contains("open")) {
+        setTimeout(() => chatInput.focus(), 100);
+      }
+    });
+
+    sendButton.addEventListener("click", () => sendMessage());
+
+    chatInput.addEventListener("keypress", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        sendMessage();
+      }
+    });
+
+    suggestionButtons.forEach((btn) => {
+      btn.addEventListener("click", () => sendMessage(btn.getAttribute("data-question")));
+    });
+  </script>
 </body>
 </html>

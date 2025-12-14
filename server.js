@@ -1,105 +1,124 @@
-// server.js (VERSIÓN FINAL Y MÁS ROBUSTA PARA AMBIENTES LOCALES)
+// server.js (FINAL con @google/genai)
 
-// 1. Cargar dependencias
-require('dotenv').config();
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const express = require('express');
-const cors = require('cors');
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import { GoogleGenAI } from '@google/genai';
 
 const app = express();
-const port = process.env.PORT || 10000; 
+const port = process.env.PORT || 10000;
 
-// Inicializar la API de Gemini 
-const apiKey = process.env.GEMINI_API_KEY;
+const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 if (!apiKey) {
-    console.error("Error: GEMINI_API_KEY no está configurada. Por favor, revisa tu archivo .env.");
+  console.error("❌ Falta GEMINI_API_KEY (o GOOGLE_API_KEY) en variables de entorno.");
+  process.exit(1);
 }
-const genAI = new GoogleGenerativeAI(apiKey);
 
-// ⚠️ ESTRUCTURA CLAVE: Caché en memoria para almacenar las sesiones de chat
-const chatSessions = {}; 
+const ai = new GoogleGenAI({ apiKey });
 
-// 2. MIDDLEWARE
-app.use(cors()); 
-// 💥 CORRECCIÓN DE PARSEO JSON: Usamos strict: false para mayor compatibilidad
-app.use(express.json({ strict: false })); 
+// Sesiones en memoria
+const sessions = new Map();
+const SESSION_TTL_MS = 30 * 60 * 1000;
+const MAX_SESSIONS = 300;
 
-// 3. DEFINICIÓN: Base de Conocimiento (System Instruction)
+setInterval(() => {
+  const now = Date.now();
+
+  for (const [sid, s] of sessions.entries()) {
+    if (now - s.lastAccess > SESSION_TTL_MS) sessions.delete(sid);
+  }
+
+  if (sessions.size > MAX_SESSIONS) {
+    const ordered = [...sessions.entries()].sort((a, b) => a[1].lastAccess - b[1].lastAccess);
+    const extra = sessions.size - MAX_SESSIONS;
+    for (let i = 0; i < extra; i++) sessions.delete(ordered[i][0]);
+  }
+}, 60 * 1000);
+
+app.use(cors());
+app.use(express.json({ strict: false, limit: '1mb' }));
+
 const systemInstruction = `
 Eres Lyro-Capacítamente, un asistente virtual amable y servicial. Tu objetivo es proporcionar información precisa, completa y concisa sobre la Fundación Capacítamente (https://fundacioncapacitamente.com/) y sus actividades, además de responder preguntas de conocimiento general.
 
 Utiliza la siguiente información para las consultas sobre la Fundación:
 - Misión Principal: Ofrecer capacitación de alto valor en habilidades blandas y digitales esenciales para el desarrollo profesional y empresarial.
-- Cursos Principales: Ofrecemos una amplia variedad de cursos especializados en habilidades blandas y digitales.
 - Cursos con Certificado (Costo e Instructor):
-    - Formador de Formadores ($120): Impartido por Tatiana Arias.
-    - Inteligencia Emocional ($15): Impartido por Tatiana Arias.
-    - TECNOLOGÍA PARA PADRES ($15): Impartido por Yadira Suárez.
-    - Contabilidad para no contadores (Próximamente - $20): Impartido por E Arias.
-    - Docencia Virtual (Próximamente - $20): Impartido por Tatiana Arias.
-    - Habilidades Cognitivas y Emocionales. Metodología Aprender a Pensar (Próximamente - $20): Impartido por Tatiana Arias.
-- Cursos Gratuitos (Instructor):
-    - Tecnología para Educadores: Impartido por Tatiana Arias.
-    - Metodología de la Pregunta (Próximamente): Impartido por Tatiana Arias.
-    - Neuroeducación… También en casa (Próximamente): Impartido por Prosandoval.
-- Docentes: Tatiana Arias, Yadira Suárez, E Arias, Prosandoval.
-- Contacto: 
-    - Celular: 0983222358
-    - Correo: info@fundacioncapacitamente.com
-    - Ubicación: Guayaquil - Ecuador
-- **Donaciones (Guía Paso a Paso):** 1. Ingresar a la sección de Donaciones en la web y haz clic en "Donar ahora". 
-    2. Elegir Cantidad ($10, $25, etc.) o personalizada. Clic en "Continuar". 
-    3. Llenar tus Datos (Nombre, Apellidos, Correo). 
-    4. Elegir Método de Pago (Transferencia o PayPal). 
-    5. Clic en "Donar ahora" para finalizar.
+  - Formador de Formadores ($120): Tatiana Arias.
+  - Inteligencia Emocional ($15): Tatiana Arias.
+  - TECNOLOGÍA PARA PADRES ($15): Yadira Suárez.
+  - Contabilidad para no contadores (Próximamente - $20): E Arias.
+  - Docencia Virtual (Próximamente - $20): Tatiana Arias.
+  - Habilidades Cognitivas y Emocionales. Metodología Aprender a Pensar (Próximamente - $20): Tatiana Arias.
+- Cursos Gratuitos:
+  - Tecnología para Educadores: Tatiana Arias.
+  - Metodología de la Pregunta (Próximamente): Tatiana Arias.
+  - Neuroeducación… También en casa (Próximamente): Prosandoval.
+- Contacto:
+  - Celular: 0983222358
+  - Correo: info@fundacioncapacitamente.com
+  - Ubicación: Guayaquil - Ecuador
+- Donaciones (Guía):
+  1) Donaciones -> "Donar ahora"
+  2) Elegir cantidad o personalizada -> "Continuar"
+  3) Llenar datos
+  4) Elegir método (Transferencia o PayPal)
+  5) "Donar ahora"
 
 Si la pregunta no es sobre la Fundación, usa tu conocimiento general.
 `;
 
-// 4. ENDPOINT
-app.post('/chat', async (req, res) => {
-    try {
-        // 💥 MÁXIMA COMPATIBILIDAD: Acceder directamente a req.body para evitar errores de desestructuración
-        const userMessage = req.body.message;
-        const sessionId = req.body.sessionId; 
-        
-        if (!userMessage || userMessage.trim().length === 0) {
-            return res.status(400).json({ reply: "Mensaje no proporcionado." });
-        }
-        
-        if (!sessionId) {
-            return res.status(400).json({ reply: "Se requiere un sessionId para la conversación." });
-        }
-        
-        const model = genAI.getGenerativeModel({ 
-            model: "gemini-2.5-flash",
-            systemInstruction: systemInstruction
-        });
-        
-        let chat;
-        
-        // OBTENER O CREAR LA SESIÓN DE CHAT
-        if (chatSessions[sessionId]) {
-            chat = chatSessions[sessionId]; 
-        } else {
-            chat = model.startChat({ history: [] });
-            chatSessions[sessionId] = chat;
-            console.log(`Nueva sesión creada: ${sessionId}`); 
-        }
-        
-        // CORRECCIÓN FINAL: Se envía userMessage directamente
-        const result = await chat.sendMessage(userMessage); 
-        const botReply = result.response.text;
-        
-        res.json({ reply: botReply, sessionId: sessionId }); 
+// Health
+app.get('/health', (req, res) => res.status(200).send('ok'));
 
-    } catch (error) {
-        console.error("Error al generar contenido:", error);
-        res.status(500).json({ reply: "Lo siento, hubo un error interno. Intenta de nuevo más tarde." });
-    }
+app.post('/chat', async (req, res) => {
+  try {
+    const userMessage = String(req.body?.message || '').trim();
+    let sessionId = String(req.body?.sessionId || '').trim();
+
+    if (!userMessage) {
+      return res.status(400).json({ reply: "Mensaje no proporcionado." });
+    }
+
+    if (!sessionId) {
+      sessionId = `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+
+    let session = sessions.get(sessionId);
+
+    if (!session) {
+      const chat = ai.chats.create({
+        model: 'gemini-2.5-flash',
+        config: {
+          systemInstruction,
+          temperature: 0.3,
+          maxOutputTokens: 600
+        }
+      });
+
+      session = { chat, lastAccess: Date.now() };
+      sessions.set(sessionId, session);
+      console.log("🆕 Nueva sesión:", sessionId);
+    } else {
+      session.lastAccess = Date.now();
+    }
+
+    const response = await session.chat.sendMessage({ message: userMessage });
+    const reply = (typeof response?.text === 'string') ? response.text.trim() : '';
+
+    if (!reply) {
+      return res.status(502).json({ reply: "La IA respondió vacío. Intenta nuevamente.", sessionId });
+    }
+
+    res.set('Cache-Control', 'no-store');
+    return res.json({ reply, sessionId });
+
+  } catch (error) {
+    console.error("❌ Error /chat:", error);
+    return res.status(500).json({ reply: "Lo siento, hubo un error interno. Intenta de nuevo más tarde." });
+  }
 });
 
-// 5. Iniciar el servidor 
-app.listen(port, '0.0.0.0', () => { 
-    console.log(`Servidor Node.js escuchando en el puerto ${port}`);
+app.listen(port, '0.0.0.0', () => {
+  console.log(`✅ Servidor escuchando en puerto ${port}`);
 });
