@@ -8,6 +8,7 @@
   <style>
     body { margin:0; padding:0; }
 
+    /* Botón Abrir/Cerrar */
     #chat-toggle{
       position:fixed; bottom:20px; right:20px; padding:15px 20px;
       background:#1E90FF; color:#fff; border:none; border-radius:30px;
@@ -16,6 +17,7 @@
     }
     #chat-toggle:hover{ filter:brightness(.97); transform: translateY(-2px); }
 
+    /* WhatsApp solo ícono */
     #whatsapp-toggle{
       position:fixed; bottom:20px; right:200px;
       width:56px; height:56px;
@@ -36,9 +38,10 @@
       background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23fff' d='M19.11 17.53c-.27-.13-1.6-.79-1.85-.88-.25-.09-.43-.13-.61.13-.18.27-.7.88-.86 1.06-.16.18-.32.2-.59.07-.27-.13-1.14-.42-2.17-1.34-.8-.71-1.34-1.59-1.5-1.86-.16-.27-.02-.41.12-.55.12-.12.27-.32.41-.48.14-.16.18-.27.27-.45.09-.18.04-.34-.02-.48-.07-.13-.61-1.47-.84-2.01-.22-.53-.45-.46-.61-.47h-.52c-.18 0-.48.07-.73.34-.25.27-.95.93-.95 2.28 0 1.35.98 2.65 1.11 2.83.13.18 1.93 2.95 4.68 4.13.65.28 1.16.45 1.56.57.65.21 1.24.18 1.71.11.52-.08 1.6-.65 1.82-1.28.23-.63.23-1.17.16-1.28-.07-.11-.25-.18-.52-.32z'/%3E%3Cpath fill='%23fff' d='M26.66 5.34A14.9 14.9 0 0016.04.99C7.86.99 1.2 7.64 1.2 15.82c0 2.62.69 5.18 2 7.44L1.08 31l7.9-2.07a14.8 14.8 0 007.06 1.8h.01c8.18 0 14.84-6.65 14.84-14.83 0-3.96-1.55-7.69-4.23-10.56zM16.04 28.2h-.01a12.3 12.3 0 01-6.28-1.72l-.45-.27-4.69 1.23 1.25-4.57-.29-.47a12.3 12.3 0 01-1.89-6.58c0-6.79 5.52-12.31 12.32-12.31a12.24 12.24 0 018.72 3.62 12.25 12.25 0 013.6 8.69c0 6.79-5.52 12.31-12.28 12.38z'/%3E%3C/svg%3E");
     }
 
+    /* Chat */
     #chat-container{
       position:fixed; bottom:80px; right:20px;
-      width:350px; height:450px;
+      width:360px; height:480px;
       max-width:92vw; max-height:75vh;
       background:#fff; border-radius:12px;
       box-shadow:0 8px 30px rgba(0,0,0,.3);
@@ -47,10 +50,98 @@
     }
 
     #chat-header{
-      background:#1E90FF; color:#fff; padding:15px; text-align:center;
-      font-weight:bold; font-size:1.05em;
+      background:#1E90FF; color:#fff; padding:10px 12px;
+      font-weight:bold; font-size:1.02em;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px;
     }
 
+    #chat-header .left, #chat-header .right{
+      display:flex; align-items:center; gap:8px;
+    }
+
+    .header-btn{
+      border:none; cursor:pointer;
+      border-radius:10px;
+      padding:8px 10px;
+      background:rgba(255,255,255,.18);
+      color:#fff; font-weight:700;
+    }
+    .header-btn:hover{ filter:brightness(.98); }
+
+    #chat-title{
+      font-weight:800;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      max-width:210px;
+    }
+
+    /* Drawer Historial */
+    #history-drawer{
+      position:absolute;
+      top:0; left:0; bottom:0;
+      width:78%;
+      background:#0f172a; color:#e5e7eb;
+      z-index:10002;
+      transform: translateX(-105%);
+      transition: transform .18s ease;
+      display:flex;
+      flex-direction:column;
+      border-right:1px solid rgba(255,255,255,.08);
+    }
+    #history-drawer.open{ transform: translateX(0); }
+
+    #history-top{
+      padding:12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      gap:10px;
+    }
+    #history-top b{ font-size:1.02em; }
+
+    #history-list{
+      overflow:auto;
+      padding:10px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+
+    .day-sep{
+      margin:10px 0 2px;
+      font-size:.82em;
+      opacity:.8;
+    }
+
+    .session-item{
+      text-align:left;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.06);
+      color:#e5e7eb;
+      border-radius:12px;
+      padding:10px;
+      cursor:pointer;
+    }
+    .session-item:hover{ background:rgba(255,255,255,.10); }
+
+    .session-item .meta{
+      font-size:.78em; opacity:.8;
+      display:flex; gap:8px; align-items:center;
+      margin-bottom:6px;
+    }
+    .session-item .preview{
+      font-size:.9em;
+      line-height:1.25;
+      opacity:.95;
+      word-break:break-word;
+    }
+    .session-item.active{
+      border-color:rgba(59,130,246,.9);
+      box-shadow:0 0 0 1px rgba(59,130,246,.45) inset;
+    }
+
+    /* Mensajes */
     #chat-messages{
       flex-grow:1; padding:10px; overflow-y:auto; background:#F4F7F9;
       display:flex; flex-direction:column;
@@ -58,14 +149,22 @@
 
     .message{
       padding:8px 12px; margin-bottom:10px; border-radius:18px;
-      max-width:80%; line-height:1.4; word-wrap:break-word;
+      max-width:80%; line-height:1.35; word-wrap:break-word;
       white-space:pre-wrap;
+      position:relative;
     }
     .user{ background:#DCF8C6; align-self:flex-end; margin-left:auto; }
     .bot{ background:#fff; align-self:flex-start; margin-right:auto; border:1px solid #E0E0E0; }
 
+    .time{
+      display:block;
+      font-size:.72em;
+      opacity:.65;
+      margin-top:4px;
+    }
+
     #suggestion-buttons{
-      padding:10px; background:#F4F7F9; display:flex; flex-wrap:wrap; gap:5px;
+      padding:10px; background:#F4F7F9; display:flex; flex-wrap:wrap; gap:6px;
       border-top:1px solid #eee;
     }
     .suggestion{
@@ -83,19 +182,42 @@
 </head>
 
 <body>
+
+  <!-- Botón Chat -->
   <button id="chat-toggle">🤖 Chatea con Lyro</button>
 
+  <!-- Botón WhatsApp -->
   <a id="whatsapp-toggle" href="https://wa.me/593991667561" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
     <span class="wa-icon" aria-hidden="true"></span>
   </a>
 
+  <!-- Contenedor Chat -->
   <div id="chat-container">
-    <div id="chat-header">Lyro-Capacítamente (Asistente IA)</div>
 
-    <div id="chat-messages">
-      <div class="message bot">Hola, soy Lyro-Capacítamente. ¿En qué puedo ayudarte hoy?</div>
+    <!-- Drawer historial -->
+    <div id="history-drawer">
+      <div id="history-top">
+        <b>📚 Historial</b>
+        <button class="header-btn" id="history-close">✕</button>
+      </div>
+      <div id="history-list"></div>
     </div>
 
+    <!-- Header -->
+    <div id="chat-header">
+      <div class="left">
+        <button class="header-btn" id="history-open">☰</button>
+        <div id="chat-title">Lyro-Capacítamente</div>
+      </div>
+      <div class="right">
+        <button class="header-btn" id="new-chat">＋ Nueva</button>
+      </div>
+    </div>
+
+    <!-- Mensajes -->
+    <div id="chat-messages"></div>
+
+    <!-- Sugerencias -->
     <div id="suggestion-buttons">
       <button class="suggestion" data-text="Cursos gratis">Cursos gratis</button>
       <button class="suggestion" data-text="Cursos con certificados y precios">Cursos con certificados y precios</button>
@@ -103,6 +225,7 @@
       <button class="suggestion" data-text="Donar">Donar</button>
     </div>
 
+    <!-- Input -->
     <div id="chat-input-area">
       <input type="text" id="chat-input" placeholder="Escribe tu pregunta...">
       <button id="send-button">Enviar</button>
@@ -112,24 +235,18 @@
   <script>
     const SERVER_URL = "https://lyro-chatbot-capacitamente.onrender.com";
 
-    // clientId estable (para user_key)
-    function makeId() {
-      return "c_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 10);
-    }
-
-    let clientId = localStorage.getItem("lyroClientId");
+    // Identidad estable del usuario (para ver su historial aunque cambie la IP)
+    const CLIENT_ID_KEY = "lyroClientId";
+    let clientId = localStorage.getItem(CLIENT_ID_KEY);
     if (!clientId) {
-      clientId = makeId();
-      localStorage.setItem("lyroClientId", clientId);
+      clientId = (crypto.randomUUID ? crypto.randomUUID() : ("cid-" + Date.now() + "-" + Math.random().toString(36).slice(2)));
+      localStorage.setItem(CLIENT_ID_KEY, clientId);
     }
 
-    // sessionId estable
-    let currentSessionId = localStorage.getItem("chatSessionId");
-    if (!currentSessionId) {
-      currentSessionId = "session-" + Date.now() + "-" + Math.random().toString(36).slice(2);
-      localStorage.setItem("chatSessionId", currentSessionId);
-    }
+    const SESSION_KEY = "chatSessionId";
+    let currentSessionId = localStorage.getItem(SESSION_KEY) || "";
 
+    // UI refs
     const toggleButton = document.getElementById("chat-toggle");
     const chatContainer = document.getElementById("chat-container");
     const sendButton = document.getElementById("send-button");
@@ -137,54 +254,180 @@
     const chatMessages = document.getElementById("chat-messages");
     const suggestionButtons = document.querySelectorAll("#suggestion-buttons .suggestion");
 
-    function addMessage(text, sender) {
-      const msg = document.createElement("div");
-      msg.className = "message " + sender;
-      msg.textContent = text;
-      chatMessages.appendChild(msg);
-      chatMessages.scrollTop = chatMessages.scrollHeight;
+    const historyDrawer = document.getElementById("history-drawer");
+    const historyOpen = document.getElementById("history-open");
+    const historyClose = document.getElementById("history-close");
+    const historyList = document.getElementById("history-list");
+    const newChatBtn = document.getElementById("new-chat");
+
+    function fmtDate(d) {
+      return new Date(d).toLocaleDateString("es-EC", { year:"numeric", month:"2-digit", day:"2-digit" });
+    }
+    function fmtTime(d) {
+      return new Date(d).toLocaleTimeString("es-EC", { hour:"2-digit", minute:"2-digit" });
     }
 
     function clearMessages() {
       chatMessages.innerHTML = "";
     }
 
-    async function loadHistory() {
-      try {
-        const r = await fetch(`${SERVER_URL}/history/${encodeURIComponent(currentSessionId)}?limit=200`, {
-          headers: { "Accept": "application/json" }
+    function addMessage(text, sender, createdAt = null) {
+      const msg = document.createElement("div");
+      msg.className = "message " + sender;
+
+      const content = document.createElement("div");
+      content.textContent = text;
+
+      const time = document.createElement("span");
+      time.className = "time";
+      time.textContent = createdAt ? (fmtDate(createdAt) + " " + fmtTime(createdAt)) : (fmtTime(Date.now()));
+
+      msg.appendChild(content);
+      msg.appendChild(time);
+
+      chatMessages.appendChild(msg);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function roleToSender(role) {
+      const r = String(role || "").toLowerCase();
+      if (r.includes("user") || r.includes("usuario")) return "user";
+      return "bot";
+    }
+
+    async function apiFetch(path, opts = {}) {
+      const headers = Object.assign(
+        { "Content-Type": "application/json", "x-client-id": clientId },
+        (opts.headers || {})
+      );
+
+      const res = await fetch(SERVER_URL + path, {
+        ...opts,
+        headers,
+      });
+
+      const txt = await res.text();
+      let json = null;
+      try { json = JSON.parse(txt); } catch {}
+
+      if (!res.ok) {
+        const msg = (json && (json.error || json.reply)) ? (json.error || json.reply) : txt;
+        throw new Error("HTTP " + res.status + ": " + msg);
+      }
+
+      return json ?? {};
+    }
+
+    // ================
+    // Historial UI
+    // ================
+    async function loadSessionsList() {
+      const data = await apiFetch("/sessions?limit=50", { method: "GET" });
+      const sessions = data.sessions || [];
+
+      historyList.innerHTML = "";
+
+      if (sessions.length === 0) {
+        const empty = document.createElement("div");
+        empty.style.opacity = "0.8";
+        empty.style.fontSize = "0.9em";
+        empty.textContent = "Aún no hay conversaciones. Pulsa “Nueva”.";
+        historyList.appendChild(empty);
+        return;
+      }
+
+      // Agrupar por día (usando last_message_at o created_at)
+      const groups = {};
+      for (const s of sessions) {
+        const stamp = s.last_message_at || s.created_at || Date.now();
+        const day = fmtDate(stamp);
+        if (!groups[day]) groups[day] = [];
+        groups[day].push(s);
+      }
+
+      const orderedDays = Object.keys(groups).sort((a,b) => {
+        // ordenar por fecha desc (parse dd/mm/yyyy)
+        const pa = a.split("/").reverse().join("-");
+        const pb = b.split("/").reverse().join("-");
+        return pb.localeCompare(pa);
+      });
+
+      orderedDays.forEach(day => {
+        const sep = document.createElement("div");
+        sep.className = "day-sep";
+        sep.textContent = "📅 " + day;
+        historyList.appendChild(sep);
+
+        groups[day].forEach(s => {
+          const stamp = s.last_message_at || s.created_at || Date.now();
+          const btn = document.createElement("button");
+          btn.className = "session-item" + (s.session_id === currentSessionId ? " active" : "");
+          btn.innerHTML = `
+            <div class="meta">🕒 ${fmtTime(stamp)} <span style="opacity:.7;">•</span> <span style="opacity:.9;">${s.session_id.slice(0,12)}…</span></div>
+            <div class="preview">${(s.last_message_preview || "Conversación nueva").replace(/</g,"&lt;")}</div>
+          `;
+
+          btn.onclick = async () => {
+            currentSessionId = s.session_id;
+            localStorage.setItem(SESSION_KEY, currentSessionId);
+            await loadHistory(currentSessionId);
+            await loadSessionsList();
+            historyDrawer.classList.remove("open");
+          };
+
+          historyList.appendChild(btn);
         });
+      });
+    }
 
-        if (!r.ok) {
-          // si falla, solo no cargamos historial (sin asustar al usuario)
-          console.warn("Historial HTTP", r.status);
-          return false;
+    async function loadHistory(sessionId) {
+      clearMessages();
+
+      // Si no hay sesión, crea una
+      if (!sessionId) {
+        const s = await apiFetch("/sessions", { method: "POST", body: JSON.stringify({ clientId }) });
+        currentSessionId = s.sessionId;
+        localStorage.setItem(SESSION_KEY, currentSessionId);
+      }
+
+      try {
+        const data = await apiFetch(`/history/${encodeURIComponent(currentSessionId)}?limit=300`, { method: "GET" });
+        const msgs = data.messages || [];
+
+        if (msgs.length === 0) {
+          addMessage("Hola, soy Lyro-Capacítamente. ¿En qué puedo ayudarte hoy?", "bot", new Date().toISOString());
+          return;
         }
-
-        const data = await r.json();
-        const msgs = Array.isArray(data.messages) ? data.messages : [];
-
-        if (msgs.length === 0) return false;
-
-        clearMessages();
 
         for (const m of msgs) {
-          const who = (m.role === "user") ? "user" : "bot";
-          addMessage(m.content || "", who);
+          addMessage(m.content || "", roleToSender(m.role), m.created_at);
         }
-
-        return true;
       } catch (e) {
-        console.warn("No se pudo cargar historial:", e);
-        return false;
+        // si la sesión aún no existe o no se puede leer, muestra saludo
+        addMessage("Hola, soy Lyro-Capacítamente. ¿En qué puedo ayudarte hoy?", "bot", new Date().toISOString());
+        console.warn("No se pudo cargar historial:", e.message);
       }
     }
 
-    async function sendMessage(textOverride = null) {
-      const rawText = (textOverride ? textOverride : (chatInput.value || "")).trim();
+    async function newConversation() {
+      const s = await apiFetch("/sessions", { method: "POST", body: JSON.stringify({ clientId }) });
+      currentSessionId = s.sessionId;
+      localStorage.setItem(SESSION_KEY, currentSessionId);
+
+      clearMessages();
+      addMessage("Nueva conversación creada ✅ ¿Qué deseas preguntar?", "bot", new Date().toISOString());
+
+      await loadSessionsList();
+    }
+
+    // ================
+    // Enviar mensajes
+    // ================
+    async function sendMessage(textFromButton = null) {
+      const rawText = textFromButton ? String(textFromButton) : (chatInput.value || "").trim();
       if (!rawText) return;
 
-      addMessage(rawText, "user");
+      addMessage(rawText, "user", new Date().toISOString());
       chatInput.value = "";
 
       chatInput.disabled = true;
@@ -192,28 +435,21 @@
       sendButton.textContent = "Cargando...";
 
       try {
-        const response = await fetch(SERVER_URL + "/chat", {
+        const data = await apiFetch("/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message: rawText,
-            sessionId: currentSessionId,
-            clientId
-          })
+          body: JSON.stringify({ message: rawText, sessionId: currentSessionId, clientId })
         });
-
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error("HTTP " + response.status + ": " + (data.reply || "Error"));
 
         if (data.sessionId && data.sessionId !== currentSessionId) {
           currentSessionId = data.sessionId;
-          localStorage.setItem("chatSessionId", currentSessionId);
+          localStorage.setItem(SESSION_KEY, currentSessionId);
         }
 
-        addMessage(data.reply || "Sin respuesta.", "bot");
+        addMessage(data.reply || "Sin respuesta.", "bot", new Date().toISOString());
+        await loadSessionsList();
       } catch (err) {
         console.error("Error:", err);
-        addMessage("Lo siento, estoy teniendo problemas de conexión. Por favor intenta más tarde.", "bot");
+        addMessage("Lo siento, estoy teniendo problemas de conexión. Intenta más tarde.", "bot", new Date().toISOString());
       } finally {
         chatInput.disabled = false;
         sendButton.disabled = false;
@@ -222,13 +458,21 @@
       }
     }
 
+    // ================
+    // Botones / Eventos
+    // ================
     toggleButton.onclick = async () => {
       const isVisible = chatContainer.style.display === "flex";
       chatContainer.style.display = isVisible ? "none" : "flex";
 
       if (!isVisible) {
+        // despierta render
         fetch(SERVER_URL + "/health").catch(()=>{});
-        await loadHistory(); // intenta cargar historial al abrir
+
+        // carga sesiones + historial
+        await loadSessionsList();
+        await loadHistory(currentSessionId);
+
         setTimeout(() => chatInput.focus(), 120);
       }
     };
@@ -245,6 +489,13 @@
     suggestionButtons.forEach(btn => {
       btn.addEventListener("click", () => sendMessage(btn.getAttribute("data-text")));
     });
+
+    historyOpen.onclick = () => historyDrawer.classList.add("open");
+    historyClose.onclick = () => historyDrawer.classList.remove("open");
+
+    newChatBtn.onclick = async () => {
+      await newConversation();
+    };
   </script>
 </body>
 </html>
