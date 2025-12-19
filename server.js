@@ -1,43 +1,103 @@
 // server.js
-require('dotenv').config();
+require("dotenv").config();
 
-const express = require('express');
-const cors = require('cors');
-const { GoogleGenAI } = require('@google/genai');
+const express = require("express");
+const cors = require("cors");
+const { GoogleGenAI } = require("@google/genai");
+const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
-app.set('trust proxy', 1); // importante en Render para IP real
+app.set("trust proxy", 1);
 
 const port = process.env.PORT || 10000;
-const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
-if (!apiKey) {
-  console.error("❌ Falta GEMINI_API_KEY (o GOOGLE_API_KEY) en variables de entorno.");
-}
+// --------------------
+// CORS + JSON
+// --------------------
+app.use(cors({ origin: true }));
+app.options("*", cors({ origin: true }));
+app.use(express.json({ strict: false, limit: "1mb" }));
+
+// --------------------
+// Gemini
+// --------------------
+const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+if (!apiKey) console.error("❌ Falta GEMINI_API_KEY (o GOOGLE_API_KEY) en Render.");
 
 const ai = new GoogleGenAI({ apiKey });
 
-// ============================
-// Config: límites y sesiones
-// ============================
+// --------------------
+// Supabase
+// --------------------
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+let supabase = null;
+if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+  supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+} else {
+  console.warn("⚠️ Supabase NO configurado. Falta SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY.");
+}
+
+function safeStr(v, max = 500) {
+  return String(v || "").slice(0, max);
+}
+
+// userKey estable (viene del FRONT). Si no viene, cae a ip+ua.
+function getUserKey(req) {
+  const bodyKey = safeStr(req.body?.userKey, 200);
+  if (bodyKey) return bodyKey;
+
+  const ip = safeStr(req.ip, 120);
+  const ua = safeStr(req.headers["user-agent"], 300);
+  return safeStr(`ip:${ip}|ua:${ua}`, 500);
+}
+
+async function upsertChatSession(sessionId, userKey) {
+  if (!supabase) return;
+
+  const { error } = await supabase
+    .from("chat_sessions")
+    .upsert(
+      {
+        session_id: sessionId,
+        user_key: userKey,
+        last_seen: new Date().toISOString(),
+      },
+      { onConflict: "session_id" }
+    );
+
+  if (error) console.warn("⚠️ Supabase upsert session error:", error.message);
+}
+
+async function insertChatMessage(sessionId, role, content) {
+  if (!supabase) return;
+
+  const { error } = await supabase
+    .from("chat_messages")
+    .insert([{ session_id: sessionId, role, content }]);
+
+  if (error) console.warn("⚠️ Supabase insert message error:", error.message);
+}
+
+// --------------------
+// Config sesiones IA en memoria
+// --------------------
 const sessions = new Map();
-const SESSION_TTL_MS = 30 * 60 * 1000; // 30 min
+const SESSION_TTL_MS = 30 * 60 * 1000;
 const MAX_SESSIONS = 300;
 
 const MAX_DAILY_AI_CALLS = Number(process.env.MAX_DAILY_AI_CALLS || 50);
-
-// Contador diario (solo llamadas a IA)
 let aiCallsToday = 0;
 let aiCallsDayKey = getDayKeyEC();
 
 function getDayKeyEC() {
-  // Día en Ecuador (Guayaquil)
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Guayaquil',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date()); // YYYY-MM-DD
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Guayaquil",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 }
 
 function resetDailyIfNeeded() {
@@ -58,7 +118,6 @@ function incAI() {
   aiCallsToday++;
 }
 
-// Limpieza automática de sesiones
 setInterval(() => {
   const now = Date.now();
 
@@ -73,11 +132,9 @@ setInterval(() => {
   }
 }, 60 * 1000);
 
-// Middleware
-app.use(cors());
-app.use(express.json({ strict: false, limit: '1mb' }));
-
+// --------------------
 // System instruction
+// --------------------
 const systemInstruction = `
 Eres Lyro-Capacítamente, un asistente virtual amable y servicial. Tu objetivo es proporcionar información precisa, completa y concisa sobre la Fundación Capacítamente (https://fundacioncapacitamente.com/) y sus actividades, además de responder preguntas de conocimiento general.
 
@@ -108,14 +165,18 @@ Utiliza la siguiente información para las consultas sobre la Fundación:
 Si la pregunta no es sobre la Fundación, usa tu conocimiento general.
 `;
 
+// --------------------
 // Health
-app.get('/health', (req, res) => res.status(200).send('ok'));
+// --------------------
+app.get("/health", (req, res) => res.status(200).send("ok"));
 
+// --------------------
 // FAQ sin IA (para ahorrar cuota)
+// --------------------
 function faqReply(message) {
-  const t = message.toLowerCase();
+  const t = String(message || "").toLowerCase();
 
-  if (t.includes('donaci')) {
+  if (t.includes("donaci") || t.includes("donar")) {
     return `Para donar:
 1) Entra a Donaciones → "Donar ahora"
 2) Elige una cantidad (o personalizada) → "Continuar"
@@ -124,14 +185,18 @@ function faqReply(message) {
 5) Presiona "Donar ahora"`;
   }
 
-  if (t.includes('contact') || t.includes('inscrib') || t.includes('información') || t.includes('informacion')) {
+  if (t.includes("contact") || t.includes("inscrib") || t.includes("información") || t.includes("informacion")) {
     return `Contacto Fundación Capacítamente:
 📱 0983222358
 ✉️ info@fundacioncapacitamente.com
 📍 Guayaquil - Ecuador`;
   }
 
-  if (t.includes('precio') || t.includes('costo') || (t.includes('curso') && (t.includes('pago') || t.includes('certif') || t.includes('certificado')))) {
+  if (
+    t.includes("precio") ||
+    t.includes("costo") ||
+    (t.includes("curso") && (t.includes("pago") || t.includes("certif") || t.includes("certificado")))
+  ) {
     return `Cursos con certificado:
 • Formador de Formadores ($120) – Tatiana Arias
 • Inteligencia Emocional ($15) – Tatiana Arias
@@ -143,7 +208,7 @@ Próximamente:
 • Habilidades Cognitivas y Emocionales (Aprender a Pensar) ($20)`;
   }
 
-  if (t.includes('gratis') || t.includes('gratuito')) {
+  if (t.includes("gratis") || t.includes("gratuito")) {
     return `Cursos gratuitos:
 • Tecnología para Educadores – Tatiana Arias
 Próximamente:
@@ -155,61 +220,55 @@ Próximamente:
 }
 
 function extractStatus(err) {
-  return (
-    err?.status ||
-    err?.code ||
-    err?.error?.code ||
-    err?.response?.status ||
-    null
-  );
+  return err?.status || err?.code || err?.error?.code || err?.response?.status || null;
 }
-
 function extractMessage(err) {
-  if (typeof err?.message === 'string') return err.message;
-  try {
-    return JSON.stringify(err?.error || err);
-  } catch {
-    return String(err);
-  }
+  if (typeof err?.message === "string") return err.message;
+  try { return JSON.stringify(err?.error || err); } catch { return String(err); }
 }
 
-app.post('/chat', async (req, res) => {
+// --------------------
+// POST /chat  (guarda + responde)
+// --------------------
+app.post("/chat", async (req, res) => {
   try {
     if (!apiKey) {
       return res.status(500).json({ reply: "Servidor sin API KEY. Configura GEMINI_API_KEY en Render." });
     }
 
-    const userMessage = String(req.body?.message || '').trim();
-    let sessionId = String(req.body?.sessionId || '').trim();
+    const userMessage = safeStr(req.body?.message, 5000).trim();
+    let sessionId = safeStr(req.body?.sessionId, 200).trim();
 
-    if (!userMessage) {
-      return res.status(400).json({ reply: "Mensaje no proporcionado." });
-    }
+    if (!userMessage) return res.status(400).json({ reply: "Mensaje no proporcionado." });
 
-    if (!sessionId) {
-      sessionId = `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    }
+    if (!sessionId) sessionId = `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-    // 1) Intentar FAQ sin IA (no consume cuota)
+    // Guardar sesión y mensaje usuario
+    const userKey = getUserKey(req);
+    await upsertChatSession(sessionId, userKey);
+    await insertChatMessage(sessionId, "user", userMessage);
+
+    // FAQ sin IA
     const faq = faqReply(userMessage);
     if (faq) {
-      res.set('Cache-Control', 'no-store');
-      return res.json({ reply: faq, sessionId });
+      await insertChatMessage(sessionId, "bot", faq);
+      res.set("Cache-Control", "no-store");
+      return res.json({ reply: faq, sessionId, userKey });
     }
 
-    // 2) Límite diario de llamadas a IA (50/día por defecto)
+    // Límite diario IA
     if (!canUseAI()) {
-      return res.status(429).json({
-        reply: `Hoy ya se alcanzó el límite diario de respuestas con IA (${MAX_DAILY_AI_CALLS}/día). 
-Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`
-      });
+      const msg = `Hoy ya se alcanzó el límite diario de respuestas con IA (${MAX_DAILY_AI_CALLS}/día).
+Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
+      await insertChatMessage(sessionId, "bot", msg);
+      return res.status(429).json({ reply: msg, sessionId, userKey });
     }
 
     let session = sessions.get(sessionId);
 
     if (!session) {
       const chat = ai.chats.create({
-        model: 'gemini-2.5-flash',
+        model: "gemini-2.5-flash",
         config: {
           systemInstruction,
           temperature: 0.3,
@@ -219,24 +278,24 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`
 
       session = { chat, lastAccess: Date.now() };
       sessions.set(sessionId, session);
-      console.log("🆕 Nueva sesión:", sessionId);
     } else {
       session.lastAccess = Date.now();
     }
 
-    // Consumir 1 llamada a IA
     incAI();
 
     const response = await session.chat.sendMessage({ message: userMessage });
-    const reply = (typeof response.text === 'string') ? response.text.trim() : '';
+    const reply = typeof response.text === "string" ? response.text.trim() : "";
 
     if (!reply) {
-      console.warn("⚠️ Respuesta vacía del modelo. sessionId=", sessionId);
-      return res.status(502).json({ reply: "La IA respondió vacío. Intenta nuevamente.", sessionId });
+      const msg = "La IA respondió vacío. Intenta nuevamente.";
+      await insertChatMessage(sessionId, "bot", msg);
+      return res.status(502).json({ reply: msg, sessionId, userKey });
     }
 
-    res.set('Cache-Control', 'no-store');
-    return res.json({ reply, sessionId });
+    await insertChatMessage(sessionId, "bot", reply);
+    res.set("Cache-Control", "no-store");
+    return res.json({ reply, sessionId, userKey });
 
   } catch (error) {
     const status = extractStatus(error);
@@ -244,9 +303,8 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`
 
     console.error("❌ Error /chat:", msg);
 
-    // Si Gemini te devuelve 429 (cuota / rate limit), responde 429 (no 500)
     if (status === 429 || /RESOURCE_EXHAUSTED|quota|rate limit|429/i.test(msg)) {
-      res.set('Retry-After', '60');
+      res.set("Retry-After", "60");
       return res.status(429).json({
         reply: "Se alcanzó el límite de uso del servicio de IA por hoy. Intenta más tarde o mañana.",
       });
@@ -258,6 +316,74 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`
   }
 });
 
-app.listen(port, '0.0.0.0', () => {
+// --------------------
+// GET /history/:sessionId   (RECOMENDADO)
+// --------------------
+app.get("/history/:sessionId", async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ error: "Supabase no configurado en el servidor." });
+
+    const sessionId = safeStr(req.params.sessionId, 200).trim();
+    const limit = Math.min(Number(req.query.limit || 200), 500);
+
+    const { data, error } = await supabase
+      .from("chat_messages")
+      .select("id, role, content, created_at")
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: true })
+      .limit(limit);
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    return res.json({ sessionId, messages: data || [] });
+  } catch (e) {
+    return res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
+// --------------------
+// GET /history?userKey=...  (COMPATIBLE con tu HTML viejo)
+// - Busca la última sesión de ese userKey y devuelve mensajes
+// --------------------
+app.get("/history", async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ error: "Supabase no configurado en el servidor." });
+
+    const userKey = safeStr(req.query.userKey, 200).trim();
+    const sessionIdQ = safeStr(req.query.sessionId, 200).trim();
+    const limit = Math.min(Number(req.query.limit || 200), 500);
+
+    let sessionId = sessionIdQ;
+
+    if (!sessionId && userKey) {
+      const { data: sess, error: errSess } = await supabase
+        .from("chat_sessions")
+        .select("session_id")
+        .eq("user_key", userKey)
+        .order("last_seen", { ascending: false })
+        .limit(1);
+
+      if (errSess) return res.status(500).json({ error: errSess.message });
+      sessionId = sess?.[0]?.session_id || "";
+    }
+
+    if (!sessionId) return res.json({ sessionId: null, messages: [] });
+
+    const { data, error } = await supabase
+      .from("chat_messages")
+      .select("id, role, content, created_at")
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: true })
+      .limit(limit);
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    return res.json({ sessionId, messages: data || [] });
+  } catch (e) {
+    return res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
+app.listen(port, "0.0.0.0", () => {
   console.log(`✅ Servidor escuchando en puerto ${port}`);
 });
