@@ -7,6 +7,7 @@
 
   <style>
     body { margin:0; padding:0; }
+
     #chat-toggle{
       position:fixed; bottom:20px; right:20px; padding:15px 20px;
       background:#1E90FF; color:#fff; border:none; border-radius:30px;
@@ -91,15 +92,13 @@
   <div id="chat-container">
     <div id="chat-header">Lyro-Capacítamente (Asistente IA)</div>
 
-    <div id="chat-messages">
-      <div class="message bot">Hola, soy Lyro-Capacítamente. ¿En qué puedo ayudarte hoy?</div>
-    </div>
+    <div id="chat-messages"></div>
 
     <div id="suggestion-buttons">
-      <button class="suggestion" data-question="Cursos gratis">Cursos gratis</button>
-      <button class="suggestion" data-question="Cursos con certificados y precios">Cursos con certificados y precios</button>
-      <button class="suggestion" data-question="Contacto">Contacto</button>
-      <button class="suggestion" data-question="Donar">Donar</button>
+      <button class="suggestion" data-text="Cursos gratis">Cursos gratis</button>
+      <button class="suggestion" data-text="Cursos con certificados y precios">Cursos con certificados y precios</button>
+      <button class="suggestion" data-text="Contacto">Contacto</button>
+      <button class="suggestion" data-text="Donar">Donar</button>
     </div>
 
     <div id="chat-input-area">
@@ -111,18 +110,18 @@
   <script>
     const SERVER_URL = "https://lyro-chatbot-capacitamente.onrender.com";
 
-    // userKey estable (NO es la key de supabase)
-    let userKey = localStorage.getItem("lyro_user_key");
+    // userKey anónimo (NO secreto)
+    let userKey = localStorage.getItem("lyroUserKey");
     if (!userKey) {
-      userKey = "u_" + crypto.getRandomValues(new Uint32Array(4)).join("-");
-      localStorage.setItem("lyro_user_key", userKey);
+      userKey = "user_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem("lyroUserKey", userKey);
     }
 
-    // sessionId estable
-    let currentSessionId = localStorage.getItem("lyro_session_id");
+    // sessionId persistente
+    let currentSessionId = localStorage.getItem("chatSessionId");
     if (!currentSessionId) {
-      currentSessionId = "session-" + Date.now() + "-" + Math.random().toString(36).slice(2);
-      localStorage.setItem("lyro_session_id", currentSessionId);
+      currentSessionId = "session-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem("chatSessionId", currentSessionId);
     }
 
     const toggleButton = document.getElementById("chat-toggle");
@@ -131,8 +130,6 @@
     const chatInput = document.getElementById("chat-input");
     const chatMessages = document.getElementById("chat-messages");
     const suggestionButtons = document.querySelectorAll("#suggestion-buttons .suggestion");
-
-    let historyLoaded = false;
 
     function addMessage(text, sender) {
       const msg = document.createElement("div");
@@ -146,41 +143,35 @@
       chatMessages.innerHTML = "";
     }
 
-    function normalizeRole(role) {
-      const r = String(role || "").toLowerCase();
-      if (r === "bot" || r === "assistant") return "bot";
-      return "user";
-    }
-
     async function loadHistory() {
       try {
-        const url = SERVER_URL + "/history/" + encodeURIComponent(currentSessionId) + "?limit=200";
-        const resp = await fetch(url);
-        const text = await resp.text();
+        const r = await fetch(`${SERVER_URL}/history/${encodeURIComponent(currentSessionId)}?limit=200`);
+        const raw = await r.text();
+        const data = JSON.parse(raw);
 
-        if (!resp.ok) throw new Error("HTTP " + resp.status + " => " + text);
+        if (!r.ok) throw new Error((data && (data.details || data.error)) || raw);
 
-        const data = JSON.parse(text);
-        const messages = (data && data.messages) ? data.messages : [];
-
-        if (messages.length === 0) return;
-
-        clearMessages();
-        for (const m of messages) {
-          addMessage(m.content, normalizeRole(m.role));
+        if (Array.isArray(data.messages) && data.messages.length > 0) {
+          clearMessages();
+          for (const m of data.messages) {
+            addMessage(m.content, m.role === "user" ? "user" : "bot");
+          }
+        } else {
+          // si no hay historial, mensaje inicial
+          if (chatMessages.children.length === 0) {
+            addMessage("Hola, soy Lyro-Capacítamente. ¿En qué puedo ayudarte hoy?", "bot");
+          }
         }
-
-        historyLoaded = true;
       } catch (e) {
         console.error("Historial error:", e);
-        if (!historyLoaded) {
+        if (chatMessages.children.length === 0) {
           addMessage("Hola, soy Lyro-Capacítamente. (No pude cargar el historial ahora). ¿En qué te ayudo?", "bot");
         }
       }
     }
 
-    async function sendMessage(questionText = null) {
-      const rawText = questionText ? questionText : (chatInput.value || "").trim();
+    async function sendMessage(textFromBtn = null) {
+      const rawText = (textFromBtn ? textFromBtn : (chatInput.value || "")).trim();
       if (!rawText) return;
 
       addMessage(rawText, "user");
@@ -202,21 +193,18 @@
         });
 
         const raw = await response.text();
-        let data;
-        try { data = JSON.parse(raw); }
-        catch { throw new Error("Servidor no devolvió JSON. RAW: " + raw); }
+        const data = JSON.parse(raw);
 
-        if (!response.ok) throw new Error("HTTP " + response.status + ": " + (data.reply || raw));
+        if (!response.ok) throw new Error(data.reply || raw);
 
         if (data.sessionId && data.sessionId !== currentSessionId) {
           currentSessionId = data.sessionId;
-          localStorage.setItem("lyro_session_id", currentSessionId);
+          localStorage.setItem("chatSessionId", currentSessionId);
         }
 
         addMessage(data.reply || "Sin respuesta.", "bot");
-
       } catch (err) {
-        console.error("Error /chat:", err);
+        console.error(err);
         addMessage("Lo siento, estoy teniendo problemas de conexión. Intenta más tarde.", "bot");
       } finally {
         chatInput.disabled = false;
@@ -232,13 +220,12 @@
 
       if (!isVisible) {
         fetch(SERVER_URL + "/health").catch(()=>{});
-        if (!historyLoaded) await loadHistory();
+        await loadHistory();
         setTimeout(() => chatInput.focus(), 100);
       }
     };
 
     sendButton.onclick = () => sendMessage();
-
     chatInput.addEventListener("keypress", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
@@ -247,7 +234,7 @@
     });
 
     suggestionButtons.forEach(btn => {
-      btn.addEventListener("click", () => sendMessage(btn.getAttribute("data-question")));
+      btn.addEventListener("click", () => sendMessage(btn.getAttribute("data-text")));
     });
   </script>
 </body>
