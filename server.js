@@ -3,7 +3,8 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
-const { GoogleGenAI } = require("@google/genai"); 
+// Importamos la librería. Si falla, asegúrate de que esté instalada.
+const { GoogleGenAI } = require("@google/genai");
 const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
@@ -12,9 +13,9 @@ app.set("trust proxy", 1);
 const port = process.env.PORT || 10000;
 
 // ============================
-// CONFIGURACIÓN (Límites Altos)
+// CONFIGURACIÓN
 // ============================
-const MAX_DAILY_AI_CALLS = 10000; // Límite alto para evitar bloqueos
+const MAX_DAILY_AI_CALLS = 10000; // Límite alto
 
 const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 if (!apiKey) console.error("❌ Falta GEMINI_API_KEY.");
@@ -39,42 +40,31 @@ app.use(cors());
 app.use(express.json({ strict: false, limit: "1mb" }));
 
 // ============================
-// CEREBRO IA (TODA TU INFORMACIÓN AQUÍ)
+// INFORMACIÓN DEL BOT (TEXTO)
 // ============================
-const systemInstruction = `
-Eres Lyro-Capacítamente, un asistente virtual amable y servicial. Tu objetivo es proporcionar información precisa sobre la Fundación Capacítamente.
+const infoTexto = `
+Eres Lyro-Capacítamente, asistente de la Fundación Capacítamente.
 
-INFORMACIÓN CLAVE PARA RESPONDER:
+INFORMACIÓN CLAVE:
+1. Cursos con Certificado:
+  - Formador de Formadores ($120) - Prof. Tatiana Arias
+  - Inteligencia Emocional ($15) - Prof. Tatiana Arias
+  - Tecnología para Padres ($15) - Prof. Yadira Suárez
+  - Próximamente: Contabilidad ($20), Docencia Virtual ($20).
 
-1. Misión Principal: Ofrecer capacitación de alto valor en habilidades blandas y digitales esenciales para el desarrollo profesional y empresarial.
+2. Cursos Gratuitos:
+  - Tecnología para Educadores.
+  - Próximamente: Metodología de la Pregunta, Neuroeducación.
 
-2. Cursos con Certificado (Costo e Instructor):
-  - Formador de Formadores ($120): Tatiana Arias.
-  - Inteligencia Emocional ($15): Tatiana Arias.
-  - TECNOLOGÍA PARA PADRES ($15): Yadira Suárez.
-  - Contabilidad para no contadores (Próximamente - $20): E Arias.
-  - Docencia Virtual (Próximamente - $20): Tatiana Arias.
-  - Habilidades Cognitivas y Emocionales. Metodología Aprender a Pensar (Próximamente - $20): Tatiana Arias.
-
-3. Cursos Gratuitos:
-  - Tecnología para Educadores: Tatiana Arias.
-  - Metodología de la Pregunta (Próximamente): Tatiana Arias.
-  - Neuroeducación… También en casa (Próximamente): Prosandoval.
+3. Donaciones:
+  - Pasos: Ir a "Donar ahora" -> Elegir monto -> Llenar datos -> Elegir método (Transferencia/PayPal).
 
 4. Contacto:
   - Celular: 0983222358
-  - Correo: info@fundacioncapacitamente.com
-  - Ubicación: Guayaquil - Ecuador
+  - Ubicación: Guayaquil, Ecuador.
 
-5. Donaciones (Guía paso a paso):
-  1) Ir a Donaciones -> "Donar ahora"
-  2) Elegir cantidad o personalizada -> "Continuar"
-  3) Llenar datos
-  4) Elegir método (Transferencia o PayPal)
-  5) "Donar ahora"
-
-REGLA ESPECIAL (CERTIFICADOS):
-Si el usuario pregunta si su certificado está listo, dile: "Por favor, escribe tu número de cédula (10 dígitos) para verificarlo en el sistema inmediatamente."
+REGLA CERTIFICADOS:
+Si preguntan por certificados, responde: "Por favor, escribe tu número de cédula (10 dígitos) para verificarlo."
 `;
 
 // ============================
@@ -100,26 +90,26 @@ async function buscarCertificados(cedula) {
 
   if (error) {
     console.error("Error DB:", error);
-    return "Hubo un error técnico consultando. Intenta más tarde.";
+    return "Error técnico consultando. Intenta más tarde.";
   }
 
   if (!data || data.length === 0) {
-    return `No encontré ningún registro para la cédula ${cedula}. Verifica el número o contacta a soporte.`;
+    return `No encontré registros para la cédula ${cedula}. Verifica el número.`;
   }
 
   const nombre = data[0].nombre_estudiante || "Estudiante";
-  let respuesta = `Hola **${nombre}**, aquí está el estado de tus cursos:\n`;
+  let respuesta = `Hola **${nombre}**, estado de tus cursos:\n`;
   
   data.forEach((item, index) => {
     let icono = item.estado.toUpperCase().includes("LISTO") ? "✅" : "⏳";
-    respuesta += `\n${index + 1}. ${item.curso}\n   Estado: ${item.estado} ${icono}`;
+    respuesta += `\n${index + 1}. ${item.curso} - ${item.estado} ${icono}`;
   });
 
   return respuesta;
 }
 
 // ============================
-// Gestión de Sesiones
+// Gestión Sesiones
 // ============================
 async function ensureSession(sessionId, userKey) {
   if (!supabase) return;
@@ -153,9 +143,13 @@ app.get("/health", (req, res) => res.send("ok"));
 app.delete("/session/:sessionId", async (req, res) => {
     if (!supabase) return res.status(500).json({ error: "Sin DB" });
     const { sessionId } = req.params;
-    await supabase.from("chat_messages").delete().eq("session_id", sessionId);
-    await supabase.from("chat_sessions").delete().eq("session_id", sessionId);
-    return res.json({ ok: true });
+    try {
+      await supabase.from("chat_messages").delete().eq("session_id", sessionId);
+      await supabase.from("chat_sessions").delete().eq("session_id", sessionId);
+      return res.json({ ok: true });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
 });
 
 app.get("/sessions", async (req, res) => {
@@ -180,11 +174,11 @@ app.post("/chat", async (req, res) => {
 
     if (!userMessage) return res.status(400).json({ reply: "..." });
 
-    // 1. Guardar mensaje
+    // 1. Guardar mensaje usuario
     await ensureSession(sessionId, userKey);
     await saveMessage(sessionId, "user", userMessage, userKey);
 
-    // 2. ¿Es cédula? (Intercepción)
+    // 2. ¿Es cédula? (10 números)
     if (/^\d{10}$/.test(userMessage)) {
        const respuestaDB = await buscarCertificados(userMessage);
        await saveMessage(sessionId, "bot", respuestaDB, userKey);
@@ -194,33 +188,51 @@ app.post("/chat", async (req, res) => {
     // 3. Control Límite
     const today = new Date().toLocaleDateString();
     if (today !== aiCallsDayKey) { aiCallsDayKey = today; aiCallsToday = 0; }
-    
     if (aiCallsToday >= MAX_DAILY_AI_CALLS) {
-      const msg = "Límite diario alcanzado. Intenta mañana.";
+      const msg = "Límite diario alcanzado.";
       await saveMessage(sessionId, "bot", msg, userKey);
       return res.status(429).json({ reply: msg, sessionId });
     }
 
-    // 4. IA (Método seguro texto simple)
+    // 4. IA - CONFIGURACIÓN BLINDADA
+    // Usamos gemini-1.5-flash que es más estable
     const chat = ai.chats.create({
-      model: "gemini-2.0-flash",
-      config: { systemInstruction, temperature: 0.3 },
+      model: "gemini-1.5-flash",
+      config: {
+        // Enviar instrucciones en formato estricto
+        systemInstruction: {
+            parts: [{ text: infoTexto }]
+        },
+        temperature: 0.3,
+      },
     });
     
     aiCallsToday++;
     
-    // Enviamos el mensaje como string simple para evitar errores de versión
-    const result = await chat.sendMessage(userMessage);
+    // Enviar mensaje en formato estricto { parts: [...] }
+    const result = await chat.sendMessage({
+      parts: [{ text: userMessage }]
+    });
     
-    // Extraemos la respuesta con seguridad
-    const reply = result.response?.text?.() || result.response?.text || "No entendí tu pregunta.";
+    // Obtener respuesta con seguridad
+    let reply = "No entendí.";
+    if (result.response && result.response.text) {
+        // La librería nueva a veces devuelve text() como función o como propiedad
+        reply = typeof result.response.text === 'function' 
+                ? result.response.text() 
+                : result.response.text;
+    }
 
     await saveMessage(sessionId, "bot", reply, userKey);
     return res.json({ reply, sessionId });
 
   } catch (error) {
-    console.error("Error en chat:", error);
-    return res.status(500).json({ reply: "Lo siento, tuve un problema interno. Inténtalo de nuevo." });
+    console.error("❌ Error CHAT:", error);
+    // IMPORTANTE: Responder con error JSON en lugar de colgarse
+    return res.status(500).json({ 
+        reply: "Lo siento, tuve un error técnico. Por favor intenta de nuevo en unos segundos.",
+        error: String(error)
+    });
   }
 });
 
