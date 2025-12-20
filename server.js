@@ -3,7 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
-const { GoogleGenAI } = require("@google/genai");
+const { GoogleGenAI } = require("@google/genai"); // Librería nueva
 const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
@@ -12,13 +12,12 @@ app.set("trust proxy", 1);
 const port = process.env.PORT || 10000;
 
 // ============================
-// CONFIGURACIÓN (Límites y API)
+// CONFIGURACIÓN
 // ============================
-// Aumentamos el límite a 10,000 para que no te salga el Error 429
-const MAX_DAILY_AI_CALLS = 10000; 
+const MAX_DAILY_AI_CALLS = 10000; // Límite alto para evitar error 429
 
 const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-if (!apiKey) console.error("❌ Falta GEMINI_API_KEY en variables de entorno.");
+if (!apiKey) console.error("❌ Falta GEMINI_API_KEY.");
 
 const ai = new GoogleGenAI({ apiKey });
 
@@ -40,21 +39,14 @@ app.use(cors());
 app.use(express.json({ strict: false, limit: "1mb" }));
 
 // ============================
-// Cerebro de la IA
+// Cerebro IA
 // ============================
 const systemInstruction = `
-Eres Lyro-Capacítamente, el asistente de la Fundación Capacítamente.
-Tu tono es amable, profesional y directo.
-
-INSTRUCCIONES CLAVE:
-1. Si te saludan ("Hola"), preséntate y di: "¡Hola! Soy Lyro. ¿En qué puedo ayudarte? Si deseas consultar tus certificados, por favor escribe tu número de cédula."
-2. Si preguntan por certificados, diles: "Por favor, ingresa tu número de cédula (10 dígitos) para verificar en el sistema."
-3. Información general (solo si preguntan):
-   - Cursos: Formador de Formadores ($120), Inteligencia Emocional ($15).
-   - Ubicación: Guayaquil.
-   - Contacto: 0983222358.
-
-NOTA: Si el usuario envía un número de cédula, NO lo inventes. El sistema lo buscará automáticamente.
+Eres Lyro-Capacítamente, asistente de la Fundación Capacítamente.
+1. Saludo: "¡Hola! Soy Lyro. Si buscas información sobre tus certificados, por favor indícame tu número de cédula."
+2. Si te dan una cédula (10 dígitos), el sistema la procesa. Tú solo pídela.
+3. Cursos: Formador de Formadores ($120), Inteligencia Emocional ($15).
+4. Contacto: 0983222358.
 `;
 
 // ============================
@@ -70,13 +62,9 @@ function newSessionId() {
   return `session-${Date.now()}-${crypto.randomBytes(6).toString("hex")}`;
 }
 
-// ============================
-// Lógica: BUSCAR EN SUPABASE (Cualquier cédula)
-// ============================
 async function buscarCertificados(cedula) {
   if (!supabase) return "Error: No hay conexión con la base de datos.";
   
-  // Busca en la tabla que creamos en el Paso 1
   const { data, error } = await supabase
     .from('certificados')
     .select('*')
@@ -84,34 +72,26 @@ async function buscarCertificados(cedula) {
 
   if (error) {
     console.error("Error DB:", error);
-    return "Hubo un error técnico consultando tu cédula. Intenta más tarde.";
+    return "Error técnico consultando. Intenta más tarde.";
   }
 
-  // Si la lista está vacía, significa que esa cédula NO está registrada
   if (!data || data.length === 0) {
-    return `Lo siento, no encontré registros para la cédula ${cedula}. 
-Por favor verifica que esté bien escrita o contáctanos al WhatsApp 0983222358 si crees que es un error.`;
+    return `No encontré registros para la cédula ${cedula}. Verifica el número o contacta a soporte.`;
   }
 
-  // Si encuentra datos, arma el mensaje bonito
   const nombre = data[0].nombre_estudiante || "Estudiante";
-  let respuesta = `Hola **${nombre}**, he encontrado la siguiente información sobre tus cursos:\n`;
+  let respuesta = `Hola **${nombre}**, estado de tus cursos:\n`;
   
   data.forEach((item, index) => {
-    // Pone un emoji dependiendo del estado
-    let icono = "⏳";
-    if (item.estado.toUpperCase().includes("LISTO")) icono = "✅";
-    if (item.estado.toUpperCase().includes("PENDIENTE")) icono = "💰";
-
-    respuesta += `\n**${index + 1}. ${item.curso}**\n   Estado: ${item.estado} ${icono}`;
+    let icono = item.estado.toUpperCase().includes("LISTO") ? "✅" : "⏳";
+    respuesta += `\n${index + 1}. ${item.curso} - ${item.estado} ${icono}`;
   });
-
-  respuesta += `\n\nSi tu certificado está listo, puedes acercarte a secretaría o escribirnos para el envío digital.`;
+  
   return respuesta;
 }
 
 // ============================
-// Gestión de Historial
+// Gestión Sesiones
 // ============================
 async function ensureSession(sessionId, userKey) {
   if (!supabase) return;
@@ -134,28 +114,22 @@ async function saveMessage(sessionId, role, content, userKey) {
   }).eq("session_id", sessionId);
 }
 
-// Límite diario (Control simple)
 let aiCallsToday = 0;
 let aiCallsDayKey = new Date().toLocaleDateString();
 
 // ============================
-// RUTAS (Endpoints)
+// RUTAS
 // ============================
 app.get("/health", (req, res) => res.send("ok"));
 
-// 1. Eliminar conversación (Solución Error 404)
 app.delete("/session/:sessionId", async (req, res) => {
     if (!supabase) return res.status(500).json({ error: "Sin DB" });
     const { sessionId } = req.params;
-    
-    // Borrar mensajes y sesión
     await supabase.from("chat_messages").delete().eq("session_id", sessionId);
     await supabase.from("chat_sessions").delete().eq("session_id", sessionId);
-    
     return res.json({ ok: true });
 });
 
-// 2. Obtener lista de sesiones
 app.get("/sessions", async (req, res) => {
     if (!supabase) return res.json({ sessions: [] });
     const userKey = getUserKey(req);
@@ -163,14 +137,12 @@ app.get("/sessions", async (req, res) => {
     return res.json({ sessions: data || [] });
 });
 
-// 3. Obtener historial de un chat
 app.get("/history/:sessionId", async (req, res) => {
     if (!supabase) return res.json({ messages: [] });
     const { data } = await supabase.from("chat_messages").select("*").eq("session_id", req.params.sessionId).order("created_at", { ascending: true });
     return res.json({ messages: data || [] });
 });
 
-// 4. CHAT PRINCIPAL (Aquí ocurre la magia)
 app.post("/chat", async (req, res) => {
   try {
     const userMessage = String(req.body?.message || "").trim();
@@ -180,48 +152,49 @@ app.post("/chat", async (req, res) => {
 
     if (!userMessage) return res.status(400).json({ reply: "..." });
 
-    // Guardar mensaje del usuario
+    // 1. Guardar mensaje usuario
     await ensureSession(sessionId, userKey);
     await saveMessage(sessionId, "user", userMessage, userKey);
 
-    // --- DETECTOR DE CÉDULA ---
-    // Si el mensaje son exactamente 10 números...
+    // 2. ¿Es cédula? (10 números)
     if (/^\d{10}$/.test(userMessage)) {
-       // Buscar en Supabase (NO usa créditos de IA)
        const respuestaDB = await buscarCertificados(userMessage);
-       
        await saveMessage(sessionId, "bot", respuestaDB, userKey);
        return res.json({ reply: respuestaDB, sessionId });
     }
-    // ---------------------------
 
-    // Control de límite diario
+    // 3. Control Límite
     const today = new Date().toLocaleDateString();
     if (today !== aiCallsDayKey) { aiCallsDayKey = today; aiCallsToday = 0; }
-    
     if (aiCallsToday >= MAX_DAILY_AI_CALLS) {
-      const msg = "Límite diario alcanzado. Por favor intenta mañana.";
+      const msg = "Límite diario alcanzado.";
       await saveMessage(sessionId, "bot", msg, userKey);
       return res.status(429).json({ reply: msg, sessionId });
     }
 
-    // Usar IA (Gemini)
+    // 4. IA (CORRECCIÓN IMPORTANTE AQUÍ)
     const chat = ai.chats.create({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.0-flash", // O el modelo que soporte tu cuenta
       config: { systemInstruction, temperature: 0.3 },
     });
     
     aiCallsToday++;
-    const result = await chat.sendMessage(userMessage); // Modo stateless simple para evitar errores de memoria
-    const reply = result.response.text();
+    
+    // AQUÍ ESTABA EL ERROR: Ahora enviamos el formato correcto { parts: [...] }
+    const result = await chat.sendMessage({
+      parts: [{ text: userMessage }]
+    });
+
+    // Extraer respuesta con seguridad
+    const reply = result.response?.text?.() || result.response?.text || "No entendí.";
 
     await saveMessage(sessionId, "bot", reply, userKey);
     return res.json({ reply, sessionId });
 
   } catch (error) {
-    console.error("Error en chat:", error);
-    return res.status(500).json({ reply: "Error interno del servidor." });
+    console.error("Error crítico en chat:", error);
+    return res.status(500).json({ reply: "Lo siento, tuve un error interno. Intenta de nuevo." });
   }
 });
 
-app.listen(port, () => console.log(`✅ Servidor corriendo en puerto ${port}`));
+app.listen(port, () => console.log(`✅ Servidor puerto ${port}`));
