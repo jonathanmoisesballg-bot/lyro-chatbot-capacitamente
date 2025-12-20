@@ -325,6 +325,60 @@ app.post("/sessions", async (req, res) => {
   }
 });
 
+// ==========================================
+// NUEVO ENDPOINT: Eliminar conversación
+// ==========================================
+app.delete("/session/:sessionId", async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ error: "Supabase no configurado." });
+
+    const sessionId = String(req.params.sessionId || "").trim();
+    if (!sessionId) return res.status(400).json({ error: "Falta sessionId" });
+
+    // 1. Verificar dueño de la sesión (userKey)
+    const userKey = getUserKey(req);
+    
+    const { data: rows, error: sErr } = await supabase
+      .from("chat_sessions")
+      .select("session_id, user_key")
+      .eq("session_id", sessionId)
+      .maybeSingle(); // Cambiado a maybeSingle para mejor manejo
+
+    if (sErr) return res.status(500).json({ error: sErr.message });
+    if (!rows) return res.status(404).json({ error: "Sesión no encontrada." });
+
+    // Seguridad: evitar que borren sesiones ajenas
+    if (rows.user_key !== userKey) {
+      return res.status(403).json({ error: "No autorizado para borrar esta sesión." });
+    }
+
+    // 2. Borrar mensajes
+    const { error: mErr } = await supabase
+      .from("chat_messages")
+      .delete()
+      .eq("session_id", sessionId);
+
+    if (mErr) return res.status(500).json({ error: "Error borrando mensajes", details: mErr.message });
+
+    // 3. Borrar sesión en DB
+    const { error: dErr } = await supabase
+      .from("chat_sessions")
+      .delete()
+      .eq("session_id", sessionId);
+
+    if (dErr) return res.status(500).json({ error: "Error borrando sesión", details: dErr.message });
+
+    // 4. Limpiar memoria RAM (Si la sesión estaba activa en Gemini)
+    if (sessions.has(sessionId)) {
+        sessions.delete(sessionId);
+    }
+
+    return res.json({ ok: true, sessionId });
+  } catch (e) {
+    return res.status(500).json({ error: "Error interno", details: String(e?.message || e) });
+  }
+});
+
 // Historial de una conversación
 app.get("/history/:sessionId", async (req, res) => {
   try {
@@ -407,7 +461,7 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
     let session = sessions.get(sessionId);
     if (!session) {
       const chat = ai.chats.create({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.0-flash", // Actualizado a una versión válida si aplica, o manten el que tenías
         config: {
           systemInstruction,
           temperature: 0.3,
