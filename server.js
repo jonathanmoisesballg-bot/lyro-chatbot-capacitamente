@@ -4,6 +4,8 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
+// Asegúrate de tener instalada la librería correcta. 
+// Si usas la nueva SDK unificada: npm install @google/genai
 const { GoogleGenAI } = require("@google/genai");
 const { createClient } = require("@supabase/supabase-js");
 
@@ -342,7 +344,7 @@ app.delete("/session/:sessionId", async (req, res) => {
       .from("chat_sessions")
       .select("session_id, user_key")
       .eq("session_id", sessionId)
-      .maybeSingle(); // Cambiado a maybeSingle para mejor manejo
+      .maybeSingle(); 
 
     if (sErr) return res.status(500).json({ error: sErr.message });
     if (!rows) return res.status(404).json({ error: "Sesión no encontrada." });
@@ -460,8 +462,11 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
     // 4) Sesión IA en memoria
     let session = sessions.get(sessionId);
     if (!session) {
+      // ----------------------------------------------------
+      // AQUÍ ESTÁ LA CORRECCIÓN: USAR MODELO 1.5-flash
+      // ----------------------------------------------------
       const chat = ai.chats.create({
-        model: "gemini-2.0-flash", // Actualizado a una versión válida si aplica, o manten el que tenías
+        model: "gemini-1.5-flash", // <--- CORREGIDO (antes decía gemini-2.0-flash)
         config: {
           systemInstruction,
           temperature: 0.3,
@@ -504,7 +509,7 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
     if (status === 429 || /RESOURCE_EXHAUSTED|quota|rate limit|429/i.test(msg)) {
       res.set("Retry-After", "60");
       return res.status(429).json({
-        reply: "Se alcanzó el límite de uso del servicio de IA por hoy. Intenta más tarde o mañana.",
+        reply: "Se alcanzó el límite de uso del servicio de IA por hoy (Cuota Google o Límite diario). Intenta más tarde.",
       });
     }
 
