@@ -114,17 +114,17 @@
       opacity:.8;
     }
 
-    /* ===== ESTILOS MODIFICADOS PARA ITEM DE HISTORIAL Y MENÚ ===== */
+    /* Item historial + menú */
     .session-item {
-      position: relative; /* Clave para posicionar el menú */
+      position: relative;
       text-align:left;
       border:1px solid rgba(255,255,255,.14);
       background:rgba(255,255,255,.06);
       color:#e5e7eb;
       border-radius:12px;
-      padding:10px;
+      padding:10px 46px 10px 10px; /* ✅ espacio para ⋯ */
       cursor:pointer;
-      display: block; /* Para asegurar layout */
+      display:block;
     }
     .session-item:hover { background:rgba(255,255,255,.10); }
     .session-item.active {
@@ -132,10 +132,7 @@
       box-shadow:0 0 0 1px rgba(59,130,246,.45) inset;
     }
 
-    /* Wrapper interno para dar click al chat */
-    .session-content-click {
-      width: 85%; /* Dejar espacio al botón de 3 puntos */
-    }
+    .session-content-click { width:auto; }
 
     .session-item .meta{
       font-size:.78em; opacity:.8;
@@ -149,7 +146,6 @@
       word-break:break-word;
     }
 
-    /* Botón 3 puntos */
     .history-more {
       position: absolute;
       top: 8px;
@@ -172,7 +168,6 @@
       color: #fff;
     }
 
-    /* Menú desplegable */
     .history-menu {
       display: none;
       position: absolute;
@@ -204,12 +199,8 @@
       background: #334155;
       color: #fff;
     }
-    .history-menu .danger {
-      color: #f87171; 
-    }
-    .history-menu .danger:hover {
-      background: rgba(248, 113, 113, 0.15);
-    }
+    .history-menu .danger { color: #f87171; }
+    .history-menu .danger:hover { background: rgba(248, 113, 113, 0.15); }
 
     /* Mensajes */
     #chat-messages{
@@ -329,6 +320,15 @@
       return new Date(d).toLocaleTimeString("es-EC", { hour:"2-digit", minute:"2-digit" });
     }
 
+    function escapeHTML(str) {
+      return String(str || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
     function clearMessages() {
       chatMessages.innerHTML = "";
     }
@@ -363,17 +363,14 @@
         (opts.headers || {})
       );
 
-      const res = await fetch(SERVER_URL + path, {
-        ...opts,
-        headers,
-      });
+      const res = await fetch(SERVER_URL + path, { ...opts, headers });
 
       const txt = await res.text();
       let json = null;
       try { json = JSON.parse(txt); } catch {}
 
       if (!res.ok) {
-        const msg = (json && (json.error || json.reply)) ? (json.error || json.reply) : txt;
+        const msg = (json && (json.error || json.reply || json.details)) ? (json.error || json.reply || json.details) : txt;
         throw new Error("HTTP " + res.status + ": " + msg);
       }
 
@@ -422,19 +419,19 @@
 
         groups[day].forEach(s => {
           const stamp = s.last_message_at || s.created_at || Date.now();
-          
-          // Creamos un DIV contenedor (session-item) en lugar de un botón
-          // para poder meter botones (menú) dentro.
+
           const itemDiv = document.createElement("div");
           itemDiv.className = "session-item" + (s.session_id === currentSessionId ? " active" : "");
           itemDiv.dataset.session = s.session_id;
 
+          const previewSafe = escapeHTML(s.last_message_preview || "Conversación nueva");
+
           itemDiv.innerHTML = `
             <div class="session-content-click">
-              <div class="meta">🕒 ${fmtTime(stamp)} <span style="opacity:.7;">•</span> <span style="opacity:.9;">${s.session_id.slice(0,12)}…</span></div>
-              <div class="preview">${(s.last_message_preview || "Conversación nueva").replace(/</g,"&lt;")}</div>
+              <div class="meta">🕒 ${fmtTime(stamp)} <span style="opacity:.7;">•</span> <span style="opacity:.9;">${escapeHTML(s.session_id.slice(0,12))}…</span></div>
+              <div class="preview">${previewSafe}</div>
             </div>
-            
+
             <button class="history-more" type="button" title="Opciones">⋯</button>
 
             <div class="history-menu">
@@ -447,9 +444,6 @@
       });
     }
 
-    // ============================================
-    // MANEJO DE CLICKS EN EL HISTORIAL (Delegado)
-    // ============================================
     // Cerrar menús al hacer click fuera
     document.addEventListener("click", (e) => {
       if (!e.target.closest(".session-item")) {
@@ -463,12 +457,10 @@
 
       const sid = item.getAttribute("data-session");
 
-      // 1) Click en ⋯ (Abrir/Cerrar menú)
+      // 1) Click en ⋯
       if (e.target.closest(".history-more")) {
         e.stopPropagation();
-        // Cierra otros
         document.querySelectorAll(".history-menu").forEach(m => m.style.display = "none");
-        
         const menu = item.querySelector(".history-menu");
         const isOpen = menu.style.display === "block";
         menu.style.display = isOpen ? "none" : "block";
@@ -483,34 +475,33 @@
         if (!confirm("¿Eliminar esta conversación?")) return;
 
         try {
-          const res = await apiFetch(`/session/${encodeURIComponent(sid)}`, { method: "DELETE" });
-          // Eliminar del DOM
-          item.remove();
+          await apiFetch(`/session/${encodeURIComponent(sid)}`, { method: "DELETE" });
 
-          // Si era la sesión actual, reiniciamos el chat
+          // ✅ mejor que item.remove(): refresca todo (días, orden, active)
           if (sid === currentSessionId) {
-             currentSessionId = ""; // limpiar
-             localStorage.removeItem(SESSION_KEY);
-             clearMessages();
-             addMessage("Conversación eliminada. Crea una nueva.", "bot");
+            currentSessionId = "";
+            localStorage.removeItem(SESSION_KEY);
+            clearMessages();
+            addMessage("Conversación eliminada. Pulsa “Nueva” para iniciar otra.", "bot", new Date().toISOString());
           }
+
+          await loadSessionsList();
         } catch(err) {
           alert("Error eliminando: " + err.message);
         }
         return;
       }
 
-      // 3) Click normal (Cargar chat)
-      // Solo si no fue en el menú
+      // 3) Click normal: Cargar conversación
       if (!e.target.closest(".history-menu")) {
+        document.querySelectorAll(".history-menu").forEach(m => m.style.display = "none");
         currentSessionId = sid;
         localStorage.setItem(SESSION_KEY, currentSessionId);
         await loadHistory(currentSessionId);
-        await loadSessionsList(); // Para refrescar "active" class
+        await loadSessionsList();
         historyDrawer.classList.remove("open");
       }
     });
-
 
     async function loadHistory(sessionId) {
       clearMessages();
@@ -535,7 +526,6 @@
           addMessage(m.content || "", roleToSender(m.role), m.created_at);
         }
       } catch (e) {
-        // si la sesión aún no existe o no se puede leer, muestra saludo
         addMessage("Hola, soy Lyro-Capacítamente. ¿En qué puedo ayudarte hoy?", "bot", new Date().toISOString());
         console.warn("No se pudo cargar historial:", e.message);
       }
@@ -552,9 +542,6 @@
       await loadSessionsList();
     }
 
-    // ================
-    // Enviar mensajes
-    // ================
     async function sendMessage(textFromButton = null) {
       const rawText = textFromButton ? String(textFromButton) : (chatInput.value || "").trim();
       if (!rawText) return;
@@ -590,21 +577,14 @@
       }
     }
 
-    // ================
-    // Botones / Eventos
-    // ================
     toggleButton.onclick = async () => {
       const isVisible = chatContainer.style.display === "flex";
       chatContainer.style.display = isVisible ? "none" : "flex";
 
       if (!isVisible) {
-        // despierta render
         fetch(SERVER_URL + "/health").catch(()=>{});
-
-        // carga sesiones + historial
         await loadSessionsList();
         await loadHistory(currentSessionId);
-
         setTimeout(() => chatInput.focus(), 120);
       }
     };

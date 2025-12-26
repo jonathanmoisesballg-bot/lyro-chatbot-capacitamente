@@ -13,12 +13,28 @@ app.set("trust proxy", 1);
 const port = process.env.PORT || 10000;
 
 // ============================
+// CORS (IMPORTANTE: x-client-id)
+// ============================
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "x-client-id"],
+  })
+);
+// Preflight
+app.options("*", cors());
+
+app.use(express.json({ strict: false, limit: "1mb" }));
+
+// ============================
 // IA (Gemini)
 // ============================
 const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 if (!apiKey) console.error("❌ Falta GEMINI_API_KEY (o GOOGLE_API_KEY) en variables de entorno.");
 
-const ai = new GoogleGenAI({ apiKey });
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash"; // puedes cambiar en Render si quieres
 
 // ============================
 // Supabase
@@ -33,10 +49,6 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
 } else {
   console.warn("⚠️ Supabase NO configurado. Falta SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY.");
 }
-
-// Middleware
-app.use(cors());
-app.use(express.json({ strict: false, limit: "1mb" }));
 
 // ============================
 // System instruction
@@ -75,15 +87,20 @@ Si la pregunta no es sobre la Fundación, usa tu conocimiento general.
 // Helpers
 // ============================
 function getClientId(req) {
-  // viene del frontend (localStorage)
-  return String(req.body?.clientId || req.query?.clientId || req.headers["x-client-id"] || "").trim();
+  // prioridad: header (porque GET no tiene body)
+  const h = String(req.headers["x-client-id"] || "").trim();
+  const b = String(req.body?.clientId || "").trim();
+  const q = String(req.query?.clientId || "").trim();
+  const cid = (h || b || q || "").slice(0, 120);
+  return cid;
 }
 
 function getUserKey(req) {
-  // Preferimos clientId (estable). Si no llega, fallback IP|UA.
+  // userKey estable por navegador (tu clientId)
   const clientId = getClientId(req);
   if (clientId) return `cid:${clientId}`.slice(0, 500);
 
+  // fallback
   const ip = req.ip || "";
   const ua = req.headers["user-agent"] || "";
   return `${ip} | ${ua}`.slice(0, 500);
@@ -107,7 +124,7 @@ function extractMessage(err) {
 }
 
 // ============================
-// FAQ sin IA (pero guardado en historial)
+// FAQ sin IA (guardado igual)
 // ============================
 function faqReply(message) {
   const t = String(message || "").toLowerCase();
@@ -158,19 +175,24 @@ Próximamente:
 // ============================
 // Supabase helpers (sesiones / mensajes)
 // ============================
-async function ensureSession(sessionId, userKey) {
-  if (!supabase) return;
+async function getSession(sessionId) {
+  if (!supabase) return null;
 
-  const now = new Date().toISOString();
-
-  // ¿existe?
-  const { data: existing, error: selErr } = await supabase
+  const { data, error } = await supabase
     .from("chat_sessions")
     .select("session_id, user_key")
     .eq("session_id", sessionId)
     .maybeSingle();
 
-  if (selErr) throw selErr;
+  if (error) throw error;
+  return data || null;
+}
+
+async function ensureSession(sessionId, userKey) {
+  if (!supabase) return;
+
+  const now = new Date().toISOString();
+  const existing = await getSession(sessionId);
 
   if (!existing) {
     const { error: insErr } = await supabase.from("chat_sessions").insert([
@@ -178,20 +200,25 @@ async function ensureSession(sessionId, userKey) {
         session_id: sessionId,
         user_key: userKey,
         last_seen: now,
-        // last_message_at / preview se llenan cuando haya mensajes
       },
     ]);
     if (insErr) throw insErr;
-  } else {
-    // actualiza last_seen (sin cambiar owner)
-    if (existing.user_key === userKey) {
-      const { error: upErr } = await supabase
-        .from("chat_sessions")
-        .update({ last_seen: now })
-        .eq("session_id", sessionId);
-      if (upErr) throw upErr;
-    }
+    return;
   }
+
+  // 🔒 si existe pero es de otro, BLOQUEA
+  if (existing.user_key !== userKey) {
+    const e = new Error("No autorizado: sesión no pertenece a este usuario.");
+    e.status = 403;
+    throw e;
+  }
+
+  const { error: upErr } = await supabase
+    .from("chat_sessions")
+    .update({ last_seen: now })
+    .eq("session_id", sessionId);
+
+  if (upErr) throw upErr;
 }
 
 async function touchSessionLastMessage(sessionId, userKey, previewText) {
@@ -200,15 +227,13 @@ async function touchSessionLastMessage(sessionId, userKey, previewText) {
   const now = new Date().toISOString();
   const preview = String(previewText || "").slice(0, 200);
 
-  // Solo actualiza si el session pertenece a este userKey
-  const { data: s, error: selErr } = await supabase
-    .from("chat_sessions")
-    .select("session_id, user_key")
-    .eq("session_id", sessionId)
-    .maybeSingle();
-
-  if (selErr) throw selErr;
-  if (!s || s.user_key !== userKey) return;
+  // asegurar ownership
+  const s = await getSession(sessionId);
+  if (!s || s.user_key !== userKey) {
+    const e = new Error("No autorizado: sesión no pertenece a este usuario.");
+    e.status = 403;
+    throw e;
+  }
 
   const { error: upErr } = await supabase
     .from("chat_sessions")
@@ -222,8 +247,16 @@ async function touchSessionLastMessage(sessionId, userKey, previewText) {
   if (upErr) throw upErr;
 }
 
-async function insertChatMessage(sessionId, role, content) {
+async function insertChatMessage(sessionId, userKey, role, content) {
   if (!supabase) return;
+
+  // asegurar ownership ANTES de insertar
+  const s = await getSession(sessionId);
+  if (!s || s.user_key !== userKey) {
+    const e = new Error("No autorizado: sesión no pertenece a este usuario.");
+    e.status = 403;
+    throw e;
+  }
 
   const { error } = await supabase
     .from("chat_messages")
@@ -303,6 +336,7 @@ app.get("/sessions", async (req, res) => {
 
     if (error) return res.status(500).json({ error: error.message });
 
+    res.set("Cache-Control", "no-store");
     return res.json({ sessions: data || [] });
   } catch (e) {
     return res.status(500).json({ error: "Error en /sessions", details: String(e?.message || e) });
@@ -317,17 +351,21 @@ app.post("/sessions", async (req, res) => {
     const userKey = getUserKey(req);
     const sessionId = newSessionId();
 
-    await ensureSession(sessionId, userKey);
+    // crea
+    const now = new Date().toISOString();
+    const { error: insErr } = await supabase.from("chat_sessions").insert([
+      { session_id: sessionId, user_key: userKey, last_seen: now },
+    ]);
+    if (insErr) throw insErr;
 
+    res.set("Cache-Control", "no-store");
     return res.json({ sessionId });
   } catch (e) {
     return res.status(500).json({ error: "Error creando sesión", details: String(e?.message || e) });
   }
 });
 
-// ==========================================
-// NUEVO ENDPOINT: Eliminar conversación
-// ==========================================
+// Eliminar conversación (⋯ -> Eliminar)
 app.delete("/session/:sessionId", async (req, res) => {
   try {
     if (!supabase) return res.status(500).json({ error: "Supabase no configurado." });
@@ -335,47 +373,29 @@ app.delete("/session/:sessionId", async (req, res) => {
     const sessionId = String(req.params.sessionId || "").trim();
     if (!sessionId) return res.status(400).json({ error: "Falta sessionId" });
 
-    // 1. Verificar dueño de la sesión (userKey)
     const userKey = getUserKey(req);
-    
-    const { data: rows, error: sErr } = await supabase
-      .from("chat_sessions")
-      .select("session_id, user_key")
-      .eq("session_id", sessionId)
-      .maybeSingle(); // Cambiado a maybeSingle para mejor manejo
 
-    if (sErr) return res.status(500).json({ error: sErr.message });
-    if (!rows) return res.status(404).json({ error: "Sesión no encontrada." });
+    // ownership check
+    const s = await getSession(sessionId);
+    if (!s) return res.status(404).json({ error: "Sesión no encontrada." });
+    if (s.user_key !== userKey) return res.status(403).json({ error: "No autorizado para borrar esta sesión." });
 
-    // Seguridad: evitar que borren sesiones ajenas
-    if (rows.user_key !== userKey) {
-      return res.status(403).json({ error: "No autorizado para borrar esta sesión." });
-    }
-
-    // 2. Borrar mensajes
-    const { error: mErr } = await supabase
-      .from("chat_messages")
-      .delete()
-      .eq("session_id", sessionId);
-
+    // borrar mensajes
+    const { error: mErr } = await supabase.from("chat_messages").delete().eq("session_id", sessionId);
     if (mErr) return res.status(500).json({ error: "Error borrando mensajes", details: mErr.message });
 
-    // 3. Borrar sesión en DB
-    const { error: dErr } = await supabase
-      .from("chat_sessions")
-      .delete()
-      .eq("session_id", sessionId);
-
+    // borrar sesión
+    const { error: dErr } = await supabase.from("chat_sessions").delete().eq("session_id", sessionId);
     if (dErr) return res.status(500).json({ error: "Error borrando sesión", details: dErr.message });
 
-    // 4. Limpiar memoria RAM (Si la sesión estaba activa en Gemini)
-    if (sessions.has(sessionId)) {
-        sessions.delete(sessionId);
-    }
+    // limpiar RAM IA
+    sessions.delete(sessionId);
 
+    res.set("Cache-Control", "no-store");
     return res.json({ ok: true, sessionId });
   } catch (e) {
-    return res.status(500).json({ error: "Error interno", details: String(e?.message || e) });
+    const status = extractStatus(e) || 500;
+    return res.status(status).json({ error: "Error interno", details: String(e?.message || e) });
   }
 });
 
@@ -388,14 +408,8 @@ app.get("/history/:sessionId", async (req, res) => {
     const sessionId = String(req.params.sessionId || "").trim();
     const limit = Math.min(Number(req.query.limit || 200), 500);
 
-    // Validar que sea del mismo usuario
-    const { data: s, error: sErr } = await supabase
-      .from("chat_sessions")
-      .select("session_id, user_key")
-      .eq("session_id", sessionId)
-      .maybeSingle();
-
-    if (sErr) return res.status(500).json({ error: sErr.message });
+    // ownership check
+    const s = await getSession(sessionId);
     if (!s || s.user_key !== userKey) return res.status(404).json({ error: "Sesión no encontrada." });
 
     const { data, error } = await supabase
@@ -407,6 +421,7 @@ app.get("/history/:sessionId", async (req, res) => {
 
     if (error) return res.status(500).json({ error: error.message });
 
+    res.set("Cache-Control", "no-store");
     return res.json({ sessionId, messages: data || [] });
   } catch (e) {
     return res.status(500).json({ error: "Error en historial", details: String(e?.message || e) });
@@ -416,52 +431,53 @@ app.get("/history/:sessionId", async (req, res) => {
 // Chat principal
 app.post("/chat", async (req, res) => {
   try {
-    if (!apiKey) return res.status(500).json({ reply: "Servidor sin API KEY (GEMINI_API_KEY)." });
+    if (!ai) return res.status(500).json({ reply: "Servidor sin API KEY (GEMINI_API_KEY)." });
 
     const userMessage = String(req.body?.message || "").trim();
     let sessionId = String(req.body?.sessionId || "").trim();
-
     if (!userMessage) return res.status(400).json({ reply: "Mensaje no proporcionado." });
 
     if (!sessionId) sessionId = newSessionId();
 
     const userKey = getUserKey(req);
 
-    // 1) Asegura sesión y guarda mensaje usuario
+    // 1) Asegura sesión (si es ajena => 403)
+    if (supabase) await ensureSession(sessionId, userKey);
+
+    // 2) guarda msg usuario
     if (supabase) {
-      await ensureSession(sessionId, userKey);
-      await insertChatMessage(sessionId, "user", userMessage);
+      await insertChatMessage(sessionId, userKey, "user", userMessage);
       await touchSessionLastMessage(sessionId, userKey, userMessage);
     }
 
-    // 2) FAQ sin IA (pero se guarda)
+    // 3) FAQ sin IA
     const faq = faqReply(userMessage);
     if (faq) {
       if (supabase) {
-        await insertChatMessage(sessionId, "bot", faq);
+        await insertChatMessage(sessionId, userKey, "bot", faq);
         await touchSessionLastMessage(sessionId, userKey, faq);
       }
       res.set("Cache-Control", "no-store");
       return res.json({ reply: faq, sessionId });
     }
 
-    // 3) Límite diario IA
+    // 4) Límite diario IA
     if (!canUseAI()) {
       const msg = `Hoy ya se alcanzó el límite diario de respuestas con IA (${MAX_DAILY_AI_CALLS}/día).
 Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
 
       if (supabase) {
-        await insertChatMessage(sessionId, "bot", msg);
+        await insertChatMessage(sessionId, userKey, "bot", msg);
         await touchSessionLastMessage(sessionId, userKey, msg);
       }
       return res.status(429).json({ reply: msg, sessionId });
     }
 
-    // 4) Sesión IA en memoria
+    // 5) Sesión IA en memoria
     let session = sessions.get(sessionId);
     if (!session) {
       const chat = ai.chats.create({
-        model: "gemini-2.0-flash", // Actualizado a una versión válida si aplica, o manten el que tenías
+        model: GEMINI_MODEL,
         config: {
           systemInstruction,
           temperature: 0.3,
@@ -483,14 +499,14 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
     if (!reply) {
       const msg = "La IA respondió vacío. Intenta nuevamente.";
       if (supabase) {
-        await insertChatMessage(sessionId, "bot", msg);
+        await insertChatMessage(sessionId, userKey, "bot", msg);
         await touchSessionLastMessage(sessionId, userKey, msg);
       }
       return res.status(502).json({ reply: msg, sessionId });
     }
 
     if (supabase) {
-      await insertChatMessage(sessionId, "bot", reply);
+      await insertChatMessage(sessionId, userKey, "bot", reply);
       await touchSessionLastMessage(sessionId, userKey, reply);
     }
 
@@ -500,6 +516,10 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
     const status = extractStatus(error);
     const msg = extractMessage(error);
     console.error("❌ Error /chat:", msg);
+
+    if (status === 403) {
+      return res.status(403).json({ reply: "Esta conversación no te pertenece. Crea una nueva (botón Nueva).", sessionId: "" });
+    }
 
     if (status === 429 || /RESOURCE_EXHAUSTED|quota|rate limit|429/i.test(msg)) {
       res.set("Retry-After", "60");
