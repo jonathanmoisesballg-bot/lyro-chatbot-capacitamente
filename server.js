@@ -22,9 +22,7 @@ app.use(
     allowedHeaders: ["Content-Type", "x-client-id"],
   })
 );
-// Preflight
 app.options("*", cors());
-
 app.use(express.json({ strict: false, limit: "1mb" }));
 
 // ============================
@@ -34,7 +32,7 @@ const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 if (!apiKey) console.error("❌ Falta GEMINI_API_KEY (o GOOGLE_API_KEY) en variables de entorno.");
 
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash"; // puedes cambiar en Render si quieres
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
 // ============================
 // Supabase
@@ -87,20 +85,16 @@ Si la pregunta no es sobre la Fundación, usa tu conocimiento general.
 // Helpers
 // ============================
 function getClientId(req) {
-  // prioridad: header (porque GET no tiene body)
   const h = String(req.headers["x-client-id"] || "").trim();
   const b = String(req.body?.clientId || "").trim();
   const q = String(req.query?.clientId || "").trim();
-  const cid = (h || b || q || "").slice(0, 120);
-  return cid;
+  return (h || b || q || "").slice(0, 120);
 }
 
 function getUserKey(req) {
-  // userKey estable por navegador (tu clientId)
   const clientId = getClientId(req);
   if (clientId) return `cid:${clientId}`.slice(0, 500);
 
-  // fallback
   const ip = req.ip || "";
   const ua = req.headers["user-agent"] || "";
   return `${ip} | ${ua}`.slice(0, 500);
@@ -124,32 +118,89 @@ function extractMessage(err) {
 }
 
 // ============================
+// MENÚ
+// ============================
+const MENU_TEXT =
+`Opciones:
+1) Cursos gratis
+2) Cursos con certificados y precios
+3) Contacto
+4) Donar
+
+Responde con el número (1-4) o escribe tu pregunta.
+(Escribe 0 para ver el menú otra vez)`;
+
+// ============================
+// Utilidades de texto
+// ============================
+function normalizeText(s) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, ""); // quita tildes
+}
+
+function isMenuRequest(t) {
+  return (
+    t === "0" ||
+    t === "menu" ||
+    t === "menú" ||
+    t.includes("menu") ||
+    t.includes("menú") ||
+    t.includes("opciones") ||
+    t.includes("opcion") ||
+    t.includes("ayuda")
+  );
+}
+
+function isGreeting(t) {
+  // detecta saludo aunque venga con texto: "hola lyro", "buenas tardes", etc.
+  return (
+    t.startsWith("hola") ||
+    t.startsWith("buenas") ||
+    t.startsWith("buenos dias") ||
+    t.startsWith("buenas tardes") ||
+    t.startsWith("buenas noches") ||
+    t.startsWith("hey") ||
+    t.startsWith("holi")
+  );
+}
+
+// ============================
 // FAQ sin IA (guardado igual)
 // ============================
 function faqReply(message) {
-  const t = String(message || "").toLowerCase();
+  const raw = String(message || "").trim();
+  const t = normalizeText(raw);
 
-  if (t.includes("donaci") || t.includes("donar")) {
-    return `Para donar:
-1) Entra a Donaciones → "Donar ahora"
-2) Elige una cantidad (o personalizada) → "Continuar"
-3) Llena tus datos
-4) Elige método (Transferencia o PayPal)
-5) Presiona "Donar ahora"`;
+  // Menú explícito o 0
+  if (isMenuRequest(t)) {
+    return `📌 Aquí tienes el menú:\n\n${MENU_TEXT}`;
   }
 
-  if (t.includes("contact") || t.includes("inscrib") || t.includes("información") || t.includes("informacion")) {
-    return `Contacto Fundación Capacítamente:
-📱 0983222358
-✉️ info@fundacioncapacitamente.com
-📍 Guayaquil - Ecuador`;
+  // Saludo
+  if (isGreeting(t)) {
+    return `Hola 👋 ¿En qué te puedo ayudar?\n\n${MENU_TEXT}`;
   }
 
-  if (
-    t.includes("precio") ||
-    t.includes("costo") ||
-    (t.includes("curso") && (t.includes("pago") || t.includes("certif") || t.includes("certificado")))
-  ) {
+  // Capturar opción numérica (1-4 o 0) incluso si ponen "1)" o "2 - ..."
+  const opt = raw.trim().match(/^([0-9])(\s|[)\.\-:])?/);
+  const digit = opt ? opt[1] : null;
+
+  if (digit === "0") {
+    return `📌 Aquí tienes el menú:\n\n${MENU_TEXT}`;
+  }
+  if (digit === "1") {
+    return `Cursos gratuitos:
+• Tecnología para Educadores – Tatiana Arias
+Próximamente:
+• Metodología de la Pregunta – Tatiana Arias
+• Neuroeducación… También en casa – Prosandoval
+
+(Escribe 0 para ver el menú)`;
+  }
+  if (digit === "2") {
     return `Cursos con certificado:
 • Formador de Formadores ($120) – Tatiana Arias
 • Inteligencia Emocional ($15) – Tatiana Arias
@@ -158,7 +209,67 @@ function faqReply(message) {
 Próximamente:
 • Contabilidad para no contadores ($20)
 • Docencia Virtual ($20)
-• Habilidades Cognitivas y Emocionales (Aprender a Pensar) ($20)`;
+• Habilidades Cognitivas y Emocionales (Aprender a Pensar) ($20)
+
+(Escribe 0 para ver el menú)`;
+  }
+  if (digit === "3") {
+    return `Contacto Fundación Capacítamente:
+📱 0983222358
+✉️ info@fundacioncapacitamente.com
+📍 Guayaquil - Ecuador
+
+(Escribe 0 para ver el menú)`;
+  }
+  if (digit === "4") {
+    return `Para donar:
+1) Entra a Donaciones → "Donar ahora"
+2) Elige una cantidad (o personalizada) → "Continuar"
+3) Llena tus datos
+4) Elige método (Transferencia o PayPal)
+5) Presiona "Donar ahora"
+
+(Escribe 0 para ver el menú)`;
+  }
+
+  // Si escribió solo número pero no válido
+  if (/^\d+$/.test(t)) {
+    return `Ese número no es una opción válida.\n\n${MENU_TEXT}`;
+  }
+
+  // Compatibilidad por keywords
+  if (t.includes("donaci") || t.includes("donar")) {
+    return `Para donar:
+1) Entra a Donaciones → "Donar ahora"
+2) Elige una cantidad (o personalizada) → "Continuar"
+3) Llena tus datos
+4) Elige método (Transferencia o PayPal)
+5) Presiona "Donar ahora"
+
+(Escribe 0 para ver el menú)`;
+  }
+
+  if (t.includes("contact") || t.includes("inscrib") || t.includes("informacion") || t.includes("información")) {
+    return `Contacto Fundación Capacítamente:
+📱 0983222358
+✉️ info@fundacioncapacitamente.com
+📍 Guayaquil - Ecuador
+
+(Escribe 0 para ver el menú)`;
+  }
+
+  if (t.includes("precio") || t.includes("costo") || (t.includes("curso") && (t.includes("pago") || t.includes("certif") || t.includes("certificado")))) {
+    return `Cursos con certificado:
+• Formador de Formadores ($120) – Tatiana Arias
+• Inteligencia Emocional ($15) – Tatiana Arias
+• Tecnología para Padres ($15) – Yadira Suárez
+
+Próximamente:
+• Contabilidad para no contadores ($20)
+• Docencia Virtual ($20)
+• Habilidades Cognitivas y Emocionales (Aprender a Pensar) ($20)
+
+(Escribe 0 para ver el menú)`;
   }
 
   if (t.includes("gratis") || t.includes("gratuito")) {
@@ -166,14 +277,16 @@ Próximamente:
 • Tecnología para Educadores – Tatiana Arias
 Próximamente:
 • Metodología de la Pregunta – Tatiana Arias
-• Neuroeducación… También en casa – Prosandoval`;
+• Neuroeducación… También en casa – Prosandoval
+
+(Escribe 0 para ver el menú)`;
   }
 
   return null;
 }
 
 // ============================
-// Supabase helpers (sesiones / mensajes)
+// Supabase helpers
 // ============================
 async function getSession(sessionId) {
   if (!supabase) return null;
@@ -196,17 +309,12 @@ async function ensureSession(sessionId, userKey) {
 
   if (!existing) {
     const { error: insErr } = await supabase.from("chat_sessions").insert([
-      {
-        session_id: sessionId,
-        user_key: userKey,
-        last_seen: now,
-      },
+      { session_id: sessionId, user_key: userKey, last_seen: now },
     ]);
     if (insErr) throw insErr;
     return;
   }
 
-  // 🔒 si existe pero es de otro, BLOQUEA
   if (existing.user_key !== userKey) {
     const e = new Error("No autorizado: sesión no pertenece a este usuario.");
     e.status = 403;
@@ -227,7 +335,6 @@ async function touchSessionLastMessage(sessionId, userKey, previewText) {
   const now = new Date().toISOString();
   const preview = String(previewText || "").slice(0, 200);
 
-  // asegurar ownership
   const s = await getSession(sessionId);
   if (!s || s.user_key !== userKey) {
     const e = new Error("No autorizado: sesión no pertenece a este usuario.");
@@ -250,7 +357,6 @@ async function touchSessionLastMessage(sessionId, userKey, previewText) {
 async function insertChatMessage(sessionId, userKey, role, content) {
   if (!supabase) return;
 
-  // asegurar ownership ANTES de insertar
   const s = await getSession(sessionId);
   if (!s || s.user_key !== userKey) {
     const e = new Error("No autorizado: sesión no pertenece a este usuario.");
@@ -318,7 +424,7 @@ setInterval(() => {
 // ============================
 app.get("/health", (req, res) => res.status(200).send("ok"));
 
-// Lista de conversaciones del usuario (para el recuadro)
+// Lista sesiones
 app.get("/sessions", async (req, res) => {
   try {
     if (!supabase) return res.status(500).json({ error: "Supabase no configurado." });
@@ -343,7 +449,7 @@ app.get("/sessions", async (req, res) => {
   }
 });
 
-// Crear nueva conversación (botón “Nueva”)
+// Crear nueva conversación + guardar mensaje inicial
 app.post("/sessions", async (req, res) => {
   try {
     if (!supabase) return res.status(500).json({ error: "Supabase no configurado." });
@@ -351,12 +457,20 @@ app.post("/sessions", async (req, res) => {
     const userKey = getUserKey(req);
     const sessionId = newSessionId();
 
-    // crea
     const now = new Date().toISOString();
     const { error: insErr } = await supabase.from("chat_sessions").insert([
       { session_id: sessionId, user_key: userKey, last_seen: now },
     ]);
     if (insErr) throw insErr;
+
+    const welcome =
+`Nueva conversación creada ✅
+Soy Lyro-Capacítamente, ¿qué deseas preguntar?
+
+${MENU_TEXT}`;
+
+    await insertChatMessage(sessionId, userKey, "bot", welcome);
+    await touchSessionLastMessage(sessionId, userKey, welcome);
 
     res.set("Cache-Control", "no-store");
     return res.json({ sessionId });
@@ -365,7 +479,7 @@ app.post("/sessions", async (req, res) => {
   }
 });
 
-// Eliminar conversación (⋯ -> Eliminar)
+// Eliminar conversación
 app.delete("/session/:sessionId", async (req, res) => {
   try {
     if (!supabase) return res.status(500).json({ error: "Supabase no configurado." });
@@ -375,20 +489,16 @@ app.delete("/session/:sessionId", async (req, res) => {
 
     const userKey = getUserKey(req);
 
-    // ownership check
     const s = await getSession(sessionId);
     if (!s) return res.status(404).json({ error: "Sesión no encontrada." });
     if (s.user_key !== userKey) return res.status(403).json({ error: "No autorizado para borrar esta sesión." });
 
-    // borrar mensajes
     const { error: mErr } = await supabase.from("chat_messages").delete().eq("session_id", sessionId);
     if (mErr) return res.status(500).json({ error: "Error borrando mensajes", details: mErr.message });
 
-    // borrar sesión
     const { error: dErr } = await supabase.from("chat_sessions").delete().eq("session_id", sessionId);
     if (dErr) return res.status(500).json({ error: "Error borrando sesión", details: dErr.message });
 
-    // limpiar RAM IA
     sessions.delete(sessionId);
 
     res.set("Cache-Control", "no-store");
@@ -399,7 +509,7 @@ app.delete("/session/:sessionId", async (req, res) => {
   }
 });
 
-// Historial de una conversación
+// Historial
 app.get("/history/:sessionId", async (req, res) => {
   try {
     if (!supabase) return res.status(500).json({ error: "Supabase no configurado." });
@@ -408,7 +518,6 @@ app.get("/history/:sessionId", async (req, res) => {
     const sessionId = String(req.params.sessionId || "").trim();
     const limit = Math.min(Number(req.query.limit || 200), 500);
 
-    // ownership check
     const s = await getSession(sessionId);
     if (!s || s.user_key !== userKey) return res.status(404).json({ error: "Sesión no encontrada." });
 
@@ -441,16 +550,14 @@ app.post("/chat", async (req, res) => {
 
     const userKey = getUserKey(req);
 
-    // 1) Asegura sesión (si es ajena => 403)
     if (supabase) await ensureSession(sessionId, userKey);
 
-    // 2) guarda msg usuario
     if (supabase) {
       await insertChatMessage(sessionId, userKey, "user", userMessage);
       await touchSessionLastMessage(sessionId, userKey, userMessage);
     }
 
-    // 3) FAQ sin IA
+    // FAQ / menú / números
     const faq = faqReply(userMessage);
     if (faq) {
       if (supabase) {
@@ -461,7 +568,7 @@ app.post("/chat", async (req, res) => {
       return res.json({ reply: faq, sessionId });
     }
 
-    // 4) Límite diario IA
+    // Límite IA
     if (!canUseAI()) {
       const msg = `Hoy ya se alcanzó el límite diario de respuestas con IA (${MAX_DAILY_AI_CALLS}/día).
 Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
@@ -473,7 +580,7 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
       return res.status(429).json({ reply: msg, sessionId });
     }
 
-    // 5) Sesión IA en memoria
+    // Sesión IA
     let session = sessions.get(sessionId);
     if (!session) {
       const chat = ai.chats.create({
@@ -518,7 +625,10 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
     console.error("❌ Error /chat:", msg);
 
     if (status === 403) {
-      return res.status(403).json({ reply: "Esta conversación no te pertenece. Crea una nueva (botón Nueva).", sessionId: "" });
+      return res.status(403).json({
+        reply: "Esta conversación no te pertenece. Crea una nueva (botón Nueva).",
+        sessionId: "",
+      });
     }
 
     if (status === 429 || /RESOURCE_EXHAUSTED|quota|rate limit|429/i.test(msg)) {
