@@ -109,7 +109,11 @@ function extractStatus(err) {
 
 function extractMessage(err) {
   if (typeof err?.message === "string") return err.message;
-  try { return JSON.stringify(err?.error || err); } catch { return String(err); }
+  try {
+    return JSON.stringify(err?.error || err);
+  } catch {
+    return String(err);
+  }
 }
 
 // ============================
@@ -129,13 +133,20 @@ Opciones:
 Responde con el número (1-6) o escribe tu pregunta.`;
 }
 
+// ✅ TEXTO DE HORARIOS CORREGIDO (más claro)
 function horariosTexto() {
-  return `Los horarios son de manera como usted le facilitaría recibir las clases ya que son de modo online. 😊`;
+  return `🗓️ Horarios (Clases Online)
+
+Los horarios se coordinan contigo: al ser clases virtuales, buscamos el horario que mejor se te facilite para recibirlas. ✅
+
+Si deseas, indícame:
+• Tu disponibilidad (días y horas)
+• El curso que vas a tomar`;
 }
 
 function isGreeting(text) {
   const s = String(text || "").toLowerCase().trim();
-  return ["hola","buenas","buenos dias","buenas tardes","buenas noches","hello","hi"].includes(s);
+  return ["hola", "buenas", "buenos dias", "buenas tardes", "buenas noches", "hello", "hi"].includes(s);
 }
 
 function faqReply(message) {
@@ -143,13 +154,15 @@ function faqReply(message) {
 
   if (isGreeting(t)) return menuOpcionesTexto();
 
-  if (t === "1") return `Cursos gratuitos:
+  if (t === "1")
+    return `Cursos gratuitos:
 • Tecnología para Educadores – Tatiana Arias
 Próximamente:
 • Metodología de la Pregunta – Tatiana Arias
 • Neuroeducación… También en casa – Prosandoval`;
 
-  if (t === "2") return `Cursos con certificado:
+  if (t === "2")
+    return `Cursos con certificado:
 • Formador de Formadores ($120) – Tatiana Arias
 • Inteligencia Emocional ($15) – Tatiana Arias
 • Tecnología para Padres ($15) – Yadira Suárez
@@ -159,12 +172,14 @@ Próximamente:
 • Docencia Virtual ($20)
 • Habilidades Cognitivas y Emocionales (Aprender a Pensar) ($20)`;
 
-  if (t === "3") return `Contacto Fundación Capacítamente:
+  if (t === "3")
+    return `Contacto Fundación Capacítamente:
 📱 0983222358
 ✉️ info@fundacioncapacitamente.com
 📍 Guayaquil - Ecuador`;
 
-  if (t === "4") return `Para donar:
+  if (t === "4")
+    return `Para donar:
 1) Entra a Donaciones → "Donar ahora"
 2) Elige una cantidad (o personalizada) → "Continuar"
 3) Llena tus datos
@@ -177,7 +192,8 @@ Próximamente:
   if (t.includes("donaci") || t.includes("donar")) return faqReply("4");
   if (t.includes("contact") || t.includes("inscrib") || t.includes("información") || t.includes("informacion")) return faqReply("3");
   if (t.includes("gratis") || t.includes("gratuito")) return faqReply("1");
-  if (t.includes("precio") || t.includes("costo") || (t.includes("curso") && (t.includes("pago") || t.includes("certif") || t.includes("certificado")))) return faqReply("2");
+  if (t.includes("precio") || t.includes("costo") || (t.includes("curso") && (t.includes("pago") || t.includes("certif") || t.includes("certificado"))))
+    return faqReply("2");
   if (t.includes("horario")) return horariosTexto();
 
   return null;
@@ -206,7 +222,7 @@ async function getNextConversationNumber(userKey) {
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  const last = (data && typeof data.conversation_number === "number") ? data.conversation_number : 0;
+  const last = data && typeof data.conversation_number === "number" ? data.conversation_number : 0;
   return last + 1;
 }
 
@@ -220,12 +236,14 @@ async function ensureSession(sessionId, userKey) {
   if (!existing) {
     const nextNum = await getNextConversationNumber(userKey);
 
-    const { error: insErr } = await supabase.from("chat_sessions").insert([{
-      session_id: sessionId,
-      user_key: userKey,
-      last_seen: now,
-      conversation_number: nextNum
-    }]);
+    const { error: insErr } = await supabase.from("chat_sessions").insert([
+      {
+        session_id: sessionId,
+        user_key: userKey,
+        last_seen: now,
+        conversation_number: nextNum,
+      },
+    ]);
     if (insErr) throw insErr;
 
     // saludo en historial
@@ -240,10 +258,7 @@ async function ensureSession(sessionId, userKey) {
     throw e;
   }
 
-  const { error: upErr } = await supabase
-    .from("chat_sessions")
-    .update({ last_seen: now })
-    .eq("session_id", sessionId);
+  const { error: upErr } = await supabase.from("chat_sessions").update({ last_seen: now }).eq("session_id", sessionId);
   if (upErr) throw upErr;
 }
 
@@ -281,26 +296,29 @@ async function insertChatMessage(sessionId, userKey, role, content) {
     throw e;
   }
 
-  const { error } = await supabase
-    .from("chat_messages")
-    .insert([{ session_id: sessionId, role, content }]);
+  const { error } = await supabase.from("chat_messages").insert([{ session_id: sessionId, role, content }]);
   if (error) throw error;
 }
 
 // ============================
 // Flujo Estado de Certificado
 // ============================
-const certFlow = new Map(); // sessionId -> { step, cedula? }
+const certFlow = new Map(); // sessionId -> { cedula?: string }
 
 function extractCedula(text) {
   const m = String(text || "").match(/\b\d{10}\b/);
   return m ? m[0] : "";
 }
+function normalizeCourse(text) {
+  return String(text || "")
+    .replace(/[-,:]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 function extractCourse(text, cedula) {
   let s = String(text || "");
   if (cedula) s = s.replace(cedula, "");
-  s = s.replace(/[-,:]/g, " ").replace(/\s+/g, " ").trim();
-  return s;
+  return normalizeCourse(s);
 }
 function certAskText() {
   return `📄 Estado de certificado
@@ -353,8 +371,14 @@ function resetDailyIfNeeded() {
     aiCallsToday = 0;
   }
 }
-function canUseAI() { resetDailyIfNeeded(); return aiCallsToday < MAX_DAILY_AI_CALLS; }
-function incAI() { resetDailyIfNeeded(); aiCallsToday++; }
+function canUseAI() {
+  resetDailyIfNeeded();
+  return aiCallsToday < MAX_DAILY_AI_CALLS;
+}
+function incAI() {
+  resetDailyIfNeeded();
+  aiCallsToday++;
+}
 
 setInterval(() => {
   const now = Date.now();
@@ -496,9 +520,33 @@ app.post("/chat", async (req, res) => {
 
     const t = userMessage.toLowerCase().trim();
 
-    // ====== Estado de certificado (botón 5 / texto)
-    if (t === "5" || t.includes("estado de certificado") || t.includes("mi certificado") || t.includes("certificado")) {
-      certFlow.set(sessionId, { step: "need_data" });
+    // ✅ SI ESTABA EN FLUJO CERTIFICADO Y EL USUARIO PRESIONA OTRA OPCIÓN, CANCELAR FLUJO
+    const cancelCertByMenu = ["1", "2", "3", "4", "6", "menu", "menú", "inicio", "cancelar", "salir"];
+    if (certFlow.has(sessionId) && cancelCertByMenu.includes(t)) {
+      certFlow.delete(sessionId);
+
+      // si pidió menú explícito
+      if (t === "menu" || t === "menú" || t === "inicio") {
+        const reply = menuOpcionesTexto();
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return res.json({ reply, sessionId });
+      }
+      // para 1,2,3,4,6: caerá al FAQ normal y responderá bien (incluye Horarios ✅)
+    }
+
+    // ====== Estado de certificado (disparador más preciso para NO confundirse con "certificados y precios")
+    const wantsCert =
+      t === "5" ||
+      t.includes("estado de certificado") ||
+      t.includes("estado del certificado") ||
+      t.includes("mi certificado") ||
+      (t.includes("certificado") && (t.includes("estado") || t.includes("listo") || t.includes("esta listo") || t.includes("está listo")));
+
+    if (wantsCert) {
+      certFlow.set(sessionId, { cedula: "" });
       const reply = certAskText();
 
       if (supabase) {
@@ -508,13 +556,15 @@ app.post("/chat", async (req, res) => {
       return res.json({ reply, sessionId });
     }
 
-    // flujo activo de certificado
+    // ====== flujo activo de certificado (más robusto: permite enviar cédula y luego curso)
     if (certFlow.has(sessionId)) {
-      const cedula = extractCedula(userMessage);
-      const curso = extractCourse(userMessage, cedula);
+      const flow = certFlow.get(sessionId) || {};
+      const foundCedula = extractCedula(userMessage);
 
+      // usa cédula encontrada o la guardada
+      const cedula = foundCedula || flow.cedula || "";
       if (!cedula) {
-        const reply = `Por favor escribe tu CÉDULA (10 dígitos).\nEj: 0923456789`;
+        const reply = `Por favor escribe tu CÉDULA (10 dígitos).\nEj: 0923456789\n\n(Escribe "menu" si deseas volver al menú.)`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -522,8 +572,19 @@ app.post("/chat", async (req, res) => {
         return res.json({ reply, sessionId });
       }
 
+      // guarda cédula
+      if (foundCedula) {
+        certFlow.set(sessionId, { cedula });
+      }
+
+      // curso: si el mensaje trae cédula + curso, lo extraemos
+      // si NO trae cédula (porque ya la dimos antes), tomamos el mensaje como curso
+      let curso = "";
+      if (foundCedula) curso = extractCourse(userMessage, foundCedula);
+      else curso = normalizeCourse(userMessage);
+
       if (!curso || curso.length < 3) {
-        const reply = `Perfecto ✅ Cédula recibida.\nAhora escribe el NOMBRE DEL CURSO.\nEj: Inteligencia Emocional`;
+        const reply = `Perfecto ✅ Cédula recibida.\nAhora escribe el NOMBRE DEL CURSO.\nEj: Inteligencia Emocional\n\n(Escribe "menu" si deseas volver al menú.)`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -535,12 +596,19 @@ app.post("/chat", async (req, res) => {
       try {
         const row = await getCertificateStatus(cedula, curso);
         if (!row) {
-          reply = `No encuentro un registro para:\n• Cédula: ${cedula}\n• Curso: ${curso}\n\nSi crees que es un error:\n📱 0983222358\n✉️ info@fundacioncapacitamente.com`;
+          reply = `No encuentro un registro para:
+• Cédula: ${cedula}
+• Curso: ${curso}
+
+Si crees que es un error:
+📱 0983222358
+✉️ info@fundacioncapacitamente.com`;
         } else {
           const estado = String(row.estado || "").toLowerCase();
           if (estado === "listo") reply = `✅ Tu certificado está LISTO.\nCurso: ${row.curso}`;
           else if (estado === "en_proceso") reply = `⏳ Tu certificado está EN PROCESO.\nCurso: ${row.curso}`;
-          else reply = `⚠️ Tu certificado NO ESTÁ LISTO todavía.\nCurso: ${row.curso}`;
+          else if (estado === "no_listo") reply = `⚠️ Tu certificado NO ESTÁ LISTO todavía.\nCurso: ${row.curso}`;
+          else reply = `📄 Estado del certificado: ${row.estado}\nCurso: ${row.curso}`;
         }
       } catch (e) {
         reply = `Lo siento, no pude consultar el estado en este momento. Intenta más tarde.`;
