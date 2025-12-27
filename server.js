@@ -131,14 +131,21 @@ Responde con el número (1-4) o escribe tu pregunta.
 (Escribe 0 para ver el menú otra vez)`;
 
 // ============================
-// Utilidades de texto
+// Normalización
 // ============================
 function normalizeText(s) {
   return String(s || "")
     .trim()
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, ""); // quita tildes
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function toCourseKey(courseName) {
+  return normalizeText(courseName)
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function isMenuRequest(t) {
@@ -155,7 +162,6 @@ function isMenuRequest(t) {
 }
 
 function isGreeting(t) {
-  // detecta saludo aunque venga con texto: "hola lyro", "buenas tardes", etc.
   return (
     t.startsWith("hola") ||
     t.startsWith("buenas") ||
@@ -167,6 +173,91 @@ function isGreeting(t) {
   );
 }
 
+function looksLikeCedulaEC(s) {
+  // Ecuador cédula típico 10 dígitos (si quieres permitir RUC, cambia a /^\d{10,13}$/)
+  return /^\d{10}$/.test(String(s || "").trim());
+}
+
+// ============================
+// ✅ CERTIFICADOS: flujo por sesión
+// ============================
+const CERT_TABLE = process.env.CERT_TABLE || "certificados_estado";
+
+// memoria simple: sessionId -> { step: "ASK_COURSE"|"ASK_CEDULA", cursoNombre, cursoKey }
+const certFlow = new Map();
+
+function extractCourseFromCertificateQuestion(message) {
+  // Ej: "mi certificado de inteligencia emocional esta listo"
+  const raw = String(message || "").trim();
+  const t = normalizeText(raw);
+
+  if (!t.includes("certificado")) return null;
+
+  // intenta sacar "de <curso>" hasta "esta/está/listo/?" o fin
+  const m = raw.match(/certificado\s+de\s+(.+?)(\s+(esta|está)\b|\s+listo\b|\?|$)/i);
+  if (m && m[1]) {
+    const cursoNombre = String(m[1]).trim();
+    if (cursoNombre.length >= 2) return cursoNombre;
+  }
+  return null;
+}
+
+async function lookupCertStatus(cedula, cursoKey) {
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from(CERT_TABLE)
+    .select("estado, detalle, updated_at, curso_nombre")
+    .eq("cedula", String(cedula))
+    .eq("curso_key", String(cursoKey))
+    .order("updated_at", { ascending: false })
+    .limit(1);
+
+  if (error) throw error;
+  return (data && data[0]) ? data[0] : null;
+}
+
+function formatCertReply(row, cursoNombre) {
+  if (!row) {
+    return `No encontré un registro para ese curso y cédula.
+📌 Verifica que el nombre del curso esté correcto o escríbenos por Contacto.
+
+(Escribe 0 para ver el menú)`;
+  }
+
+  const estado = String(row.estado || "").toUpperCase();
+  const fecha = row.updated_at ? new Date(row.updated_at).toLocaleString("es-EC") : "";
+
+  if (estado === "LISTO") {
+    return `✅ Tu certificado de "${row.curso_nombre || cursoNombre}" está LISTO.
+📅 Actualizado: ${fecha}
+${row.detalle ? "📝 " + row.detalle : ""}
+
+(Escribe 0 para ver el menú)`;
+  }
+  if (estado === "EN_PROCESO") {
+    return `⏳ Tu certificado de "${row.curso_nombre || cursoNombre}" está EN PROCESO.
+📅 Actualizado: ${fecha}
+${row.detalle ? "📝 " + row.detalle : ""}
+
+(Escribe 0 para ver el menú)`;
+  }
+  if (estado === "NO_LISTO") {
+    return `❌ Tu certificado de "${row.curso_nombre || cursoNombre}" todavía NO ESTÁ LISTO.
+📅 Actualizado: ${fecha}
+${row.detalle ? "📝 " + row.detalle : ""}
+
+(Escribe 0 para ver el menú)`;
+  }
+
+  // fallback
+  return `Estado de certificado: ${estado}
+📅 Actualizado: ${fecha}
+${row.detalle ? "📝 " + row.detalle : ""}
+
+(Escribe 0 para ver el menú)`;
+}
+
 // ============================
 // FAQ sin IA (guardado igual)
 // ============================
@@ -174,23 +265,19 @@ function faqReply(message) {
   const raw = String(message || "").trim();
   const t = normalizeText(raw);
 
-  // Menú explícito o 0
   if (isMenuRequest(t)) {
     return `📌 Aquí tienes el menú:\n\n${MENU_TEXT}`;
   }
 
-  // Saludo
   if (isGreeting(t)) {
     return `Hola 👋 ¿En qué te puedo ayudar?\n\n${MENU_TEXT}`;
   }
 
-  // Capturar opción numérica (1-4 o 0) incluso si ponen "1)" o "2 - ..."
   const opt = raw.trim().match(/^([0-9])(\s|[)\.\-:])?/);
   const digit = opt ? opt[1] : null;
 
-  if (digit === "0") {
-    return `📌 Aquí tienes el menú:\n\n${MENU_TEXT}`;
-  }
+  if (digit === "0") return `📌 Aquí tienes el menú:\n\n${MENU_TEXT}`;
+
   if (digit === "1") {
     return `Cursos gratuitos:
 • Tecnología para Educadores – Tatiana Arias
@@ -200,6 +287,7 @@ Próximamente:
 
 (Escribe 0 para ver el menú)`;
   }
+
   if (digit === "2") {
     return `Cursos con certificado:
 • Formador de Formadores ($120) – Tatiana Arias
@@ -213,6 +301,7 @@ Próximamente:
 
 (Escribe 0 para ver el menú)`;
   }
+
   if (digit === "3") {
     return `Contacto Fundación Capacítamente:
 📱 0983222358
@@ -221,6 +310,7 @@ Próximamente:
 
 (Escribe 0 para ver el menú)`;
   }
+
   if (digit === "4") {
     return `Para donar:
 1) Entra a Donaciones → "Donar ahora"
@@ -232,61 +322,17 @@ Próximamente:
 (Escribe 0 para ver el menú)`;
   }
 
-  // Si escribió solo número pero no válido
-  if (/^\d+$/.test(t)) {
-    return `Ese número no es una opción válida.\n\n${MENU_TEXT}`;
-  }
-
-  // Compatibilidad por keywords
-  if (t.includes("donaci") || t.includes("donar")) {
-    return `Para donar:
-1) Entra a Donaciones → "Donar ahora"
-2) Elige una cantidad (o personalizada) → "Continuar"
-3) Llena tus datos
-4) Elige método (Transferencia o PayPal)
-5) Presiona "Donar ahora"
-
-(Escribe 0 para ver el menú)`;
-  }
-
-  if (t.includes("contact") || t.includes("inscrib") || t.includes("informacion") || t.includes("información")) {
-    return `Contacto Fundación Capacítamente:
-📱 0983222358
-✉️ info@fundacioncapacitamente.com
-📍 Guayaquil - Ecuador
-
-(Escribe 0 para ver el menú)`;
-  }
-
-  if (t.includes("precio") || t.includes("costo") || (t.includes("curso") && (t.includes("pago") || t.includes("certif") || t.includes("certificado")))) {
-    return `Cursos con certificado:
-• Formador de Formadores ($120) – Tatiana Arias
-• Inteligencia Emocional ($15) – Tatiana Arias
-• Tecnología para Padres ($15) – Yadira Suárez
-
-Próximamente:
-• Contabilidad para no contadores ($20)
-• Docencia Virtual ($20)
-• Habilidades Cognitivas y Emocionales (Aprender a Pensar) ($20)
-
-(Escribe 0 para ver el menú)`;
-  }
-
-  if (t.includes("gratis") || t.includes("gratuito")) {
-    return `Cursos gratuitos:
-• Tecnología para Educadores – Tatiana Arias
-Próximamente:
-• Metodología de la Pregunta – Tatiana Arias
-• Neuroeducación… También en casa – Prosandoval
-
-(Escribe 0 para ver el menú)`;
-  }
+  // keywords
+  if (t.includes("donaci") || t.includes("donar")) return faqReply("4");
+  if (t.includes("contact") || t.includes("inscrib") || t.includes("informacion") || t.includes("información")) return faqReply("3");
+  if (t.includes("precio") || t.includes("costo") || (t.includes("curso") && (t.includes("pago") || t.includes("certif") || t.includes("certificado")))) return faqReply("2");
+  if (t.includes("gratis") || t.includes("gratuito")) return faqReply("1");
 
   return null;
 }
 
 // ============================
-// Supabase helpers
+// Supabase helpers (sesiones / mensajes)
 // ============================
 async function getSession(sessionId) {
   if (!supabase) return null;
@@ -398,14 +444,8 @@ function resetDailyIfNeeded() {
     aiCallsToday = 0;
   }
 }
-function canUseAI() {
-  resetDailyIfNeeded();
-  return aiCallsToday < MAX_DAILY_AI_CALLS;
-}
-function incAI() {
-  resetDailyIfNeeded();
-  aiCallsToday++;
-}
+function canUseAI() { resetDailyIfNeeded(); return aiCallsToday < MAX_DAILY_AI_CALLS; }
+function incAI() { resetDailyIfNeeded(); aiCallsToday++; }
 
 setInterval(() => {
   const now = Date.now();
@@ -424,7 +464,6 @@ setInterval(() => {
 // ============================
 app.get("/health", (req, res) => res.status(200).send("ok"));
 
-// Lista sesiones
 app.get("/sessions", async (req, res) => {
   try {
     if (!supabase) return res.status(500).json({ error: "Supabase no configurado." });
@@ -449,7 +488,6 @@ app.get("/sessions", async (req, res) => {
   }
 });
 
-// Crear nueva conversación + guardar mensaje inicial
 app.post("/sessions", async (req, res) => {
   try {
     if (!supabase) return res.status(500).json({ error: "Supabase no configurado." });
@@ -479,7 +517,6 @@ ${MENU_TEXT}`;
   }
 });
 
-// Eliminar conversación
 app.delete("/session/:sessionId", async (req, res) => {
   try {
     if (!supabase) return res.status(500).json({ error: "Supabase no configurado." });
@@ -500,6 +537,7 @@ app.delete("/session/:sessionId", async (req, res) => {
     if (dErr) return res.status(500).json({ error: "Error borrando sesión", details: dErr.message });
 
     sessions.delete(sessionId);
+    certFlow.delete(sessionId);
 
     res.set("Cache-Control", "no-store");
     return res.json({ ok: true, sessionId });
@@ -509,7 +547,6 @@ app.delete("/session/:sessionId", async (req, res) => {
   }
 });
 
-// Historial
 app.get("/history/:sessionId", async (req, res) => {
   try {
     if (!supabase) return res.status(500).json({ error: "Supabase no configurado." });
@@ -537,7 +574,9 @@ app.get("/history/:sessionId", async (req, res) => {
   }
 });
 
+// ============================
 // Chat principal
+// ============================
 app.post("/chat", async (req, res) => {
   try {
     if (!ai) return res.status(500).json({ reply: "Servidor sin API KEY (GEMINI_API_KEY)." });
@@ -545,19 +584,115 @@ app.post("/chat", async (req, res) => {
     const userMessage = String(req.body?.message || "").trim();
     let sessionId = String(req.body?.sessionId || "").trim();
     if (!userMessage) return res.status(400).json({ reply: "Mensaje no proporcionado." });
-
     if (!sessionId) sessionId = newSessionId();
 
     const userKey = getUserKey(req);
 
     if (supabase) await ensureSession(sessionId, userKey);
 
+    // Guardar msg usuario
     if (supabase) {
       await insertChatMessage(sessionId, userKey, "user", userMessage);
       await touchSessionLastMessage(sessionId, userKey, userMessage);
     }
 
-    // FAQ / menú / números
+    // ✅ 1) FLUJO CERTIFICADO (multi-paso)
+    const state = certFlow.get(sessionId);
+
+    // Si estamos esperando cédula
+    if (state?.step === "ASK_CEDULA") {
+      const ced = String(userMessage).trim();
+      if (!looksLikeCedulaEC(ced)) {
+        const msg = `Por favor escribe tu número de cédula (10 dígitos).`;
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", msg);
+          await touchSessionLastMessage(sessionId, userKey, msg);
+        }
+        res.set("Cache-Control", "no-store");
+        return res.json({ reply: msg, sessionId });
+      }
+
+      // buscar en supabase
+      let row = null;
+      try {
+        row = await lookupCertStatus(ced, state.cursoKey);
+      } catch (e) {
+        const msg = `No pude consultar el estado en este momento. Intenta más tarde o usa Contacto.`;
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", msg);
+          await touchSessionLastMessage(sessionId, userKey, msg);
+        }
+        certFlow.delete(sessionId);
+        res.set("Cache-Control", "no-store");
+        return res.json({ reply: msg, sessionId });
+      }
+
+      const reply = formatCertReply(row, state.cursoNombre);
+      certFlow.delete(sessionId);
+
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      res.set("Cache-Control", "no-store");
+      return res.json({ reply, sessionId });
+    }
+
+    // Si estamos esperando curso (por si el usuario dijo solo "certificado" sin curso)
+    if (state?.step === "ASK_COURSE") {
+      const cursoNombre = String(userMessage).trim();
+      if (cursoNombre.length < 2) {
+        const msg = `¿De qué curso es tu certificado? (Ej: "Inteligencia Emocional")`;
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", msg);
+          await touchSessionLastMessage(sessionId, userKey, msg);
+        }
+        res.set("Cache-Control", "no-store");
+        return res.json({ reply: msg, sessionId });
+      }
+
+      const cursoKey = toCourseKey(cursoNombre);
+      certFlow.set(sessionId, { step: "ASK_CEDULA", cursoNombre, cursoKey });
+
+      const msg = `Perfecto ✅ Ahora escribe tu número de cédula (10 dígitos) para verificar el certificado de "${cursoNombre}".`;
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", msg);
+        await touchSessionLastMessage(sessionId, userKey, msg);
+      }
+      res.set("Cache-Control", "no-store");
+      return res.json({ reply: msg, sessionId });
+    }
+
+    // Detectar si el usuario pregunta por certificado
+    const maybeCourse = extractCourseFromCertificateQuestion(userMessage);
+    if (maybeCourse) {
+      const cursoNombre = maybeCourse;
+      const cursoKey = toCourseKey(cursoNombre);
+
+      certFlow.set(sessionId, { step: "ASK_CEDULA", cursoNombre, cursoKey });
+
+      const msg = `Claro ✅ Para verificar el certificado de "${cursoNombre}", escribe tu número de cédula (10 dígitos).`;
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", msg);
+        await touchSessionLastMessage(sessionId, userKey, msg);
+      }
+      res.set("Cache-Control", "no-store");
+      return res.json({ reply: msg, sessionId });
+    }
+
+    // Si menciona certificado pero no puso curso
+    if (normalizeText(userMessage).includes("certificado")) {
+      certFlow.set(sessionId, { step: "ASK_COURSE" });
+      const msg = `Claro ✅ ¿De qué curso es tu certificado? (Ej: "Inteligencia Emocional")`;
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", msg);
+        await touchSessionLastMessage(sessionId, userKey, msg);
+      }
+      res.set("Cache-Control", "no-store");
+      return res.json({ reply: msg, sessionId });
+    }
+
+    // ✅ 2) FAQ / menú / números
     const faq = faqReply(userMessage);
     if (faq) {
       if (supabase) {
@@ -568,7 +703,7 @@ app.post("/chat", async (req, res) => {
       return res.json({ reply: faq, sessionId });
     }
 
-    // Límite IA
+    // ✅ 3) IA (si no fue FAQ ni Certificados)
     if (!canUseAI()) {
       const msg = `Hoy ya se alcanzó el límite diario de respuestas con IA (${MAX_DAILY_AI_CALLS}/día).
 Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
@@ -580,7 +715,6 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
       return res.status(429).json({ reply: msg, sessionId });
     }
 
-    // Sesión IA
     let session = sessions.get(sessionId);
     if (!session) {
       const chat = ai.chats.create({
