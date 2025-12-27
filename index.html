@@ -64,7 +64,6 @@
       background:rgba(255,255,255,.18);
       color:#fff; font-weight:700;
     }
-    .header-btn:hover{ filter:brightness(.98); }
 
     #chat-title{
       font-weight:800;
@@ -72,7 +71,6 @@
       max-width:210px;
     }
 
-    /* Drawer Historial */
     #history-drawer{
       position:absolute;
       top:0; left:0; bottom:0;
@@ -95,7 +93,6 @@
       border-bottom:1px solid rgba(255,255,255,.08);
       gap:10px;
     }
-    #history-top b{ font-size:1.02em; }
 
     #history-list{
       overflow:auto;
@@ -131,7 +128,7 @@
     .session-content-click { width: 85%; }
 
     .session-item .meta{
-      font-size:.78em; opacity:.85;
+      font-size:.78em; opacity:.8;
       display:flex; gap:8px; align-items:center;
       margin-bottom:6px;
     }
@@ -142,7 +139,6 @@
       word-break:break-word;
     }
 
-    /* Botón 3 puntos */
     .history-more {
       position: absolute;
       top: 8px;
@@ -196,8 +192,12 @@
       background: #334155;
       color: #fff;
     }
-    .history-menu .danger { color: #f87171; }
-    .history-menu .danger:hover { background: rgba(248, 113, 113, 0.15); }
+    .history-menu .danger {
+      color: #f87171;
+    }
+    .history-menu .danger:hover {
+      background: rgba(248, 113, 113, 0.15);
+    }
 
     #chat-messages{
       flex-grow:1; padding:10px; overflow-y:auto; background:#F4F7F9;
@@ -246,6 +246,7 @@
   </a>
 
   <div id="chat-container">
+
     <div id="history-drawer">
       <div id="history-top">
         <b>📚 Historial</b>
@@ -266,16 +267,18 @@
 
     <div id="chat-messages"></div>
 
+    <!-- ✅ Botones: ahora 6 -->
     <div id="suggestion-buttons">
-      <button class="suggestion" data-text="1">1. Cursos gratis</button>
-      <button class="suggestion" data-text="2">2. Cursos con certificados y precios</button>
-      <button class="suggestion" data-text="3">3. Contacto</button>
-      <button class="suggestion" data-text="4">4. Donar</button>
-      <button class="suggestion" data-text="0">0. Ver menú</button>
+      <button class="suggestion" data-text="1">Cursos gratis</button>
+      <button class="suggestion" data-text="2">Cursos con certificados y precios</button>
+      <button class="suggestion" data-text="3">Contacto</button>
+      <button class="suggestion" data-text="4">Donar</button>
+      <button class="suggestion" data-text="5">Estado de certificado</button>
+      <button class="suggestion" data-text="6">Horarios</button>
     </div>
 
     <div id="chat-input-area">
-      <input type="text" id="chat-input" placeholder="Escribe tu pregunta o un número (1-4). (0 = menú)">
+      <input type="text" id="chat-input" placeholder="Escribe tu pregunta...">
       <button id="send-button">Enviar</button>
     </div>
   </div>
@@ -306,6 +309,29 @@
     const historyList = document.getElementById("history-list");
     const newChatBtn = document.getElementById("new-chat");
 
+    const WELCOME_MENU =
+`Hola 👋 Soy Lyro-Capacítamente. ¿En qué te puedo ayudar?
+
+Responde con el número:
+1. Cursos gratis
+2. Cursos con certificados y precios
+3. Contacto
+4. Donar
+5. Estado de certificado
+6. Horarios`;
+
+    const NEW_CONV_TEXT =
+`Haz creado una nueva conversación ✅
+Soy Lyro-Capacítamente, ¿qué deseas preguntar?
+
+Responde con el número:
+1. Cursos gratis
+2. Cursos con certificados y precios
+3. Contacto
+4. Donar
+5. Estado de certificado
+6. Horarios`;
+
     function fmtDate(d) {
       return new Date(d).toLocaleDateString("es-EC", { year:"numeric", month:"2-digit", day:"2-digit" });
     }
@@ -313,9 +339,7 @@
       return new Date(d).toLocaleTimeString("es-EC", { hour:"2-digit", minute:"2-digit" });
     }
 
-    function clearMessages() {
-      chatMessages.innerHTML = "";
-    }
+    function clearMessages() { chatMessages.innerHTML = ""; }
 
     function addMessage(text, sender, createdAt = null) {
       const msg = document.createElement("div");
@@ -326,9 +350,7 @@
 
       const time = document.createElement("span");
       time.className = "time";
-      time.textContent = createdAt
-        ? (fmtDate(createdAt) + " " + fmtTime(createdAt))
-        : (fmtDate(Date.now()) + " " + fmtTime(Date.now()));
+      time.textContent = createdAt ? (fmtDate(createdAt) + " " + fmtTime(createdAt)) : (fmtTime(Date.now()));
 
       msg.appendChild(content);
       msg.appendChild(time);
@@ -350,8 +372,8 @@
       );
 
       const res = await fetch(SERVER_URL + path, { ...opts, headers });
-
       const txt = await res.text();
+
       let json = null;
       try { json = JSON.parse(txt); } catch {}
 
@@ -363,9 +385,6 @@
       return json ?? {};
     }
 
-    // ==================
-    // Historial
-    // ==================
     async function loadSessionsList() {
       const data = await apiFetch("/sessions?limit=50", { method: "GET" });
       const sessions = data.sessions || [];
@@ -382,19 +401,8 @@
         return;
       }
 
-      // Orden global (más reciente primero) para numeración Conversación #1, #2...
-      const sortedAll = [...sessions].sort((a,b) => {
-        const ta = new Date(a.last_message_at || a.created_at || 0).getTime();
-        const tb = new Date(b.last_message_at || b.created_at || 0).getTime();
-        return tb - ta;
-      });
-
-      const idxMap = {};
-      sortedAll.forEach((s, i) => { idxMap[s.session_id] = i + 1; });
-
-      // Agrupar por día
       const groups = {};
-      for (const s of sortedAll) {
+      for (const s of sessions) {
         const stamp = s.last_message_at || s.created_at || Date.now();
         const day = fmtDate(stamp);
         if (!groups[day]) groups[day] = [];
@@ -415,7 +423,6 @@
 
         groups[day].forEach(s => {
           const stamp = s.last_message_at || s.created_at || Date.now();
-          const convNum = idxMap[s.session_id] || "?";
 
           const itemDiv = document.createElement("div");
           itemDiv.className = "session-item" + (s.session_id === currentSessionId ? " active" : "");
@@ -423,12 +430,11 @@
 
           itemDiv.innerHTML = `
             <div class="session-content-click">
-              <div class="meta">🕒 ${fmtTime(stamp)} <span style="opacity:.7;">•</span> <b style="opacity:.95;">Conversación #${convNum}</b></div>
+              <div class="meta">🕒 ${fmtTime(stamp)} <span style="opacity:.7;">•</span> <span style="opacity:.9;">${s.session_id.slice(0,12)}…</span></div>
               <div class="preview">${(s.last_message_preview || "Conversación nueva").replace(/</g,"&lt;")}</div>
             </div>
 
             <button class="history-more" type="button" title="Opciones">⋯</button>
-
             <div class="history-menu">
               <button class="history-delete danger" type="button">🗑️ Eliminar</button>
             </div>
@@ -454,7 +460,6 @@
       if (e.target.closest(".history-more")) {
         e.stopPropagation();
         document.querySelectorAll(".history-menu").forEach(m => m.style.display = "none");
-
         const menu = item.querySelector(".history-menu");
         const isOpen = menu.style.display === "block";
         menu.style.display = isOpen ? "none" : "block";
@@ -464,7 +469,6 @@
       if (e.target.closest(".history-delete")) {
         e.stopPropagation();
         document.querySelectorAll(".history-menu").forEach(m => m.style.display = "none");
-
         if (!confirm("¿Eliminar esta conversación?")) return;
 
         try {
@@ -475,10 +479,8 @@
             currentSessionId = "";
             localStorage.removeItem(SESSION_KEY);
             clearMessages();
-            addMessage("Conversación eliminada. Presiona “Nueva” para iniciar otra.", "bot", new Date().toISOString());
+            addMessage("Conversación eliminada. Crea una nueva.", "bot", new Date().toISOString());
           }
-
-          await loadSessionsList();
         } catch(err) {
           alert("Error eliminando: " + err.message);
         }
@@ -498,17 +500,17 @@
       clearMessages();
 
       if (!sessionId) {
-        const s = await apiFetch("/sessions", { method: "POST", body: JSON.stringify({ clientId }) });
-        currentSessionId = s.sessionId;
-        localStorage.setItem(SESSION_KEY, currentSessionId);
+        // Si no hay sesión aún, mostramos menú en pantalla
+        addMessage(WELCOME_MENU, "bot", new Date().toISOString());
+        return;
       }
 
       try {
-        const data = await apiFetch(`/history/${encodeURIComponent(currentSessionId)}?limit=300`, { method: "GET" });
+        const data = await apiFetch(`/history/${encodeURIComponent(sessionId)}?limit=300`, { method: "GET" });
         const msgs = data.messages || [];
 
         if (msgs.length === 0) {
-          addMessage("Hola 👋 Escribe 0 para ver el menú.", "bot", new Date().toISOString());
+          addMessage(WELCOME_MENU, "bot", new Date().toISOString());
           return;
         }
 
@@ -516,8 +518,7 @@
           addMessage(m.content || "", roleToSender(m.role), m.created_at);
         }
       } catch (e) {
-        addMessage("Hola 👋 Escribe 0 para ver el menú.", "bot", new Date().toISOString());
-        console.warn("No se pudo cargar historial:", e.message);
+        addMessage(WELCOME_MENU, "bot", new Date().toISOString());
       }
     }
 
@@ -526,13 +527,12 @@
       currentSessionId = s.sessionId;
       localStorage.setItem(SESSION_KEY, currentSessionId);
 
-      await loadHistory(currentSessionId);
+      clearMessages();
+      addMessage(NEW_CONV_TEXT, "bot", new Date().toISOString());
+
       await loadSessionsList();
     }
 
-    // ==================
-    // Enviar mensajes
-    // ==================
     async function sendMessage(textFromButton = null) {
       const rawText = textFromButton ? String(textFromButton) : (chatInput.value || "").trim();
       if (!rawText) return;
@@ -558,7 +558,6 @@
         addMessage(data.reply || "Sin respuesta.", "bot", new Date().toISOString());
         await loadSessionsList();
       } catch (err) {
-        console.error("Error:", err);
         addMessage("Lo siento, estoy teniendo problemas de conexión. Intenta más tarde.", "bot", new Date().toISOString());
       } finally {
         chatInput.disabled = false;
@@ -568,9 +567,6 @@
       }
     }
 
-    // ==================
-    // Eventos
-    // ==================
     toggleButton.onclick = async () => {
       const isVisible = chatContainer.style.display === "flex";
       chatContainer.style.display = isVisible ? "none" : "flex";
@@ -598,6 +594,7 @@
 
     historyOpen.onclick = () => historyDrawer.classList.add("open");
     historyClose.onclick = () => historyDrawer.classList.remove("open");
+
     newChatBtn.onclick = async () => { await newConversation(); };
   </script>
 </body>
