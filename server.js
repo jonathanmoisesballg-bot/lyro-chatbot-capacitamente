@@ -109,11 +109,12 @@ function extractStatus(err) {
 
 function extractMessage(err) {
   if (typeof err?.message === "string") return err.message;
-  try {
-    return JSON.stringify(err?.error || err);
-  } catch {
-    return String(err);
-  }
+  try { return JSON.stringify(err?.error || err); } catch { return String(err); }
+}
+
+function hasColError(err, colName) {
+  const msg = String(err?.message || "").toLowerCase();
+  return msg.includes(String(colName).toLowerCase());
 }
 
 // ============================
@@ -133,36 +134,51 @@ Opciones:
 Responde con el número (1-6) o escribe tu pregunta.`;
 }
 
-// ✅ TEXTO DE HORARIOS CORREGIDO (más claro)
 function horariosTexto() {
-  return `🗓️ Horarios (Clases Online)
+  return `🕒 Horarios (modalidad virtual)
 
-Los horarios se coordinan contigo: al ser clases virtuales, buscamos el horario que mejor se te facilite para recibirlas. ✅
-
-Si deseas, indícame:
-• Tu disponibilidad (días y horas)
-• El curso que vas a tomar`;
+Los horarios son flexibles y se coordinan de acuerdo a tu disponibilidad, ya que las clases son en modalidad virtual. ✅`;
 }
 
 function isGreeting(text) {
   const s = String(text || "").toLowerCase().trim();
-  return ["hola", "buenas", "buenos dias", "buenas tardes", "buenas noches", "hello", "hi"].includes(s);
+  // tolerante: "hola", "hola lyro", etc.
+  return (
+    s === "hola" || s.startsWith("hola ") ||
+    s === "buenas" || s.startsWith("buenas ") ||
+    s === "buenos dias" || s.startsWith("buenos dias") ||
+    s === "buenos días" || s.startsWith("buenos días") ||
+    s === "buenas tardes" || s.startsWith("buenas tardes") ||
+    s === "buenas noches" || s.startsWith("buenas noches") ||
+    s === "hello" || s.startsWith("hello ") ||
+    s === "hi" || s.startsWith("hi ")
+  );
+}
+
+function isMenuCommand(text) {
+  const s = String(text || "").toLowerCase().trim();
+  return ["menu", "menú", "opciones", "inicio", "ayuda", "help", "start"].includes(s);
+}
+
+function isCancelCommand(text) {
+  const s = String(text || "").toLowerCase().trim();
+  return ["cancelar", "salir", "volver", "atrás", "atras"].includes(s);
 }
 
 function faqReply(message) {
   const t = String(message || "").toLowerCase().trim();
 
-  if (isGreeting(t)) return menuOpcionesTexto();
+  // ✅ MENU SIN IA
+  if (isGreeting(t) || isMenuCommand(t)) return menuOpcionesTexto();
 
-  if (t === "1")
-    return `Cursos gratuitos:
+  // ✅ Opciones por número
+  if (t === "1") return `Cursos gratuitos:
 • Tecnología para Educadores – Tatiana Arias
 Próximamente:
 • Metodología de la Pregunta – Tatiana Arias
 • Neuroeducación… También en casa – Prosandoval`;
 
-  if (t === "2")
-    return `Cursos con certificado:
+  if (t === "2") return `Cursos con certificado:
 • Formador de Formadores ($120) – Tatiana Arias
 • Inteligencia Emocional ($15) – Tatiana Arias
 • Tecnología para Padres ($15) – Yadira Suárez
@@ -172,14 +188,12 @@ Próximamente:
 • Docencia Virtual ($20)
 • Habilidades Cognitivas y Emocionales (Aprender a Pensar) ($20)`;
 
-  if (t === "3")
-    return `Contacto Fundación Capacítamente:
+  if (t === "3") return `Contacto Fundación Capacítamente:
 📱 0983222358
 ✉️ info@fundacioncapacitamente.com
 📍 Guayaquil - Ecuador`;
 
-  if (t === "4")
-    return `Para donar:
+  if (t === "4") return `Para donar:
 1) Entra a Donaciones → "Donar ahora"
 2) Elige una cantidad (o personalizada) → "Continuar"
 3) Llena tus datos
@@ -188,78 +202,102 @@ Próximamente:
 
   if (t === "6") return horariosTexto();
 
-  // keywords normales
+  // ✅ Palabras clave SIN IA (mapeo a opciones)
+  if (t.includes("horario")) return horariosTexto();
   if (t.includes("donaci") || t.includes("donar")) return faqReply("4");
   if (t.includes("contact") || t.includes("inscrib") || t.includes("información") || t.includes("informacion")) return faqReply("3");
   if (t.includes("gratis") || t.includes("gratuito")) return faqReply("1");
-  if (t.includes("precio") || t.includes("costo") || (t.includes("curso") && (t.includes("pago") || t.includes("certif") || t.includes("certificado"))))
-    return faqReply("2");
-  if (t.includes("horario")) return horariosTexto();
+
+  // Importante: esto es cursos con certificado, NO estado de certificado
+  if (
+    t.includes("cursos con certificado") ||
+    t.includes("cursos con certificados") ||
+    t.includes("certificados y precios") ||
+    t.includes("precio") ||
+    t.includes("costo") ||
+    (t.includes("curso") && (t.includes("pago") || t.includes("certif")))
+  ) return faqReply("2");
 
   return null;
 }
 
 // ============================
-// Supabase helpers
+// Supabase helpers (con fallback si no existe conversation_number)
 // ============================
 async function getSession(sessionId) {
   if (!supabase) return null;
-  const { data, error } = await supabase
+
+  let { data, error } = await supabase
     .from("chat_sessions")
     .select("session_id, user_key, conversation_number")
     .eq("session_id", sessionId)
     .maybeSingle();
+
+  if (error && hasColError(error, "conversation_number")) {
+    const r2 = await supabase
+      .from("chat_sessions")
+      .select("session_id, user_key")
+      .eq("session_id", sessionId)
+      .maybeSingle();
+    data = r2.data;
+    error = r2.error;
+  }
+
   if (error) throw error;
   return data || null;
 }
 
 async function getNextConversationNumber(userKey) {
-  const { data, error } = await supabase
+  if (!supabase) return null;
+
+  const r = await supabase
     .from("chat_sessions")
     .select("conversation_number")
     .eq("user_key", userKey)
     .order("conversation_number", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw error;
-  const last = data && typeof data.conversation_number === "number" ? data.conversation_number : 0;
+
+  if (r.error) {
+    if (hasColError(r.error, "conversation_number")) return null;
+    throw r.error;
+  }
+
+  const last = (r.data && typeof r.data.conversation_number === "number") ? r.data.conversation_number : 0;
   return last + 1;
 }
 
-async function ensureSession(sessionId, userKey) {
-  if (!supabase) return;
+async function insertSessionRow(row) {
+  const { error } = await supabase.from("chat_sessions").insert([row]);
+  if (!error) return;
 
-  const now = new Date().toISOString();
-  const existing = await getSession(sessionId);
-
-  // si no existe, crear + asignar conversation_number + insertar saludo
-  if (!existing) {
-    const nextNum = await getNextConversationNumber(userKey);
-
-    const { error: insErr } = await supabase.from("chat_sessions").insert([
-      {
-        session_id: sessionId,
-        user_key: userKey,
-        last_seen: now,
-        conversation_number: nextNum,
-      },
-    ]);
-    if (insErr) throw insErr;
-
-    // saludo en historial
-    await insertChatMessage(sessionId, userKey, "bot", menuOpcionesTexto());
-    await touchSessionLastMessage(sessionId, userKey, "Conversación nueva");
+  // si falla por columna no existente, reintenta sin conversation_number
+  if (hasColError(error, "conversation_number")) {
+    const clone = { ...row };
+    delete clone.conversation_number;
+    const r2 = await supabase.from("chat_sessions").insert([clone]);
+    if (r2.error) throw r2.error;
     return;
   }
 
-  if (existing.user_key !== userKey) {
+  throw error;
+}
+
+async function insertChatMessage(sessionId, userKey, role, content) {
+  if (!supabase) return;
+
+  const s = await getSession(sessionId);
+  if (!s || s.user_key !== userKey) {
     const e = new Error("No autorizado: sesión no pertenece a este usuario.");
     e.status = 403;
     throw e;
   }
 
-  const { error: upErr } = await supabase.from("chat_sessions").update({ last_seen: now }).eq("session_id", sessionId);
-  if (upErr) throw upErr;
+  const { error } = await supabase
+    .from("chat_messages")
+    .insert([{ session_id: sessionId, role, content }]);
+
+  if (error) throw error;
 }
 
 async function touchSessionLastMessage(sessionId, userKey, previewText) {
@@ -275,7 +313,7 @@ async function touchSessionLastMessage(sessionId, userKey, previewText) {
     throw e;
   }
 
-  const { error: upErr } = await supabase
+  const { error } = await supabase
     .from("chat_sessions")
     .update({
       last_seen: now,
@@ -283,43 +321,66 @@ async function touchSessionLastMessage(sessionId, userKey, previewText) {
       last_message_preview: preview,
     })
     .eq("session_id", sessionId);
-  if (upErr) throw upErr;
+
+  if (error) throw error;
 }
 
-async function insertChatMessage(sessionId, userKey, role, content) {
+async function ensureSession(sessionId, userKey) {
   if (!supabase) return;
 
-  const s = await getSession(sessionId);
-  if (!s || s.user_key !== userKey) {
+  const now = new Date().toISOString();
+  const existing = await getSession(sessionId);
+
+  if (!existing) {
+    const nextNum = await getNextConversationNumber(userKey);
+    const row = {
+      session_id: sessionId,
+      user_key: userKey,
+      last_seen: now,
+    };
+    if (typeof nextNum === "number") row.conversation_number = nextNum;
+
+    await insertSessionRow(row);
+
+    // Inserta saludo inicial en historial (menú) para que siempre arranque igual
+    await insertChatMessage(sessionId, userKey, "bot", menuOpcionesTexto());
+    await touchSessionLastMessage(sessionId, userKey, "Conversación nueva");
+    return;
+  }
+
+  if (existing.user_key !== userKey) {
     const e = new Error("No autorizado: sesión no pertenece a este usuario.");
     e.status = 403;
     throw e;
   }
 
-  const { error } = await supabase.from("chat_messages").insert([{ session_id: sessionId, role, content }]);
+  const { error } = await supabase
+    .from("chat_sessions")
+    .update({ last_seen: now })
+    .eq("session_id", sessionId);
+
   if (error) throw error;
 }
 
 // ============================
 // Flujo Estado de Certificado
 // ============================
-const certFlow = new Map(); // sessionId -> { cedula?: string }
+// Tabla recomendada en Supabase:
+// certificate_status(cedula text, curso text, estado text, updated_at timestamptz default now())
+const certFlow = new Map(); // sessionId -> { step, cedula? }
 
 function extractCedula(text) {
   const m = String(text || "").match(/\b\d{10}\b/);
   return m ? m[0] : "";
 }
-function normalizeCourse(text) {
-  return String(text || "")
-    .replace(/[-,:]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+
 function extractCourse(text, cedula) {
   let s = String(text || "");
   if (cedula) s = s.replace(cedula, "");
-  return normalizeCourse(s);
+  s = s.replace(/[-,:]/g, " ").replace(/\s+/g, " ").trim();
+  return s;
 }
+
 function certAskText() {
   return `📄 Estado de certificado
 
@@ -345,10 +406,30 @@ async function getCertificateStatus(cedula, curso) {
   return data[0];
 }
 
+function wantsCertificateStatus(t) {
+  // evita choque con "cursos con certificados" (opción 2)
+  if (t === "5") return true;
+  if (/estado\s+de?\s*certificado/.test(t)) return true;
+
+  const hasCert = t.includes("certificado") || t.includes("certificados");
+  const looksLikeStatus =
+    t.includes("mi certificado") ||
+    t.includes("esta listo") || t.includes("está listo") ||
+    t.includes("estado") ||
+    t.includes("listo") ||
+    t.includes("en proceso") ||
+    t.includes("verificar") ||
+    t.includes("consulta") ||
+    t.includes("revisar");
+
+  // si menciona "certificado" + señales de estado
+  return hasCert && looksLikeStatus;
+}
+
 // ============================
 // IA en memoria + límites
 // ============================
-const sessions = new Map();
+const aiSessions = new Map();
 const SESSION_TTL_MS = 30 * 60 * 1000;
 const MAX_SESSIONS = 300;
 
@@ -364,6 +445,7 @@ function getDayKeyEC() {
     day: "2-digit",
   }).format(new Date());
 }
+
 function resetDailyIfNeeded() {
   const nowKey = getDayKeyEC();
   if (nowKey !== aiCallsDayKey) {
@@ -371,24 +453,18 @@ function resetDailyIfNeeded() {
     aiCallsToday = 0;
   }
 }
-function canUseAI() {
-  resetDailyIfNeeded();
-  return aiCallsToday < MAX_DAILY_AI_CALLS;
-}
-function incAI() {
-  resetDailyIfNeeded();
-  aiCallsToday++;
-}
+function canUseAI() { resetDailyIfNeeded(); return aiCallsToday < MAX_DAILY_AI_CALLS; }
+function incAI() { resetDailyIfNeeded(); aiCallsToday++; }
 
 setInterval(() => {
   const now = Date.now();
-  for (const [sid, s] of sessions.entries()) {
-    if (now - s.lastAccess > SESSION_TTL_MS) sessions.delete(sid);
+  for (const [sid, s] of aiSessions.entries()) {
+    if (now - s.lastAccess > SESSION_TTL_MS) aiSessions.delete(sid);
   }
-  if (sessions.size > MAX_SESSIONS) {
-    const ordered = [...sessions.entries()].sort((a, b) => a[1].lastAccess - b[1].lastAccess);
-    const extra = sessions.size - MAX_SESSIONS;
-    for (let i = 0; i < extra; i++) sessions.delete(ordered[i][0]);
+  if (aiSessions.size > MAX_SESSIONS) {
+    const ordered = [...aiSessions.entries()].sort((a, b) => a[1].lastAccess - b[1].lastAccess);
+    const extra = aiSessions.size - MAX_SESSIONS;
+    for (let i = 0; i < extra; i++) aiSessions.delete(ordered[i][0]);
   }
 }, 60 * 1000);
 
@@ -405,13 +481,25 @@ app.get("/sessions", async (req, res) => {
     const userKey = getUserKey(req);
     const limit = Math.min(Number(req.query.limit || 30), 100);
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("chat_sessions")
       .select("session_id, created_at, last_seen, last_message_at, last_message_preview, conversation_number")
       .eq("user_key", userKey)
       .order("last_message_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(limit);
+
+    if (error && hasColError(error, "conversation_number")) {
+      const r2 = await supabase
+        .from("chat_sessions")
+        .select("session_id, created_at, last_seen, last_message_at, last_message_preview")
+        .eq("user_key", userKey)
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      data = r2.data;
+      error = r2.error;
+    }
 
     if (error) return res.status(500).json({ error: error.message });
 
@@ -459,7 +547,7 @@ app.delete("/session/:sessionId", async (req, res) => {
     const { error: dErr } = await supabase.from("chat_sessions").delete().eq("session_id", sessionId);
     if (dErr) return res.status(500).json({ error: "Error borrando sesión", details: dErr.message });
 
-    sessions.delete(sessionId);
+    aiSessions.delete(sessionId);
     certFlow.delete(sessionId);
 
     res.set("Cache-Control", "no-store");
@@ -509,7 +597,6 @@ app.post("/chat", async (req, res) => {
     if (!sessionId) sessionId = newSessionId();
 
     const userKey = getUserKey(req);
-
     if (supabase) await ensureSession(sessionId, userKey);
 
     // guardar user msg
@@ -520,35 +607,15 @@ app.post("/chat", async (req, res) => {
 
     const t = userMessage.toLowerCase().trim();
 
-    // ✅ SI ESTABA EN FLUJO CERTIFICADO Y EL USUARIO PRESIONA OTRA OPCIÓN, CANCELAR FLUJO
-    const cancelCertByMenu = ["1", "2", "3", "4", "6", "menu", "menú", "inicio", "cancelar", "salir"];
-    if (certFlow.has(sessionId) && cancelCertByMenu.includes(t)) {
+    // ✅ Si el usuario está en flujo de certificado y escribe menú u opciones 1-4 o 6, cancelamos el flujo
+    const isMenuOptionNumber = ["1", "2", "3", "4", "6"].includes(t);
+    if (certFlow.has(sessionId) && (isMenuOptionNumber || isGreeting(t) || isMenuCommand(t) || isCancelCommand(t))) {
       certFlow.delete(sessionId);
-
-      // si pidió menú explícito
-      if (t === "menu" || t === "menú" || t === "inicio") {
-        const reply = menuOpcionesTexto();
-        if (supabase) {
-          await insertChatMessage(sessionId, userKey, "bot", reply);
-          await touchSessionLastMessage(sessionId, userKey, reply);
-        }
-        return res.json({ reply, sessionId });
-      }
-      // para 1,2,3,4,6: caerá al FAQ normal y responderá bien (incluye Horarios ✅)
     }
 
-    // ====== Estado de certificado (disparador más preciso para NO confundirse con "certificados y precios")
-    const wantsCert =
-      t === "5" ||
-      t.includes("estado de certificado") ||
-      t.includes("estado del certificado") ||
-      t.includes("mi certificado") ||
-      (t.includes("certificado") && (t.includes("estado") || t.includes("listo") || t.includes("esta listo") || t.includes("está listo")));
-
-    if (wantsCert) {
-      certFlow.set(sessionId, { cedula: "" });
-      const reply = certAskText();
-
+    // ✅ "cancelar" muestra menú (sin IA)
+    if (isCancelCommand(t)) {
+      const reply = `Listo ✅ he cancelado la consulta de certificado.\n\n${menuOpcionesTexto()}`;
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
@@ -556,15 +623,24 @@ app.post("/chat", async (req, res) => {
       return res.json({ reply, sessionId });
     }
 
-    // ====== flujo activo de certificado (más robusto: permite enviar cédula y luego curso)
-    if (certFlow.has(sessionId)) {
-      const flow = certFlow.get(sessionId) || {};
-      const foundCedula = extractCedula(userMessage);
+    // ====== Disparador estado de certificado
+    if (wantsCertificateStatus(t)) {
+      certFlow.set(sessionId, { step: "need_data" });
+      const reply = certAskText();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return res.json({ reply, sessionId });
+    }
 
-      // usa cédula encontrada o la guardada
-      const cedula = foundCedula || flow.cedula || "";
+    // ====== flujo activo de certificado
+    if (certFlow.has(sessionId)) {
+      const cedula = extractCedula(userMessage);
+      const curso = extractCourse(userMessage, cedula);
+
       if (!cedula) {
-        const reply = `Por favor escribe tu CÉDULA (10 dígitos).\nEj: 0923456789\n\n(Escribe "menu" si deseas volver al menú.)`;
+        const reply = `Por favor escribe tu CÉDULA (10 dígitos).\nEj: 0923456789\n\nSi deseas volver al menú escribe: menu`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -572,19 +648,8 @@ app.post("/chat", async (req, res) => {
         return res.json({ reply, sessionId });
       }
 
-      // guarda cédula
-      if (foundCedula) {
-        certFlow.set(sessionId, { cedula });
-      }
-
-      // curso: si el mensaje trae cédula + curso, lo extraemos
-      // si NO trae cédula (porque ya la dimos antes), tomamos el mensaje como curso
-      let curso = "";
-      if (foundCedula) curso = extractCourse(userMessage, foundCedula);
-      else curso = normalizeCourse(userMessage);
-
       if (!curso || curso.length < 3) {
-        const reply = `Perfecto ✅ Cédula recibida.\nAhora escribe el NOMBRE DEL CURSO.\nEj: Inteligencia Emocional\n\n(Escribe "menu" si deseas volver al menú.)`;
+        const reply = `Perfecto ✅ Cédula recibida.\nAhora escribe el NOMBRE DEL CURSO.\nEj: Inteligencia Emocional\n\nSi deseas volver al menú escribe: menu`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -605,10 +670,9 @@ Si crees que es un error:
 ✉️ info@fundacioncapacitamente.com`;
         } else {
           const estado = String(row.estado || "").toLowerCase();
-          if (estado === "listo") reply = `✅ Tu certificado está LISTO.\nCurso: ${row.curso}`;
-          else if (estado === "en_proceso") reply = `⏳ Tu certificado está EN PROCESO.\nCurso: ${row.curso}`;
-          else if (estado === "no_listo") reply = `⚠️ Tu certificado NO ESTÁ LISTO todavía.\nCurso: ${row.curso}`;
-          else reply = `📄 Estado del certificado: ${row.estado}\nCurso: ${row.curso}`;
+          if (estado.includes("listo")) reply = `✅ Tu certificado está LISTO.\nCurso: ${row.curso}`;
+          else if (estado.includes("proceso")) reply = `⏳ Tu certificado está EN PROCESO.\nCurso: ${row.curso}`;
+          else reply = `⚠️ Tu certificado NO ESTÁ LISTO todavía.\nCurso: ${row.curso}`;
         }
       } catch (e) {
         reply = `Lo siento, no pude consultar el estado en este momento. Intenta más tarde.`;
@@ -623,7 +687,7 @@ Si crees que es un error:
       return res.json({ reply, sessionId });
     }
 
-    // ====== FAQ sin IA (incluye 1-4 y 6 + hola)
+    // ====== FAQ sin IA (incluye menu, 1-4, 6 y keywords)
     const faq = faqReply(userMessage);
     if (faq) {
       if (supabase) {
@@ -646,7 +710,7 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
       return res.status(429).json({ reply: msg, sessionId });
     }
 
-    let session = sessions.get(sessionId);
+    let session = aiSessions.get(sessionId);
     if (!session) {
       const chat = ai.chats.create({
         model: GEMINI_MODEL,
@@ -657,7 +721,7 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
         },
       });
       session = { chat, lastAccess: Date.now() };
-      sessions.set(sessionId, session);
+      aiSessions.set(sessionId, session);
       console.log("🆕 Nueva sesión IA:", sessionId);
     } else {
       session.lastAccess = Date.now();

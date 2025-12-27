@@ -41,8 +41,8 @@
     /* Chat */
     #chat-container{
       position:fixed; bottom:80px; right:20px;
-      width:360px; height:480px;
-      max-width:92vw; max-height:75vh;
+      width:360px; height:620px;          /* ✅ más alto */
+      max-width:92vw; max-height:85vh;     /* ✅ más alto */
       background:#fff; border-radius:12px;
       box-shadow:0 8px 30px rgba(0,0,0,.3);
       z-index:10000; display:none; flex-direction:column; overflow:hidden;
@@ -274,7 +274,7 @@
 
     <div id="chat-messages"></div>
 
-    <!-- ✅ BOTONES NUMERADOS -->
+    <!-- BOTONES NUMERADOS -->
     <div id="suggestion-buttons">
       <button class="suggestion" data-text="1">1) Cursos gratis</button>
       <button class="suggestion" data-text="2">2) Cursos con certificados y precios</button>
@@ -389,9 +389,6 @@
         return;
       }
 
-      // ✅ Mapa de numeración estable:
-      // Si el server trae conversation_number, usamos ese.
-      // Si NO, fallback: ordena por created_at y asigna #.
       const hasNumbers = sessions.some(s => typeof s.conversation_number === "number");
       let fallbackMap = new Map();
       if (!hasNumbers) {
@@ -399,7 +396,6 @@
         byCreated.forEach((s, i) => fallbackMap.set(s.session_id, i + 1));
       }
 
-      // Agrupar por día
       const groups = {};
       for (const s of sessions) {
         const stamp = s.last_message_at || s.created_at || Date.now();
@@ -451,7 +447,6 @@
       });
     }
 
-    // Cerrar menús al hacer click fuera
     document.addEventListener("click", (e) => {
       if (!e.target.closest(".session-item")) {
         document.querySelectorAll(".history-menu").forEach(m => m.style.display = "none");
@@ -464,7 +459,6 @@
 
       const sid = item.getAttribute("data-session");
 
-      // Click en ⋯
       if (e.target.closest(".history-more")) {
         e.stopPropagation();
         document.querySelectorAll(".history-menu").forEach(m => m.style.display = "none");
@@ -474,7 +468,6 @@
         return;
       }
 
-      // Click en Eliminar
       if (e.target.closest(".history-delete")) {
         e.stopPropagation();
         document.querySelectorAll(".history-menu").forEach(m => m.style.display = "none");
@@ -497,7 +490,6 @@
         return;
       }
 
-      // Click normal = cargar chat
       if (!e.target.closest(".history-menu")) {
         currentSessionId = sid;
         localStorage.setItem(SESSION_KEY, currentSessionId);
@@ -510,7 +502,6 @@
     async function loadHistory(sessionId) {
       clearMessages();
 
-      // Si no hay sesión, crea una en el server
       if (!sessionId) {
         const s = await apiFetch("/sessions", { method: "POST", body: JSON.stringify({ clientId }) });
         currentSessionId = s.sessionId;
@@ -541,13 +532,10 @@
       localStorage.setItem(SESSION_KEY, currentSessionId);
 
       clearMessages();
-
-      // Si el server ya guardó saludo en la BD, lo cargamos:
       await loadHistory(currentSessionId);
       await loadSessionsList();
     }
 
-    // Enviar mensajes
     async function sendMessage(textFromButton = null) {
       const rawText = textFromButton ? String(textFromButton) : (chatInput.value || "").trim();
       if (!rawText) return;
@@ -583,7 +571,6 @@
       }
     }
 
-    // Botones / Eventos
     toggleButton.onclick = async () => {
       const isVisible = chatContainer.style.display === "flex";
       chatContainer.style.display = isVisible ? "none" : "flex";
