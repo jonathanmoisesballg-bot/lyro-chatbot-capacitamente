@@ -48,29 +48,29 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
 }
 
 // ============================
-// System instruction
+// System instruction (IA)
 // ============================
 const systemInstruction = `
 Eres Lyro-Capacítamente, un asistente virtual amable y servicial. Tu objetivo es proporcionar información precisa, completa y concisa sobre la Fundación Capacítamente (https://fundacioncapacitamente.com/) y sus actividades, además de responder preguntas de conocimiento general.
 
-Utiliza la siguiente información para las consultas sobre la Fundación:
-- Misión Principal: Ofrecer capacitación de alto valor en habilidades blandas y digitales esenciales para el desarrollo profesional y empresarial.
-- Cursos con Certificado (Costo e Instructor):
+Utiliza esta info para la Fundación:
+- Misión Principal: Ofrecer capacitación de alto valor en habilidades blandas y digitales esenciales.
+- Cursos con Certificado:
   - Formador de Formadores ($120): Tatiana Arias.
   - Inteligencia Emocional ($15): Tatiana Arias.
   - TECNOLOGÍA PARA PADRES ($15): Yadira Suárez.
-  - Contabilidad para no contadores (Próximamente - $20): E Arias.
-  - Docencia Virtual (Próximamente - $20): Tatiana Arias.
-  - Habilidades Cognitivas y Emocionales. Metodología Aprender a Pensar (Próximamente - $20): Tatiana Arias.
+  - (Próximamente) Contabilidad para no contadores ($20)
+  - (Próximamente) Docencia Virtual ($20)
+  - (Próximamente) Habilidades Cognitivas y Emocionales (Aprender a Pensar) ($20)
 - Cursos Gratuitos:
   - Tecnología para Educadores: Tatiana Arias.
-  - Metodología de la Pregunta (Próximamente): Tatiana Arias.
-  - Neuroeducación… También en casa (Próximamente): Prosandoval.
+  - (Próximamente) Metodología de la Pregunta: Tatiana Arias.
+  - (Próximamente) Neuroeducación… También en casa: Prosandoval.
 - Contacto:
   - Celular: 0983222358
   - Correo: info@fundacioncapacitamente.com
   - Ubicación: Guayaquil - Ecuador
-- Donaciones (Guía):
+- Donaciones:
   1) Donaciones -> "Donar ahora"
   2) Elegir cantidad o personalizada -> "Continuar"
   3) Llenar datos
@@ -81,8 +81,16 @@ Si la pregunta no es sobre la Fundación, usa tu conocimiento general.
 `;
 
 // ============================
-// Helpers
+// Helpers base
 // ============================
+function normalizeText(s) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 function getClientId(req) {
   const h = String(req.headers["x-client-id"] || "").trim();
   const b = String(req.body?.clientId || "").trim();
@@ -109,21 +117,24 @@ function extractStatus(err) {
 
 function extractMessage(err) {
   if (typeof err?.message === "string") return err.message;
-  try { return JSON.stringify(err?.error || err); } catch { return String(err); }
+  try {
+    return JSON.stringify(err?.error || err);
+  } catch {
+    return String(err);
+  }
 }
 
-function hasColError(err, colName) {
-  const msg = String(err?.message || "").toLowerCase();
-  return msg.includes(String(colName).toLowerCase());
+function sendJson(res, payload, status = 200) {
+  res.set("Cache-Control", "no-store");
+  return res.status(status).json(payload);
 }
 
 // ============================
-// Menú / opciones sin IA
+// Textos (limpios, sin markdown)
 // ============================
 function menuOpcionesTexto() {
-  return `Hola 👋 ¿En qué te puedo ayudar?
+  return `📌 MENÚ PRINCIPAL (elige una opción)
 
-Opciones:
 1) Cursos gratis
 2) Cursos con certificados y precios
 3) Contacto
@@ -135,152 +146,283 @@ Responde con el número (1-6) o escribe tu pregunta.`;
 }
 
 function horariosTexto() {
-  return `🕒 Horarios (modalidad virtual)
+  return `🕒 HORARIOS (modalidad virtual)
 
-Los horarios son flexibles y se coordinan de acuerdo a tu disponibilidad, ya que las clases son en modalidad virtual. ✅`;
+Los horarios son FLEXIBLES: se ajustan a la disponibilidad que mejor te facilite recibir las clases, ya que son 100% en modalidad virtual/online.
+
+Si deseas, dime tu preferencia:
+• Mañana
+• Tarde
+• Noche`;
 }
 
-function isGreeting(text) {
-  const s = String(text || "").toLowerCase().trim();
-  // tolerante: "hola", "hola lyro", etc.
-  return (
-    s === "hola" || s.startsWith("hola ") ||
-    s === "buenas" || s.startsWith("buenas ") ||
-    s === "buenos dias" || s.startsWith("buenos dias") ||
-    s === "buenos días" || s.startsWith("buenos días") ||
-    s === "buenas tardes" || s.startsWith("buenas tardes") ||
-    s === "buenas noches" || s.startsWith("buenas noches") ||
-    s === "hello" || s.startsWith("hello ") ||
-    s === "hi" || s.startsWith("hi ")
-  );
-}
+function cursosGratisTexto() {
+  return `🎓 CURSOS GRATUITOS
 
-function isMenuCommand(text) {
-  const s = String(text || "").toLowerCase().trim();
-  return ["menu", "menú", "opciones", "inicio", "ayuda", "help", "start"].includes(s);
-}
-
-function isCancelCommand(text) {
-  const s = String(text || "").toLowerCase().trim();
-  return ["cancelar", "salir", "volver", "atrás", "atras"].includes(s);
-}
-
-function faqReply(message) {
-  const t = String(message || "").toLowerCase().trim();
-
-  // ✅ MENU SIN IA
-  if (isGreeting(t) || isMenuCommand(t)) return menuOpcionesTexto();
-
-  // ✅ Opciones por número
-  if (t === "1") return `Cursos gratuitos:
 • Tecnología para Educadores – Tatiana Arias
-Próximamente:
-• Metodología de la Pregunta – Tatiana Arias
-• Neuroeducación… También en casa – Prosandoval`;
 
-  if (t === "2") return `Cursos con certificado:
+📌 Próximamente:
+• Metodología de la Pregunta – Tatiana Arias
+• Neuroeducación… También en casa – Prosandoval
+
+Si quieres recomendación personalizada, escribe: ASESOR
+Si quieres inscribirte, escribe: INSCRIBIRME`;
+}
+
+function cursosCertTexto() {
+  return `🎓 CURSOS CON CERTIFICADO (precios)
+
 • Formador de Formadores ($120) – Tatiana Arias
 • Inteligencia Emocional ($15) – Tatiana Arias
 • Tecnología para Padres ($15) – Yadira Suárez
 
-Próximamente:
+📌 Próximamente:
 • Contabilidad para no contadores ($20)
 • Docencia Virtual ($20)
-• Habilidades Cognitivas y Emocionales (Aprender a Pensar) ($20)`;
+• Habilidades Cognitivas y Emocionales (Aprender a Pensar) ($20)
 
-  if (t === "3") return `Contacto Fundación Capacítamente:
+Si quieres recomendación personalizada, escribe: ASESOR
+Si quieres inscribirte, escribe: INSCRIBIRME`;
+}
+
+function contactoTexto() {
+  return `📞 CONTACTO FUNDACIÓN CAPACÍTAMENTE
+
 📱 0983222358
 ✉️ info@fundacioncapacitamente.com
 📍 Guayaquil - Ecuador`;
+}
 
-  if (t === "4") return `Para donar:
+function donarTexto() {
+  return `💙 DONAR (pasos)
+
 1) Entra a Donaciones → "Donar ahora"
 2) Elige una cantidad (o personalizada) → "Continuar"
 3) Llena tus datos
 4) Elige método (Transferencia o PayPal)
 5) Presiona "Donar ahora"`;
-
-  if (t === "6") return horariosTexto();
-
-  // ✅ Palabras clave SIN IA (mapeo a opciones)
-  if (t.includes("horario")) return horariosTexto();
-  if (t.includes("donaci") || t.includes("donar")) return faqReply("4");
-  if (t.includes("contact") || t.includes("inscrib") || t.includes("información") || t.includes("informacion")) return faqReply("3");
-  if (t.includes("gratis") || t.includes("gratuito")) return faqReply("1");
-
-  // Importante: esto es cursos con certificado, NO estado de certificado
-  if (
-    t.includes("cursos con certificado") ||
-    t.includes("cursos con certificados") ||
-    t.includes("certificados y precios") ||
-    t.includes("precio") ||
-    t.includes("costo") ||
-    (t.includes("curso") && (t.includes("pago") || t.includes("certif")))
-  ) return faqReply("2");
-
-  return null;
 }
 
 // ============================
-// Supabase helpers (con fallback si no existe conversation_number)
+// Sugerencias (botones inteligentes)
+// ============================
+function suggestionsMenu() {
+  return [
+    { text: "1", label: "1) Cursos gratis" },
+    { text: "2", label: "2) Cursos con certificados y precios" },
+    { text: "3", label: "3) Contacto" },
+    { text: "4", label: "4) Donar" },
+    { text: "5", label: "5) Estado de certificado" },
+    { text: "6", label: "6) Horarios" },
+  ];
+}
+
+function suggestionsAfterInfo() {
+  return [
+    { text: "menu", label: "📌 Menú" },
+    { text: "asesor", label: "✨ Asesor de cursos" },
+    { text: "inscribirme", label: "📝 Inscribirme" },
+    { text: "3", label: "📞 Contacto" },
+  ];
+}
+
+function suggestionsCertFlow() {
+  return [
+    { text: "menu", label: "📌 Menú" },
+    { text: "cancelar", label: "✖ Cancelar" },
+  ];
+}
+
+function suggestionsScheduleFlowStep1() {
+  return [
+    { text: "mañana", label: "🌤️ Mañana" },
+    { text: "tarde", label: "🌇 Tarde" },
+    { text: "noche", label: "🌙 Noche" },
+    { text: "menu", label: "📌 Menú" },
+  ];
+}
+
+function suggestionsScheduleFlowStep2() {
+  return [
+    { text: "lun-vie", label: "📅 Lun-Vie" },
+    { text: "sabado", label: "📅 Sábado" },
+    { text: "domingo", label: "📅 Domingo" },
+    { text: "menu", label: "📌 Menú" },
+  ];
+}
+
+function suggestionsAdvisorStart() {
+  return [
+    { text: "docente", label: "👩‍🏫 Docente" },
+    { text: "padre", label: "👨‍👩‍👧 Padre/Madre" },
+    { text: "estudiante", label: "🎒 Estudiante" },
+    { text: "profesional", label: "💼 Profesional" },
+    { text: "menu", label: "📌 Menú" },
+  ];
+}
+
+function suggestionsAdvisorInterest() {
+  return [
+    { text: "habilidades blandas", label: "🧠 Habilidades blandas" },
+    { text: "tecnologia", label: "💻 Tecnología" },
+    { text: "educacion", label: "📚 Educación" },
+    { text: "menu", label: "📌 Menú" },
+  ];
+}
+
+function suggestionsAdvisorTime() {
+  return [
+    { text: "1-2", label: "⏱️ 1-2h/semana" },
+    { text: "3-5", label: "⏱️ 3-5h/semana" },
+    { text: "5+", label: "⏱️ +5h/semana" },
+    { text: "menu", label: "📌 Menú" },
+  ];
+}
+
+function suggestionsLeadFlow() {
+  return [
+    { text: "menu", label: "📌 Menú" },
+    { text: "cancelar", label: "✖ Cancelar" },
+  ];
+}
+
+// ============================
+// FAQ sin IA (incluye MENU por texto)
+// ============================
+function isGreeting(t) {
+  const s = normalizeText(t);
+  return ["hola", "buenas", "buenos dias", "buenas tardes", "buenas noches", "hello", "hi"].includes(s);
+}
+
+function isMenuCommand(t) {
+  const s = normalizeText(t);
+  return ["menu", "menú", "opciones", "inicio", "start", "0"].includes(s);
+}
+
+// ============================
+// Flujos (asesor / inscripción / horarios / certificado)
+// ============================
+const certFlow = new Map();     // sessionId -> { step, cedula? }
+const advisorFlow = new Map();  // sessionId -> { step, persona?, interes?, tiempo? }
+const leadFlow = new Map();     // sessionId -> { step, data: { nombre, whatsapp, curso } }
+const scheduleFlow = new Map(); // sessionId -> { step, data: { franja, dias } }
+
+// reset rápido si el usuario cambia de tema
+function resetFlows(sessionId) {
+  certFlow.delete(sessionId);
+  advisorFlow.delete(sessionId);
+  leadFlow.delete(sessionId);
+  scheduleFlow.delete(sessionId);
+}
+
+// ============================
+// Supabase helpers
 // ============================
 async function getSession(sessionId) {
   if (!supabase) return null;
-
-  let { data, error } = await supabase
+  const { data, error } = await supabase
     .from("chat_sessions")
     .select("session_id, user_key, conversation_number")
     .eq("session_id", sessionId)
     .maybeSingle();
-
-  if (error && hasColError(error, "conversation_number")) {
-    const r2 = await supabase
-      .from("chat_sessions")
-      .select("session_id, user_key")
-      .eq("session_id", sessionId)
-      .maybeSingle();
-    data = r2.data;
-    error = r2.error;
-  }
-
   if (error) throw error;
   return data || null;
 }
 
 async function getNextConversationNumber(userKey) {
-  if (!supabase) return null;
-
-  const r = await supabase
-    .from("chat_sessions")
-    .select("conversation_number")
-    .eq("user_key", userKey)
-    .order("conversation_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (r.error) {
-    if (hasColError(r.error, "conversation_number")) return null;
-    throw r.error;
+  // fallback si no hay columna
+  try {
+    const { data, error } = await supabase
+      .from("chat_sessions")
+      .select("conversation_number")
+      .eq("user_key", userKey)
+      .order("conversation_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    const last = data && typeof data.conversation_number === "number" ? data.conversation_number : 0;
+    return last + 1;
+  } catch {
+    return null;
   }
-
-  const last = (r.data && typeof r.data.conversation_number === "number") ? r.data.conversation_number : 0;
-  return last + 1;
 }
 
 async function insertSessionRow(row) {
   const { error } = await supabase.from("chat_sessions").insert([row]);
   if (!error) return;
 
-  // si falla por columna no existente, reintenta sin conversation_number
-  if (hasColError(error, "conversation_number")) {
+  const msg = String(error.message || "").toLowerCase();
+  if (msg.includes("conversation_number")) {
     const clone = { ...row };
     delete clone.conversation_number;
-    const r2 = await supabase.from("chat_sessions").insert([clone]);
-    if (r2.error) throw r2.error;
+    const { error: e2 } = await supabase.from("chat_sessions").insert([clone]);
+    if (e2) throw e2;
+    return;
+  }
+  throw error;
+}
+
+async function ensureSession(sessionId, userKey) {
+  if (!supabase) return;
+
+  const now = new Date().toISOString();
+  const existing = await getSession(sessionId);
+
+  if (!existing) {
+    const nextNum = await getNextConversationNumber(userKey);
+
+    const row = {
+      session_id: sessionId,
+      user_key: userKey,
+      last_seen: now,
+    };
+    if (typeof nextNum === "number") row.conversation_number = nextNum;
+
+    await insertSessionRow(row);
+
+    // saludo en historial
+    await insertChatMessage(sessionId, userKey, "bot", menuOpcionesTexto());
+    await touchSessionLastMessage(sessionId, userKey, "Conversación nueva");
     return;
   }
 
-  throw error;
+  if (existing.user_key !== userKey) {
+    const e = new Error("No autorizado: sesión no pertenece a este usuario.");
+    e.status = 403;
+    throw e;
+  }
+
+  const { error: upErr } = await supabase
+    .from("chat_sessions")
+    .update({ last_seen: now })
+    .eq("session_id", sessionId);
+
+  if (upErr) throw upErr;
+}
+
+async function touchSessionLastMessage(sessionId, userKey, previewText) {
+  if (!supabase) return;
+
+  const now = new Date().toISOString();
+  const preview = String(previewText || "").slice(0, 200);
+
+  const s = await getSession(sessionId);
+  if (!s || s.user_key !== userKey) {
+    const e = new Error("No autorizado: sesión no pertenece a este usuario.");
+    e.status = 403;
+    throw e;
+  }
+
+  const { error: upErr } = await supabase
+    .from("chat_sessions")
+    .update({
+      last_seen: now,
+      last_message_at: now,
+      last_message_preview: preview,
+    })
+    .eq("session_id", sessionId);
+
+  if (upErr) throw upErr;
 }
 
 async function insertChatMessage(sessionId, userKey, role, content) {
@@ -300,75 +442,9 @@ async function insertChatMessage(sessionId, userKey, role, content) {
   if (error) throw error;
 }
 
-async function touchSessionLastMessage(sessionId, userKey, previewText) {
-  if (!supabase) return;
-
-  const now = new Date().toISOString();
-  const preview = String(previewText || "").slice(0, 200);
-
-  const s = await getSession(sessionId);
-  if (!s || s.user_key !== userKey) {
-    const e = new Error("No autorizado: sesión no pertenece a este usuario.");
-    e.status = 403;
-    throw e;
-  }
-
-  const { error } = await supabase
-    .from("chat_sessions")
-    .update({
-      last_seen: now,
-      last_message_at: now,
-      last_message_preview: preview,
-    })
-    .eq("session_id", sessionId);
-
-  if (error) throw error;
-}
-
-async function ensureSession(sessionId, userKey) {
-  if (!supabase) return;
-
-  const now = new Date().toISOString();
-  const existing = await getSession(sessionId);
-
-  if (!existing) {
-    const nextNum = await getNextConversationNumber(userKey);
-    const row = {
-      session_id: sessionId,
-      user_key: userKey,
-      last_seen: now,
-    };
-    if (typeof nextNum === "number") row.conversation_number = nextNum;
-
-    await insertSessionRow(row);
-
-    // Inserta saludo inicial en historial (menú) para que siempre arranque igual
-    await insertChatMessage(sessionId, userKey, "bot", menuOpcionesTexto());
-    await touchSessionLastMessage(sessionId, userKey, "Conversación nueva");
-    return;
-  }
-
-  if (existing.user_key !== userKey) {
-    const e = new Error("No autorizado: sesión no pertenece a este usuario.");
-    e.status = 403;
-    throw e;
-  }
-
-  const { error } = await supabase
-    .from("chat_sessions")
-    .update({ last_seen: now })
-    .eq("session_id", sessionId);
-
-  if (error) throw error;
-}
-
 // ============================
-// Flujo Estado de Certificado
+// Certificado (mejorado)
 // ============================
-// Tabla recomendada en Supabase:
-// certificate_status(cedula text, curso text, estado text, updated_at timestamptz default now())
-const certFlow = new Map(); // sessionId -> { step, cedula? }
-
 function extractCedula(text) {
   const m = String(text || "").match(/\b\d{10}\b/);
   return m ? m[0] : "";
@@ -382,13 +458,25 @@ function extractCourse(text, cedula) {
 }
 
 function certAskText() {
-  return `📄 Estado de certificado
+  return `📄 ESTADO DE CERTIFICADO
 
-Escribe tu NÚMERO DE CÉDULA (10 dígitos) y el CURSO.
+Escribe tu CÉDULA (10 dígitos) y el NOMBRE DEL CURSO.
 
 Ejemplo:
-0923456789 - Inteligencia Emocional`;
+0923456789 - Inteligencia Emocional
+
+(Para salir escribe: MENU)`;
 }
+
+// Tabla opcional en Supabase:
+// create table if not exists public.certificate_status (
+//   id bigserial primary key,
+//   cedula text not null,
+//   curso text not null,
+//   estado text not null, -- listo | en_proceso | no_listo
+//   updated_at timestamptz not null default now()
+// );
+// create index if not exists idx_cert_cedula on public.certificate_status(cedula);
 
 async function getCertificateStatus(cedula, curso) {
   if (!supabase) return null;
@@ -406,30 +494,165 @@ async function getCertificateStatus(cedula, curso) {
   return data[0];
 }
 
-function wantsCertificateStatus(t) {
-  // evita choque con "cursos con certificados" (opción 2)
-  if (t === "5") return true;
-  if (/estado\s+de?\s*certificado/.test(t)) return true;
+function humanDateEC(iso) {
+  try {
+    return new Date(iso).toLocaleString("es-EC");
+  } catch {
+    return String(iso || "");
+  }
+}
 
-  const hasCert = t.includes("certificado") || t.includes("certificados");
-  const looksLikeStatus =
-    t.includes("mi certificado") ||
-    t.includes("esta listo") || t.includes("está listo") ||
-    t.includes("estado") ||
-    t.includes("listo") ||
-    t.includes("en proceso") ||
-    t.includes("verificar") ||
-    t.includes("consulta") ||
-    t.includes("revisar");
+function certificateReplyFromRow(row) {
+  const estado = normalizeText(row.estado || "");
+  const updated = humanDateEC(row.updated_at);
 
-  // si menciona "certificado" + señales de estado
-  return hasCert && looksLikeStatus;
+  if (estado === "listo") {
+    return `✅ CERTIFICADO LISTO
+
+Curso: ${row.curso}
+Actualizado: ${updated}
+
+Si aún no lo recibiste, escríbenos:
+📱 0983222358
+✉️ info@fundacioncapacitamente.com`;
+  }
+
+  if (estado === "en_proceso") {
+    return `⏳ CERTIFICADO EN PROCESO
+
+Curso: ${row.curso}
+Actualizado: ${updated}
+
+Sugerencia: vuelve a consultar más tarde.`;
+  }
+
+  if (estado === "no_listo") {
+    return `⚠️ CERTIFICADO AÚN NO LISTO
+
+Curso: ${row.curso}
+Actualizado: ${updated}
+
+Si necesitas ayuda, contáctanos:
+📱 0983222358
+✉️ info@fundacioncapacitamente.com`;
+  }
+
+  return `📄 ESTADO DE CERTIFICADO
+
+Curso: ${row.curso}
+Estado: ${row.estado}
+Actualizado: ${updated}`;
 }
 
 // ============================
-// IA en memoria + límites
+// Leads (inscripción)
 // ============================
-const aiSessions = new Map();
+// Crear tabla (una vez) en Supabase:
+// create table if not exists public.leads (
+//   id bigserial primary key,
+//   user_key text,
+//   session_id text,
+//   nombre text,
+//   whatsapp text,
+//   curso text,
+//   created_at timestamptz not null default now()
+// );
+async function saveLead(userKey, sessionId, data) {
+  if (!supabase) return;
+  await supabase.from("leads").insert([{
+    user_key: userKey,
+    session_id: sessionId,
+    nombre: data.nombre,
+    whatsapp: data.whatsapp,
+    curso: data.curso
+  }]);
+}
+
+function extractWhatsapp(text) {
+  const raw = String(text || "").replace(/\s+/g, "");
+  // acepta +593..., 09..., 098..., etc.
+  const m = raw.match(/(\+?\d{9,15})/);
+  return m ? m[1] : "";
+}
+
+// ============================
+// Preferencia de horario
+// ============================
+// Crear tabla (una vez) en Supabase:
+// create table if not exists public.schedule_preferences (
+//   id bigserial primary key,
+//   user_key text,
+//   session_id text,
+//   franja text, -- mañana|tarde|noche
+//   dias text,   -- lun-vie|sabado|domingo|...
+//   created_at timestamptz not null default now()
+// );
+async function saveSchedule(userKey, sessionId, data) {
+  if (!supabase) return;
+  await supabase.from("schedule_preferences").insert([{
+    user_key: userKey,
+    session_id: sessionId,
+    franja: data.franja,
+    dias: data.dias
+  }]);
+}
+
+// ============================
+// Asesor (recomendador)
+// ============================
+function recommendCourse({ persona, interes, tiempo }) {
+  const p = normalizeText(persona);
+  const i = normalizeText(interes);
+  const t = normalizeText(tiempo);
+
+  // reglas simples (puedes ajustar)
+  if (p.includes("padre")) return {
+    curso: "Tecnología para Padres ($15)",
+    motivo: "ideal si quieres acompañar y guiar mejor el uso de tecnología en casa."
+  };
+
+  if (p.includes("docente")) {
+    if (i.includes("tecnolog")) return {
+      curso: "Tecnología para Educadores (Gratis)",
+      motivo: "enfocado a herramientas y recursos útiles para docentes."
+    };
+    return {
+      curso: "Formador de Formadores ($120)",
+      motivo: "perfecto para fortalecer habilidades de enseñanza y facilitación."
+    };
+  }
+
+  if (i.includes("habilidades") || i.includes("blandas")) return {
+    curso: "Inteligencia Emocional ($15)",
+    motivo: "fortalece comunicación, manejo de emociones y relaciones."
+  };
+
+  if (i.includes("educa")) return {
+    curso: "Formador de Formadores ($120)",
+    motivo: "te ayuda a estructurar sesiones y enseñar con mejor metodología."
+  };
+
+  if (i.includes("tecnolog")) return {
+    curso: "Tecnología para Educadores (Gratis)",
+    motivo: "una base útil para avanzar rápido sin costo."
+  };
+
+  // tiempo como desempate
+  if (t === "1-2") return {
+    curso: "Inteligencia Emocional ($15)",
+    motivo: "es una opción ligera y muy aplicable día a día."
+  };
+
+  return {
+    curso: "Formador de Formadores ($120)",
+    motivo: "muy completo si quieres una formación sólida."
+  };
+}
+
+// ============================
+// IA en memoria + límites (igual que antes)
+// ============================
+const sessions = new Map();
 const SESSION_TTL_MS = 30 * 60 * 1000;
 const MAX_SESSIONS = 300;
 
@@ -445,7 +668,6 @@ function getDayKeyEC() {
     day: "2-digit",
   }).format(new Date());
 }
-
 function resetDailyIfNeeded() {
   const nowKey = getDayKeyEC();
   if (nowKey !== aiCallsDayKey) {
@@ -458,13 +680,13 @@ function incAI() { resetDailyIfNeeded(); aiCallsToday++; }
 
 setInterval(() => {
   const now = Date.now();
-  for (const [sid, s] of aiSessions.entries()) {
-    if (now - s.lastAccess > SESSION_TTL_MS) aiSessions.delete(sid);
+  for (const [sid, s] of sessions.entries()) {
+    if (now - s.lastAccess > SESSION_TTL_MS) sessions.delete(sid);
   }
-  if (aiSessions.size > MAX_SESSIONS) {
-    const ordered = [...aiSessions.entries()].sort((a, b) => a[1].lastAccess - b[1].lastAccess);
-    const extra = aiSessions.size - MAX_SESSIONS;
-    for (let i = 0; i < extra; i++) aiSessions.delete(ordered[i][0]);
+  if (sessions.size > MAX_SESSIONS) {
+    const ordered = [...sessions.entries()].sort((a, b) => a[1].lastAccess - b[1].lastAccess);
+    const extra = sessions.size - MAX_SESSIONS;
+    for (let i = 0; i < extra; i++) sessions.delete(ordered[i][0]);
   }
 }, 60 * 1000);
 
@@ -473,10 +695,10 @@ setInterval(() => {
 // ============================
 app.get("/health", (req, res) => res.status(200).send("ok"));
 
-// sesiones para historial
+// Lista sesiones
 app.get("/sessions", async (req, res) => {
   try {
-    if (!supabase) return res.status(500).json({ error: "Supabase no configurado." });
+    if (!supabase) return sendJson(res, { error: "Supabase no configurado." }, 500);
 
     const userKey = getUserKey(req);
     const limit = Math.min(Number(req.query.limit || 30), 100);
@@ -489,7 +711,8 @@ app.get("/sessions", async (req, res) => {
       .order("created_at", { ascending: false })
       .limit(limit);
 
-    if (error && hasColError(error, "conversation_number")) {
+    // fallback si no existe conversation_number
+    if (error && String(error.message || "").toLowerCase().includes("conversation_number")) {
       const r2 = await supabase
         .from("chat_sessions")
         .select("session_id, created_at, last_seen, last_message_at, last_message_preview")
@@ -501,74 +724,70 @@ app.get("/sessions", async (req, res) => {
       error = r2.error;
     }
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) return sendJson(res, { error: error.message }, 500);
 
-    res.set("Cache-Control", "no-store");
-    return res.json({ sessions: data || [] });
+    return sendJson(res, { sessions: data || [] }, 200);
   } catch (e) {
-    return res.status(500).json({ error: "Error en /sessions", details: String(e?.message || e) });
+    return sendJson(res, { error: "Error en /sessions", details: String(e?.message || e) }, 500);
   }
 });
 
-// crear nueva conversación
+// Crear nueva conversación
 app.post("/sessions", async (req, res) => {
   try {
-    if (!supabase) return res.status(500).json({ error: "Supabase no configurado." });
+    if (!supabase) return sendJson(res, { error: "Supabase no configurado." }, 500);
 
     const userKey = getUserKey(req);
     const sessionId = newSessionId();
 
     await ensureSession(sessionId, userKey);
-
-    res.set("Cache-Control", "no-store");
-    return res.json({ sessionId });
+    return sendJson(res, { sessionId }, 200);
   } catch (e) {
-    return res.status(500).json({ error: "Error creando sesión", details: String(e?.message || e) });
+    return sendJson(res, { error: "Error creando sesión", details: String(e?.message || e) }, 500);
   }
 });
 
-// eliminar conversación
+// Eliminar conversación
 app.delete("/session/:sessionId", async (req, res) => {
   try {
-    if (!supabase) return res.status(500).json({ error: "Supabase no configurado." });
+    if (!supabase) return sendJson(res, { error: "Supabase no configurado." }, 500);
 
     const sessionId = String(req.params.sessionId || "").trim();
-    if (!sessionId) return res.status(400).json({ error: "Falta sessionId" });
+    if (!sessionId) return sendJson(res, { error: "Falta sessionId" }, 400);
 
     const userKey = getUserKey(req);
 
     const s = await getSession(sessionId);
-    if (!s) return res.status(404).json({ error: "Sesión no encontrada." });
-    if (s.user_key !== userKey) return res.status(403).json({ error: "No autorizado para borrar esta sesión." });
+    if (!s) return sendJson(res, { error: "Sesión no encontrada." }, 404);
+    if (s.user_key !== userKey) return sendJson(res, { error: "No autorizado para borrar esta sesión." }, 403);
 
     const { error: mErr } = await supabase.from("chat_messages").delete().eq("session_id", sessionId);
-    if (mErr) return res.status(500).json({ error: "Error borrando mensajes", details: mErr.message });
+    if (mErr) return sendJson(res, { error: "Error borrando mensajes", details: mErr.message }, 500);
 
     const { error: dErr } = await supabase.from("chat_sessions").delete().eq("session_id", sessionId);
-    if (dErr) return res.status(500).json({ error: "Error borrando sesión", details: dErr.message });
+    if (dErr) return sendJson(res, { error: "Error borrando sesión", details: dErr.message }, 500);
 
-    aiSessions.delete(sessionId);
-    certFlow.delete(sessionId);
+    sessions.delete(sessionId);
+    resetFlows(sessionId);
 
-    res.set("Cache-Control", "no-store");
-    return res.json({ ok: true, sessionId });
+    return sendJson(res, { ok: true, sessionId }, 200);
   } catch (e) {
     const status = extractStatus(e) || 500;
-    return res.status(status).json({ error: "Error interno", details: String(e?.message || e) });
+    return sendJson(res, { error: "Error interno", details: String(e?.message || e) }, status);
   }
 });
 
-// historial por sesión
+// Historial
 app.get("/history/:sessionId", async (req, res) => {
   try {
-    if (!supabase) return res.status(500).json({ error: "Supabase no configurado." });
+    if (!supabase) return sendJson(res, { error: "Supabase no configurado." }, 500);
 
     const userKey = getUserKey(req);
     const sessionId = String(req.params.sessionId || "").trim();
     const limit = Math.min(Number(req.query.limit || 200), 500);
 
     const s = await getSession(sessionId);
-    if (!s || s.user_key !== userKey) return res.status(404).json({ error: "Sesión no encontrada." });
+    if (!s || s.user_key !== userKey) return sendJson(res, { error: "Sesión no encontrada." }, 404);
 
     const { data, error } = await supabase
       .from("chat_messages")
@@ -577,84 +796,240 @@ app.get("/history/:sessionId", async (req, res) => {
       .order("created_at", { ascending: true })
       .limit(limit);
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) return sendJson(res, { error: error.message }, 500);
 
-    res.set("Cache-Control", "no-store");
-    return res.json({ sessionId, messages: data || [] });
+    return sendJson(res, { sessionId, messages: data || [] }, 200);
   } catch (e) {
-    return res.status(500).json({ error: "Error en historial", details: String(e?.message || e) });
+    return sendJson(res, { error: "Error en historial", details: String(e?.message || e) }, 500);
   }
 });
 
-// chat
+// ============================
+// Chat principal (con botones inteligentes)
+// ============================
 app.post("/chat", async (req, res) => {
   try {
-    if (!ai) return res.status(500).json({ reply: "Servidor sin API KEY (GEMINI_API_KEY)." });
+    if (!ai) return sendJson(res, { reply: "Servidor sin API KEY (GEMINI_API_KEY)." }, 500);
 
     const userMessage = String(req.body?.message || "").trim();
     let sessionId = String(req.body?.sessionId || "").trim();
-    if (!userMessage) return res.status(400).json({ reply: "Mensaje no proporcionado." });
+    if (!userMessage) return sendJson(res, { reply: "Mensaje no proporcionado." }, 400);
     if (!sessionId) sessionId = newSessionId();
 
     const userKey = getUserKey(req);
+
+    // Asegurar sesión
     if (supabase) await ensureSession(sessionId, userKey);
 
-    // guardar user msg
+    // Guardar msg usuario
     if (supabase) {
       await insertChatMessage(sessionId, userKey, "user", userMessage);
       await touchSessionLastMessage(sessionId, userKey, userMessage);
     }
 
-    const t = userMessage.toLowerCase().trim();
+    const t = normalizeText(userMessage);
 
-    // ✅ Si el usuario está en flujo de certificado y escribe menú u opciones 1-4 o 6, cancelamos el flujo
-    const isMenuOptionNumber = ["1", "2", "3", "4", "6"].includes(t);
-    if (certFlow.has(sessionId) && (isMenuOptionNumber || isGreeting(t) || isMenuCommand(t) || isCancelCommand(t))) {
-      certFlow.delete(sessionId);
-    }
-
-    // ✅ "cancelar" muestra menú (sin IA)
-    if (isCancelCommand(t)) {
-      const reply = `Listo ✅ he cancelado la consulta de certificado.\n\n${menuOpcionesTexto()}`;
+    // ====== comandos globales (SIN IA) ======
+    if (isGreeting(t) || isMenuCommand(t)) {
+      resetFlows(sessionId);
+      const reply = menuOpcionesTexto();
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
-      return res.json({ reply, sessionId });
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
-    // ====== Disparador estado de certificado
-    if (wantsCertificateStatus(t)) {
-      certFlow.set(sessionId, { step: "need_data" });
-      const reply = certAskText();
+    if (t === "cancelar") {
+      resetFlows(sessionId);
+      const reply = "✅ Listo. Cancelé el proceso. Escribe MENU para ver opciones.";
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
-      return res.json({ reply, sessionId });
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
-    // ====== flujo activo de certificado
+    // ====== números del menú (cambian tema y RESETEAN flujos) ======
+    if (/^[1-6]$/.test(t)) {
+      resetFlows(sessionId);
+
+      // 1
+      if (t === "1") {
+        const reply = cursosGratisTexto();
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+      }
+
+      // 2
+      if (t === "2") {
+        const reply = cursosCertTexto();
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+      }
+
+      // 3
+      if (t === "3") {
+        const reply = contactoTexto();
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
+      }
+
+      // 4
+      if (t === "4") {
+        const reply = donarTexto();
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
+      }
+
+      // 5 (certificado)
+      if (t === "5") {
+        certFlow.set(sessionId, { step: "need_data" });
+        const reply = certAskText();
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
+      }
+
+      // 6 (horarios + preferencia)
+      if (t === "6") {
+        scheduleFlow.set(sessionId, { step: "franja", data: {} });
+        const reply = horariosTexto();
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowStep1() }, 200);
+      }
+    }
+
+    // ====== disparadores por palabra (SIN IA) ======
+
+    // asesor
+    if (t.includes("asesor") || t.includes("recomendar") || t.includes("recomendacion")) {
+      resetFlows(sessionId);
+      advisorFlow.set(sessionId, { step: "persona", persona: "", interes: "", tiempo: "" });
+
+      const reply = `✨ ASESOR DE CURSOS (3 preguntas)
+
+1/3) ¿Cuál te describe mejor?
+• Docente
+• Padre/Madre
+• Estudiante
+• Profesional`;
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsAdvisorStart() }, 200);
+    }
+
+    // inscripción
+    if (t.includes("inscrib") || t.includes("inscripcion")) {
+      resetFlows(sessionId);
+      leadFlow.set(sessionId, { step: "nombre", data: { nombre: "", whatsapp: "", curso: "" } });
+
+      const reply = `📝 INSCRIPCIÓN RÁPIDA
+
+Para ayudarte mejor, dime tu NOMBRE (solo nombre y apellido).`;
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+    }
+
+    // si escriben "horarios" también entra
+    if (t.includes("horario")) {
+      resetFlows(sessionId);
+      scheduleFlow.set(sessionId, { step: "franja", data: {} });
+      const reply = horariosTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowStep1() }, 200);
+    }
+
+    // contacto / donar / cursos por keywords (sin IA)
+    if (t.includes("donaci") || t.includes("donar")) {
+      const reply = donarTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
+    }
+
+    if (t.includes("contact") || t.includes("whatsapp") || t.includes("correo")) {
+      const reply = contactoTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
+    }
+
+    if (t.includes("gratis") || t.includes("gratuito")) {
+      const reply = cursosGratisTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+    }
+
+    if (t.includes("precio") || t.includes("costo") || (t.includes("curso") && (t.includes("pago") || t.includes("con certificado")))) {
+      const reply = cursosCertTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+    }
+
+    // ====== FLUJO CERTIFICADO ======
+    // (OJO: ya NO se activa por decir solo "certificado" para evitar confusión con cursos)
     if (certFlow.has(sessionId)) {
       const cedula = extractCedula(userMessage);
       const curso = extractCourse(userMessage, cedula);
 
       if (!cedula) {
-        const reply = `Por favor escribe tu CÉDULA (10 dígitos).\nEj: 0923456789\n\nSi deseas volver al menú escribe: menu`;
+        const reply = `Por favor escribe tu CÉDULA (10 dígitos).
+Ejemplo: 0923456789
+(Para salir: MENU)`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
         }
-        return res.json({ reply, sessionId });
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
       }
 
       if (!curso || curso.length < 3) {
-        const reply = `Perfecto ✅ Cédula recibida.\nAhora escribe el NOMBRE DEL CURSO.\nEj: Inteligencia Emocional\n\nSi deseas volver al menú escribe: menu`;
+        const reply = `✅ Cédula recibida (${cedula})
+
+Ahora escribe el NOMBRE DEL CURSO.
+Ejemplo: Inteligencia Emocional
+(Para salir: MENU)`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
         }
-        return res.json({ reply, sessionId });
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
       }
 
       let reply;
@@ -665,17 +1040,15 @@ app.post("/chat", async (req, res) => {
 • Cédula: ${cedula}
 • Curso: ${curso}
 
-Si crees que es un error:
+Si crees que es un error, contáctanos:
 📱 0983222358
 ✉️ info@fundacioncapacitamente.com`;
         } else {
-          const estado = String(row.estado || "").toLowerCase();
-          if (estado.includes("listo")) reply = `✅ Tu certificado está LISTO.\nCurso: ${row.curso}`;
-          else if (estado.includes("proceso")) reply = `⏳ Tu certificado está EN PROCESO.\nCurso: ${row.curso}`;
-          else reply = `⚠️ Tu certificado NO ESTÁ LISTO todavía.\nCurso: ${row.curso}`;
+          reply = certificateReplyFromRow(row);
         }
-      } catch (e) {
-        reply = `Lo siento, no pude consultar el estado en este momento. Intenta más tarde.`;
+      } catch {
+        reply = `Lo siento, no pude consultar el estado en este momento.
+Intenta más tarde.`;
       }
 
       certFlow.delete(sessionId);
@@ -684,21 +1057,201 @@ Si crees que es un error:
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
-      return res.json({ reply, sessionId });
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
-    // ====== FAQ sin IA (incluye menu, 1-4, 6 y keywords)
-    const faq = faqReply(userMessage);
-    if (faq) {
-      if (supabase) {
-        await insertChatMessage(sessionId, userKey, "bot", faq);
-        await touchSessionLastMessage(sessionId, userKey, faq);
+    // ====== FLUJO ASESOR ======
+    if (advisorFlow.has(sessionId)) {
+      const st = advisorFlow.get(sessionId);
+
+      if (st.step === "persona") {
+        st.persona = userMessage.trim();
+        st.step = "interes";
+        advisorFlow.set(sessionId, st);
+
+        const reply = `2/3) ¿Qué buscas principalmente?
+
+• Habilidades blandas
+• Tecnología
+• Educación`;
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsAdvisorInterest() }, 200);
       }
-      res.set("Cache-Control", "no-store");
-      return res.json({ reply: faq, sessionId });
+
+      if (st.step === "interes") {
+        st.interes = userMessage.trim();
+        st.step = "tiempo";
+        advisorFlow.set(sessionId, st);
+
+        const reply = `3/3) ¿Cuánto tiempo tienes a la semana?
+
+• 1-2
+• 3-5
+• 5+`;
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsAdvisorTime() }, 200);
+      }
+
+      if (st.step === "tiempo") {
+        st.tiempo = userMessage.trim();
+        advisorFlow.delete(sessionId);
+
+        const rec = recommendCourse(st);
+
+        const reply = `✅ RECOMENDACIÓN PERSONALIZADA
+
+Según lo que me dijiste, te recomiendo:
+🎯 ${rec.curso}
+
+Motivo: ${rec.motivo}
+
+Si quieres, te ayudo a inscribirte:
+Escribe: INSCRIBIRME`;
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+      }
     }
 
-    // ====== IA
+    // ====== FLUJO INSCRIPCIÓN (LEAD CAPTURE) ======
+    if (leadFlow.has(sessionId)) {
+      const st = leadFlow.get(sessionId);
+
+      if (st.step === "nombre") {
+        st.data.nombre = userMessage.trim();
+        st.step = "whatsapp";
+        leadFlow.set(sessionId, st);
+
+        const reply = `✅ Gracias, ${st.data.nombre}.
+
+Ahora escribe tu número de WhatsApp (con código si deseas).
+Ejemplo: +593991112233 o 0991112233`;
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+      }
+
+      if (st.step === "whatsapp") {
+        const w = extractWhatsapp(userMessage);
+        if (!w) {
+          const reply = `No pude leer el número 😅
+Escríbelo así: +593991112233 o 0991112233`;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+        }
+
+        st.data.whatsapp = w;
+        st.step = "curso";
+        leadFlow.set(sessionId, st);
+
+        const reply = `Perfecto ✅
+
+¿En qué CURSO te gustaría inscribirte?
+(Ej: Inteligencia Emocional / Formador de Formadores / Tecnología para Padres)`;
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+      }
+
+      if (st.step === "curso") {
+        st.data.curso = userMessage.trim();
+
+        // guardar en supabase si existe tabla
+        try { await saveLead(userKey, sessionId, st.data); } catch {}
+
+        leadFlow.delete(sessionId);
+
+        const reply = `✅ ¡Listo! Recibimos tus datos.
+
+Nombre: ${st.data.nombre}
+WhatsApp: ${st.data.whatsapp}
+Curso: ${st.data.curso}
+
+En breve te contactaremos por WhatsApp para ayudarte con la inscripción.
+Si quieres ver opciones: escribe MENU`;
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
+      }
+    }
+
+    // ====== FLUJO HORARIO (preferencia) ======
+    if (scheduleFlow.has(sessionId)) {
+      const st = scheduleFlow.get(sessionId);
+
+      if (st.step === "franja") {
+        const v = normalizeText(userMessage);
+        const ok = ["manana", "tarde", "noche"].includes(v);
+        if (!ok) {
+          const reply = `Dime tu preferencia escribiendo:
+• Mañana
+• Tarde
+• Noche
+(Para salir: MENU)`;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowStep1() }, 200);
+        }
+
+        st.data.franja = v;
+        st.step = "dias";
+        scheduleFlow.set(sessionId, st);
+
+        const reply = `✅ Anotado: ${v.toUpperCase()}.
+
+¿En qué días se te facilita más?
+• Lun-Vie
+• Sábado
+• Domingo`;
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowStep2() }, 200);
+      }
+
+      if (st.step === "dias") {
+        st.data.dias = normalizeText(userMessage).trim();
+
+        try { await saveSchedule(userKey, sessionId, st.data); } catch {}
+        scheduleFlow.delete(sessionId);
+
+        const reply = `✅ ¡Gracias! Guardé tu preferencia de horario.
+
+Franja: ${st.data.franja}
+Días: ${st.data.dias}
+
+Si quieres ver opciones: escribe MENU`;
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
+      }
+    }
+
+    // ============================
+    // Si no cayó en FAQ/Flujos -> IA
+    // ============================
     if (!canUseAI()) {
       const msg = `Hoy ya se alcanzó el límite diario de respuestas con IA (${MAX_DAILY_AI_CALLS}/día).
 Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
@@ -707,10 +1260,10 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
         await insertChatMessage(sessionId, userKey, "bot", msg);
         await touchSessionLastMessage(sessionId, userKey, msg);
       }
-      return res.status(429).json({ reply: msg, sessionId });
+      return sendJson(res, { reply: msg, sessionId, suggestions: suggestionsMenu() }, 429);
     }
 
-    let session = aiSessions.get(sessionId);
+    let session = sessions.get(sessionId);
     if (!session) {
       const chat = ai.chats.create({
         model: GEMINI_MODEL,
@@ -721,7 +1274,7 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
         },
       });
       session = { chat, lastAccess: Date.now() };
-      aiSessions.set(sessionId, session);
+      sessions.set(sessionId, session);
       console.log("🆕 Nueva sesión IA:", sessionId);
     } else {
       session.lastAccess = Date.now();
@@ -738,7 +1291,7 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
         await insertChatMessage(sessionId, userKey, "bot", msg);
         await touchSessionLastMessage(sessionId, userKey, msg);
       }
-      return res.status(502).json({ reply: msg, sessionId });
+      return sendJson(res, { reply: msg, sessionId, suggestions: suggestionsMenu() }, 502);
     }
 
     if (supabase) {
@@ -746,23 +1299,22 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
       await touchSessionLastMessage(sessionId, userKey, reply);
     }
 
-    res.set("Cache-Control", "no-store");
-    return res.json({ reply, sessionId });
+    return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
   } catch (error) {
     const status = extractStatus(error);
     const msg = extractMessage(error);
     console.error("❌ Error /chat:", msg);
 
     if (status === 403) {
-      return res.status(403).json({ reply: "Esta conversación no te pertenece. Crea una nueva (botón Nueva).", sessionId: "" });
+      return sendJson(res, { reply: "Esta conversación no te pertenece. Crea una nueva (botón Nueva).", sessionId: "" }, 403);
     }
 
     if (status === 429 || /RESOURCE_EXHAUSTED|quota|rate limit|429/i.test(msg)) {
       res.set("Retry-After", "60");
-      return res.status(429).json({ reply: "Se alcanzó el límite de uso del servicio de IA por hoy. Intenta más tarde o mañana." });
+      return sendJson(res, { reply: "Se alcanzó el límite de uso del servicio de IA por hoy. Intenta más tarde o mañana." }, 429);
     }
 
-    return res.status(500).json({ reply: "Lo siento, hubo un error interno. Intenta más tarde." });
+    return sendJson(res, { reply: "Lo siento, hubo un error interno. Intenta más tarde." }, 500);
   }
 });
 
