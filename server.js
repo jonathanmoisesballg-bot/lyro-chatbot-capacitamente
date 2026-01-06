@@ -253,6 +253,14 @@ function suggestionsScheduleFlowStep2() {
   ];
 }
 
+function suggestionsAfterScheduleSaved() {
+  return [
+    { text: "inscribirme", label: "📝 Inscribirme" },
+    { text: "asesor", label: "✨ Asesor de cursos" },
+    { text: "menu", label: "📌 Menú" },
+  ];
+}
+
 function suggestionsAdvisorStart() {
   return [
     { text: "docente", label: "👩‍🏫 Docente" },
@@ -306,8 +314,11 @@ function isMenuCommand(t) {
 // ============================
 const certFlow = new Map();     // sessionId -> { step, cedula? }
 const advisorFlow = new Map();  // sessionId -> { step, persona?, interes?, tiempo? }
-const leadFlow = new Map();     // sessionId -> { step, data: { nombre, whatsapp, curso } }
+const leadFlow = new Map();     // sessionId -> { step, data: { nombre, whatsapp, curso, schedule_pref_id? } }
 const scheduleFlow = new Map(); // sessionId -> { step, data: { franja, dias } }
+
+// ✅ NUEVO: recordar el último horario guardado por sesión para enlazar inscripción
+const lastSchedulePrefId = new Map(); // sessionId -> bigint/string
 
 // reset rápido si el usuario cambia de tema
 function resetFlows(sessionId) {
@@ -315,6 +326,7 @@ function resetFlows(sessionId) {
   advisorFlow.delete(sessionId);
   leadFlow.delete(sessionId);
   scheduleFlow.delete(sessionId);
+  // NOTA: NO borramos lastSchedulePrefId aquí, para que si el usuario elige horario y luego inscribirse, se enlace.
 }
 
 // ============================
@@ -445,9 +457,6 @@ async function insertChatMessage(sessionId, userKey, role, content) {
 
 // ============================
 // PIN (Fijar conversación)
-// Requiere estas columnas en chat_sessions:
-//   pinned boolean default false
-//   pinned_at timestamptz
 // ============================
 async function setPinned(sessionId, userKey, pinned) {
   if (!supabase) return;
@@ -565,18 +574,35 @@ Actualizado: ${updated}`;
 }
 
 // ============================
-// Leads (inscripción)
+// Leads (inscripción) + ✅ schedule_pref_id (si existe)
 // ============================
 async function saveLead(userKey, sessionId, data) {
   if (!supabase) return;
-  const { error } = await supabase.from("leads").insert([{
+
+  const schedulePrefId = data?.schedule_pref_id ?? null;
+
+  // Intentamos varias variantes por si tu tabla usa WhatsApp (mayúsculas)
+  const base = {
     user_key: userKey,
     session_id: sessionId,
     nombre: data.nombre,
-    whatsapp: data.whatsapp,
-    curso: data.curso
-  }]);
-  if (error) throw error;
+    curso: data.curso,
+  };
+
+  const attempts = [
+    { ...base, whatsapp: data.whatsapp, schedule_pref_id: schedulePrefId },
+    { ...base, WhatsApp: data.whatsapp, schedule_pref_id: schedulePrefId },
+    { ...base, whatsapp: data.whatsapp }, // sin FK por si no existe la columna
+    { ...base, WhatsApp: data.whatsapp },
+  ];
+
+  let lastErr = null;
+  for (const row of attempts) {
+    const { error } = await supabase.from("leads").insert([row]);
+    if (!error) return;
+    lastErr = error;
+  }
+  throw lastErr;
 }
 
 function extractWhatsapp(text) {
@@ -586,35 +612,52 @@ function extractWhatsapp(text) {
 }
 
 // ============================
-// Preferencia de horario (GUARDADO COMPATIBLE)
+// Preferencia de horario (GUARDADO + devuelve ID si existe)
 // - Si tu tabla tiene (franja, dias) guarda ahí
 // - Si tu tabla solo tiene (preferencia) guarda JSON en "preferencia"
 // ============================
+function pickScheduleId(row) {
+  if (!row) return null;
+  return row.id ?? row.identificacion ?? row["identificación"] ?? row.identificacion_id ?? null;
+}
+
 async function saveSchedule(userKey, sessionId, data) {
-  if (!supabase) return;
+  if (!supabase) return { id: null };
 
   // Intento 1: esquema recomendado (franja, dias)
-  const try1 = await supabase.from("schedule_preferences").insert([{
-    user_key: userKey,
-    session_id: sessionId,
-    franja: data.franja,
-    dias: data.dias
-  }]);
+  const try1 = await supabase
+    .from("schedule_preferences")
+    .insert([{
+      user_key: userKey,
+      session_id: sessionId,
+      franja: data.franja,
+      dias: data.dias
+    }])
+    .select("*");
 
-  if (!try1.error) return;
+  if (!try1.error) {
+    const row = (try1.data && try1.data[0]) ? try1.data[0] : null;
+    return { id: pickScheduleId(row), row };
+  }
 
   const msg = String(try1.error.message || "").toLowerCase();
 
   // Si falla por columnas, intento 2: esquema simple (preferencia)
   if (msg.includes("column") && (msg.includes("franja") || msg.includes("dias"))) {
     const pref = JSON.stringify({ franja: data.franja, dias: data.dias });
-    const try2 = await supabase.from("schedule_preferences").insert([{
-      user_key: userKey,
-      session_id: sessionId,
-      preferencia: pref
-    }]);
+    const try2 = await supabase
+      .from("schedule_preferences")
+      .insert([{
+        user_key: userKey,
+        session_id: sessionId,
+        preferencia: pref
+      }])
+      .select("*");
+
     if (try2.error) throw try2.error;
-    return;
+
+    const row = (try2.data && try2.data[0]) ? try2.data[0] : null;
+    return { id: pickScheduleId(row), row };
   }
 
   throw try1.error;
@@ -724,7 +767,6 @@ app.get("/sessions", async (req, res) => {
     const userKey = getUserKey(req);
     const limit = Math.min(Number(req.query.limit || 30), 100);
 
-    // Intento 1: con pinned + conversation_number
     const tryQuery = async ({ includePinned, includeConv }) => {
       const fields = [
         "session_id",
@@ -759,12 +801,10 @@ app.get("/sessions", async (req, res) => {
     if (r.error) {
       const msg = String(r.error.message || "").toLowerCase();
 
-      // si falla por pinned, reintenta sin pinned
       if (msg.includes("pinned")) {
         r = await tryQuery({ includePinned: false, includeConv: true });
       }
 
-      // si falla por conversation_number, reintenta sin esa columna
       if (r.error && String(r.error.message || "").toLowerCase().includes("conversation_number")) {
         r = await tryQuery({ includePinned: false, includeConv: false });
       }
@@ -805,11 +845,10 @@ app.post("/session/:sessionId/pin", async (req, res) => {
       await setPinned(sessionId, userKey, pinned);
     } catch (e) {
       const msg = String(e?.message || "").toLowerCase();
-      // si no existen columnas
       if (msg.includes("pinned")) {
         return sendJson(res, {
           error: "Tu tabla chat_sessions no tiene columnas de PIN.",
-          hint: "Agrega columnas pinned y pinned_at (te dejo el SQL abajo)."
+          hint: "Agrega columnas pinned y pinned_at."
         }, 400);
       }
       throw e;
@@ -844,6 +883,7 @@ app.delete("/session/:sessionId", async (req, res) => {
 
     sessions.delete(sessionId);
     resetFlows(sessionId);
+    lastSchedulePrefId.delete(sessionId); // ✅ NUEVO
 
     return sendJson(res, { ok: true, sessionId }, 200);
   } catch (e) {
@@ -1003,13 +1043,22 @@ app.post("/chat", async (req, res) => {
       return sendJson(res, { reply, sessionId, suggestions: suggestionsAdvisorStart() }, 200);
     }
 
+    // ✅ MODIFICADO: si escribe inscribirse, si ya hay horario guardado, lo enlazamos
     if (t.includes("inscrib") || t.includes("inscripcion")) {
       resetFlows(sessionId);
-      leadFlow.set(sessionId, { step: "nombre", data: { nombre: "", whatsapp: "", curso: "" } });
 
-      const reply = `📝 INSCRIPCIÓN RÁPIDA
+      const schedId = lastSchedulePrefId.get(sessionId) || null;
+
+      leadFlow.set(sessionId, {
+        step: "nombre",
+        data: { nombre: "", whatsapp: "", curso: "", schedule_pref_id: schedId }
+      });
+
+      const extra = schedId ? "\n✅ Ya tengo tu horario guardado y lo vincularé a tu inscripción." : "";
+      const reply = `📝 INSCRIPCIÓN RÁPIDA${extra}
 
 Para ayudarte mejor, dime tu NOMBRE (solo nombre y apellido).`;
+
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1216,6 +1265,9 @@ Escríbelo así: +593991112233 o 0991112233`;
 
         st.data.whatsapp = w;
         st.step = "curso";
+        // ✅ por si guardó horario mientras tanto
+        st.data.schedule_pref_id = st.data.schedule_pref_id ?? (lastSchedulePrefId.get(sessionId) || null);
+
         leadFlow.set(sessionId, st);
 
         const reply = `Perfecto ✅
@@ -1231,6 +1283,7 @@ Escríbelo así: +593991112233 o 0991112233`;
 
       if (st.step === "curso") {
         st.data.curso = userMessage.trim();
+        st.data.schedule_pref_id = st.data.schedule_pref_id ?? (lastSchedulePrefId.get(sessionId) || null);
 
         try {
           await saveLead(userKey, sessionId, st.data);
@@ -1240,11 +1293,12 @@ Escríbelo así: +593991112233 o 0991112233`;
 
         leadFlow.delete(sessionId);
 
+        const extra = st.data.schedule_pref_id ? `\nHorario vinculado (ID): ${st.data.schedule_pref_id}` : "";
         const reply = `✅ ¡Listo! Recibimos tus datos.
 
 Nombre: ${st.data.nombre}
 WhatsApp: ${st.data.whatsapp}
-Curso: ${st.data.curso}
+Curso: ${st.data.curso}${extra}
 
 En breve te contactaremos por WhatsApp.
 Si quieres ver opciones: escribe MENU`;
@@ -1297,8 +1351,12 @@ Si quieres ver opciones: escribe MENU`;
         st.data.dias = normalizeText(userMessage).trim();
 
         let saved = true;
+        let schedId = null;
+
         try {
-          await saveSchedule(userKey, sessionId, st.data);
+          const out = await saveSchedule(userKey, sessionId, st.data);
+          schedId = out?.id ?? null;
+          if (schedId) lastSchedulePrefId.set(sessionId, schedId); // ✅ NUEVO: guardamos el último ID
         } catch (e) {
           saved = false;
           console.warn("⚠️ No se pudo guardar horario:", extractMessage(e));
@@ -1312,7 +1370,8 @@ Si quieres ver opciones: escribe MENU`;
 Franja: ${st.data.franja}
 Días: ${st.data.dias}
 
-Si quieres ver opciones: escribe MENU`
+¿Deseas inscribirte a un curso ahora?
+Escribe: INSCRIBIRME`
           : `✅ Preferencia recibida (pero OJO: no se pudo guardar en la BD todavía).
 
 Franja: ${st.data.franja}
@@ -1324,7 +1383,16 @@ Revisa que en Render estén SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY (sb_secret.
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
         }
-        return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
+
+        return sendJson(
+          res,
+          {
+            reply,
+            sessionId,
+            suggestions: saved ? suggestionsAfterScheduleSaved() : suggestionsMenu(),
+          },
+          200
+        );
       }
     }
 

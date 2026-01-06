@@ -255,7 +255,7 @@
       gap:6px;
       border-bottom:1px solid #eee;
 
-      max-height: 140px;      /* CLAVE */
+      max-height: 160px;      /* un poquito más alto */
       overflow-y: auto;       /* CLAVE */
       overscroll-behavior: contain;
       scrollbar-width: thin;
@@ -367,6 +367,23 @@
       { text: "6", label: "6) Horarios" },
     ];
 
+    function menuWelcomeText() {
+      return `👋 Hola, soy LYRO-CAPACÍTAMENTE 🤖
+
+¿En qué te puedo ayudar?
+
+📌 Elige una opción:
+
+1) Cursos gratis
+2) Cursos con certificados y precios
+3) Contacto
+4) Donar
+5) Estado de certificado
+6) Horarios
+
+(Responde con 1-6 o escribe tu pregunta)`;
+    }
+
     function fmtDate(d) {
       return new Date(d).toLocaleDateString("es-EC", { year:"numeric", month:"2-digit", day:"2-digit" });
     }
@@ -414,8 +431,7 @@
         suggestionWrap.appendChild(btn);
       });
 
-      // asegura que se vea la ruedita si hace falta
-      suggestionWrap.scrollTop = 0;
+      suggestionWrap.scrollTop = 0; // que se vea “bonito” arriba
     }
 
     async function apiFetch(path, opts = {}) {
@@ -611,7 +627,8 @@
         const msgs = data.messages || [];
 
         if (msgs.length === 0) {
-          addMessage("👋 Hola, soy LYRO-CAPACÍTAMENTE 🤖\n\n¿En qué te puedo ayudar?\n\nEscribe: MENU para ver opciones.", "bot", new Date().toISOString());
+          // ✅ MENSAJE BONITO + BOTONES COMPLETOS al entrar
+          addMessage(menuWelcomeText(), "bot", new Date().toISOString());
           renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
           return;
         }
@@ -620,7 +637,8 @@
           addMessage(m.content || "", roleToSender(m.role), m.created_at);
         }
       } catch (e) {
-        addMessage("👋 Hola, soy LYRO-CAPACÍTAMENTE 🤖\n\n¿En qué te puedo ayudar?\n\nEscribe: MENU para ver opciones.", "bot", new Date().toISOString());
+        // ✅ si falla el historial: igual mostramos bienvenida + menú
+        addMessage(menuWelcomeText(), "bot", new Date().toISOString());
       }
 
       // ✅ Siempre mostrar todos los botones al abrir
@@ -633,9 +651,14 @@
       localStorage.setItem(SESSION_KEY, currentSessionId);
 
       clearMessages();
-      await loadHistory(currentSessionId);
-      await loadSessionsList();
+
+      // ✅ mensaje inmediato (no depende de red) + botones completos
+      addMessage(menuWelcomeText(), "bot", new Date().toISOString());
       renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
+
+      // luego carga historial real (si Supabase insertó el menú en servidor)
+      try { await loadHistory(currentSessionId); } catch {}
+      await loadSessionsList();
     }
 
     async function sendMessage(textFromButton = null) {
@@ -683,6 +706,9 @@
       chatContainer.style.display = isVisible ? "none" : "flex";
 
       if (!isVisible) {
+        // ✅ al abrir: que SIEMPRE se vean TODOS los botones y el scroll
+        renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
+
         fetch(SERVER_URL + "/health").catch(()=>{});
         await loadSessionsList();
         await loadHistory(currentSessionId);
