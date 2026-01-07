@@ -255,6 +255,24 @@ Si quieres ver cursos escribe:
 O escribe: ASESOR`;
 }
 
+// ✅ NUEVO: ¿Quiénes somos? / Acerca de (SIN IA)
+function quienesSomosTexto() {
+  return `🏛️ ¿QUIÉNES SOMOS?
+
+Somos la Fundación Capacítamente, una organización que impulsa la capacitación de alto valor en habilidades blandas y digitales esenciales, enfocada en el crecimiento personal y profesional.
+
+¿Qué hacemos?
+• Ofrecemos cursos gratuitos y cursos con certificado a bajo costo.
+• Trabajamos en modalidad 100% virtual con horarios flexibles.
+• Brindamos acompañamiento para ayudarte a elegir el curso ideal.
+
+Si deseas ver cursos:
+• 1 (Cursos gratis)
+• 2 (Cursos con certificados y precios)
+Si deseas contactarnos:
+• 3 (Contacto)`;
+}
+
 function trabajarConNosotrosTexto() {
   return `🤝 TRABAJA / COLABORA CON NOSOTROS
 
@@ -393,6 +411,12 @@ function isFoundationQuery(t) {
   const s = normalizeText(t);
   const keys = [
     "fundacion", "fundación", "capacitamente", "capacítamente",
+
+    // QUIENES SOMOS / ACERCA DE / QUÉ HACEN
+    "quienes somos", "quienes son", "quien es la fundacion", "que es la fundacion",
+    "acerca de", "sobre la fundacion", "sobre ustedes", "sobre nosotros",
+    "que hacen", "que hace la fundacion", "a que se dedican", "que servicios ofrecen",
+
     "curso", "cursos", "certificado", "certificacion", "certificación", "certificar", "certificarme",
     "donar", "donacion", "donación", "donaciones", "paypal", "transferencia",
     "whatsapp", "correo", "contacto", "guayaquil",
@@ -415,6 +439,30 @@ function isBenefitsQuery(t) {
     s.includes("que ofrece") ||
     s.includes("que me da") ||
     s.includes("beneficia")
+  );
+}
+
+// ✅ NUEVO: ¿Quiénes somos? / acerca de / qué hacen (SIN IA)
+function isQuienesSomosQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("quienes somos") ||
+    s.includes("quienes son") ||
+    s.includes("quien es la fundacion") ||
+    s.includes("quien es la fundación") ||
+    s.includes("que es la fundacion") ||
+    s.includes("que es la fundación") ||
+    s.includes("acerca de") ||
+    s.includes("sobre la fundacion") ||
+    s.includes("sobre la fundación") ||
+    s.includes("sobre ustedes") ||
+    s.includes("sobre nosotros") ||
+    s.includes("que hacen") ||
+    s.includes("que hace la fundacion") ||
+    s.includes("que hace la fundación") ||
+    s.includes("a que se dedican") ||
+    s.includes("a que se dedica") ||
+    s.includes("que servicios ofrecen")
   );
 }
 
@@ -1122,6 +1170,17 @@ app.post("/chat", async (req, res) => {
       return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
+    // ====== FUNDACIÓN (SIN IA): quienes somos / acerca de ======
+    if (isQuienesSomosQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = quienesSomosTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+    }
+
     // ====== FUNDACIÓN (SIN IA): beneficios ======
     if (isBenefitsQuery(userMessage)) {
       resetFlows(sessionId);
@@ -1672,6 +1731,7 @@ Revisa que en Render estén SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY.`;
 Escribe:
 • MENU (ver opciones)
 • BENEFICIOS
+• QUIENES SOMOS
 • CERTIFICARME
 • TRABAJA CON NOSOTROS`;
 
