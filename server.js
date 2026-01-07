@@ -25,22 +25,53 @@ app.options("*", cors());
 app.use(express.json({ strict: false, limit: "1mb" }));
 
 // ============================
-// IA (Gemini) - SOLO se usa si no cae en FAQ/Flujos
+// Config IA (desde ENV)
 // ============================
-const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-if (!apiKey)
+const apiKey =
+  process.env.GEMINI_API_KEY ||
+  process.env.GOOGLE_API_KEY ||
+  process.env.GOOGLE_GENAI_API_KEY ||
+  "";
+
+if (!apiKey) {
   console.warn("⚠️ Falta GEMINI_API_KEY (o GOOGLE_API_KEY). El bot funcionará en modo FAQ sin IA.");
+}
 
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
-function clamp(n, min, max) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return min;
-  return Math.max(min, Math.min(max, x));
-}
-const GEMINI_MAX_TOKENS = clamp(process.env.GEMINI_MAX_TOKENS ?? 400, 64, 2048);
-const GEMINI_TEMPERATURE = clamp(process.env.GEMINI_TEMPERATURE ?? 0.3, 0, 1);
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const GEMINI_TEMPERATURE = Number.isFinite(Number(process.env.GEMINI_TEMPERATURE))
+  ? Number(process.env.GEMINI_TEMPERATURE)
+  : 0.3;
+
+const GEMINI_MAX_TOKENS = Number.isFinite(Number(process.env.GEMINI_MAX_TOKENS))
+  ? Math.max(64, Number(process.env.GEMINI_MAX_TOKENS))
+  : 800; // ✅ más alto para que no se “corte”
+
+const MAX_DAILY_AI_CALLS = Number.isFinite(Number(process.env.MAX_DAILY_AI_CALLS))
+  ? Math.max(0, Number(process.env.MAX_DAILY_AI_CALLS))
+  : 200;
+
+// cooldown entre llamadas IA (ms). Si llega otro mensaje antes, esperamos ese tiempo (no fallamos).
+const AI_COOLDOWN_MS = Number.isFinite(Number(process.env.AI_COOLDOWN_MS))
+  ? Math.max(0, Number(process.env.AI_COOLDOWN_MS))
+  : 0;
+
+// reintentos cuando Gemini responde 503/429/overloaded
+const AI_RETRY_MAX = Number.isFinite(Number(process.env.AI_RETRY_MAX))
+  ? Math.max(1, Number(process.env.AI_RETRY_MAX))
+  : 3;
+
+const AI_RETRY_BASE_MS = Number.isFinite(Number(process.env.AI_RETRY_BASE_MS))
+  ? Math.max(150, Number(process.env.AI_RETRY_BASE_MS))
+  : 700;
+
+const AI_RETRY_MAX_WAIT_MS = Number.isFinite(Number(process.env.AI_RETRY_MAX_WAIT_MS))
+  ? Math.max(500, Number(process.env.AI_RETRY_MAX_WAIT_MS))
+  : 5000;
+
+console.log(`🤖 Gemini: modelo=${GEMINI_MODEL} tokens=${GEMINI_MAX_TOKENS} temperatura=${GEMINI_TEMPERATURE}`);
+console.log(`🧯 IA: max_diario=${MAX_DAILY_AI_CALLS} cooldown_ms=${AI_COOLDOWN_MS} reintentos=${AI_RETRY_MAX}`);
 
 // ============================
 // Supabase
@@ -60,7 +91,13 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
 // System instruction (IA)
 // ============================
 const systemInstruction = `
-Eres Lyro-Capacítamente, un asistente virtual amable y servicial. Tu objetivo es proporcionar información precisa, completa y concisa sobre la Fundación Capacítamente (https://fundacioncapacitamente.com/) y sus actividades, además de responder preguntas de conocimiento general.
+Eres Lyro-Capacítamente, un asistente virtual amable y servicial.
+Tu objetivo es proporcionar información precisa, completa y concisa sobre la Fundación Capacítamente (https://fundacioncapacitamente.com/) y sus actividades, además de responder preguntas de conocimiento general.
+
+IMPORTANTE:
+- Responde en texto plano (sin Markdown).
+- Si la pregunta es de la Fundación, prioriza la información oficial.
+- Si no es de la Fundación, usa conocimiento general y responde claro y corto.
 
 Utiliza esta info para la Fundación:
 - Misión Principal: Ofrecer capacitación de alto valor en habilidades blandas y digitales esenciales.
@@ -85,8 +122,6 @@ Utiliza esta info para la Fundación:
   3) Llenar datos
   4) Elegir método (Transferencia o PayPal)
   5) "Donar ahora"
-
-Si la pregunta no es sobre la Fundación, usa tu conocimiento general.
 `;
 
 // ============================
@@ -136,6 +171,23 @@ function extractMessage(err) {
 function sendJson(res, payload, status = 200) {
   res.set("Cache-Control", "no-store");
   return res.status(status).json(payload);
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// Quita markdown “suave” si el modelo devuelve formatos raros
+function stripMarkdownLite(text) {
+  let s = String(text || "");
+  s = s.replace(/```[\s\S]*?```/g, (m) => m.replace(/```[a-zA-Z0-9_-]*\n?/g, "").replace(/```/g, ""));
+  s = s.replace(/`([^`]+)`/g, "$1");
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1");
+  s = s.replace(/\*\*(.*?)\*\*/g, "$1").replace(/__(.*?)__/g, "$1");
+  s = s.replace(/\*(.*?)\*/g, "$1").replace(/_(.*?)_/g, "$1");
+  s = s.replace(/^#{1,6}\s+/gm, "");
+  s = s.replace(/^\s*[-*]\s+/gm, "• ");
+  return s.trim();
 }
 
 // ============================
@@ -321,20 +373,18 @@ function isMenuCommand(t) {
 // ============================
 // Flujos (asesor / inscripción / horarios / certificado)
 // ============================
-const certFlow = new Map(); // sessionId -> { step, cedula? }
-const advisorFlow = new Map(); // sessionId -> { step, persona?, interes?, tiempo? }
-const leadFlow = new Map(); // sessionId -> { step, data: { nombre, whatsapp, curso, schedule_pref_id? } }
-const scheduleFlow = new Map(); // sessionId -> { step, data: { franja, dias } }
+const certFlow = new Map();
+const advisorFlow = new Map();
+const leadFlow = new Map();
+const scheduleFlow = new Map();
 
-// ✅ recordar el último horario guardado por sesión para enlazar inscripción
-const lastSchedulePrefId = new Map(); // sessionId -> bigint/string
+const lastSchedulePrefId = new Map();
 
 function resetFlows(sessionId) {
   certFlow.delete(sessionId);
   advisorFlow.delete(sessionId);
   leadFlow.delete(sessionId);
   scheduleFlow.delete(sessionId);
-  // NO borramos lastSchedulePrefId aquí
 }
 
 // ============================
@@ -412,7 +462,11 @@ async function ensureSession(sessionId, userKey) {
     throw e;
   }
 
-  const { error: upErr } = await supabase.from("chat_sessions").update({ last_seen: now }).eq("session_id", sessionId);
+  const { error: upErr } = await supabase
+    .from("chat_sessions")
+    .update({ last_seen: now })
+    .eq("session_id", sessionId);
+
   if (upErr) throw upErr;
 }
 
@@ -451,7 +505,10 @@ async function insertChatMessage(sessionId, userKey, role, content) {
     throw e;
   }
 
-  const { error } = await supabase.from("chat_messages").insert([{ session_id: sessionId, role, content }]);
+  const { error } = await supabase
+    .from("chat_messages")
+    .insert([{ session_id: sessionId, role, content }]);
+
   if (error) throw error;
 }
 
@@ -469,9 +526,15 @@ async function setPinned(sessionId, userKey, pinned) {
   }
 
   const now = new Date().toISOString();
-  const payload = pinned ? { pinned: true, pinned_at: now } : { pinned: false, pinned_at: null };
+  const payload = pinned
+    ? { pinned: true, pinned_at: now }
+    : { pinned: false, pinned_at: null };
 
-  const { error } = await supabase.from("chat_sessions").update(payload).eq("session_id", sessionId);
+  const { error } = await supabase
+    .from("chat_sessions")
+    .update(payload)
+    .eq("session_id", sessionId);
+
   if (error) throw error;
 }
 
@@ -605,7 +668,7 @@ function extractWhatsapp(text) {
 }
 
 // ============================
-// Preferencia de horario
+// Preferencia de horario (GUARDADO + devuelve ID si existe)
 // ============================
 function pickScheduleId(row) {
   if (!row) return null;
@@ -617,18 +680,16 @@ async function saveSchedule(userKey, sessionId, data) {
 
   const try1 = await supabase
     .from("schedule_preferences")
-    .insert([
-      {
-        user_key: userKey,
-        session_id: sessionId,
-        franja: data.franja,
-        dias: data.dias,
-      },
-    ])
+    .insert([{
+      user_key: userKey,
+      session_id: sessionId,
+      franja: data.franja,
+      dias: data.dias
+    }])
     .select("*");
 
   if (!try1.error) {
-    const row = try1.data && try1.data[0] ? try1.data[0] : null;
+    const row = (try1.data && try1.data[0]) ? try1.data[0] : null;
     return { id: pickScheduleId(row), row };
   }
 
@@ -638,18 +699,16 @@ async function saveSchedule(userKey, sessionId, data) {
     const pref = JSON.stringify({ franja: data.franja, dias: data.dias });
     const try2 = await supabase
       .from("schedule_preferences")
-      .insert([
-        {
-          user_key: userKey,
-          session_id: sessionId,
-          preferencia: pref,
-        },
-      ])
+      .insert([{
+        user_key: userKey,
+        session_id: sessionId,
+        preferencia: pref
+      }])
       .select("*");
 
     if (try2.error) throw try2.error;
 
-    const row = try2.data && try2.data[0] ? try2.data[0] : null;
+    const row = (try2.data && try2.data[0]) ? try2.data[0] : null;
     return { id: pickScheduleId(row), row };
   }
 
@@ -664,34 +723,55 @@ function recommendCourse({ persona, interes, tiempo }) {
   const i = normalizeText(interes);
   const t = normalizeText(tiempo);
 
-  if (p.includes("padre"))
-    return { curso: "Tecnología para Padres ($15)", motivo: "ideal si quieres acompañar y guiar mejor el uso de tecnología en casa." };
+  if (p.includes("padre")) return {
+    curso: "Tecnología para Padres ($15)",
+    motivo: "ideal si quieres acompañar y guiar mejor el uso de tecnología en casa."
+  };
 
   if (p.includes("docente")) {
-    if (i.includes("tecnolog")) return { curso: "Tecnología para Educadores (Gratis)", motivo: "enfocado a herramientas y recursos útiles para docentes." };
-    return { curso: "Formador de Formadores ($120)", motivo: "perfecto para fortalecer habilidades de enseñanza y facilitación." };
+    if (i.includes("tecnolog")) return {
+      curso: "Tecnología para Educadores (Gratis)",
+      motivo: "enfocado a herramientas y recursos útiles para docentes."
+    };
+    return {
+      curso: "Formador de Formadores ($120)",
+      motivo: "perfecto para fortalecer habilidades de enseñanza y facilitación."
+    };
   }
 
-  if (i.includes("habilidades") || i.includes("blandas"))
-    return { curso: "Inteligencia Emocional ($15)", motivo: "fortalece comunicación, manejo de emociones y relaciones." };
+  if (i.includes("habilidades") || i.includes("blandas")) return {
+    curso: "Inteligencia Emocional ($15)",
+    motivo: "fortalece comunicación, manejo de emociones y relaciones."
+  };
 
-  if (i.includes("educa")) return { curso: "Formador de Formadores ($120)", motivo: "te ayuda a estructurar sesiones y enseñar con mejor metodología." };
+  if (i.includes("educa")) return {
+    curso: "Formador de Formadores ($120)",
+    motivo: "te ayuda a estructurar sesiones y enseñar con mejor metodología."
+  };
 
-  if (i.includes("tecnolog")) return { curso: "Tecnología para Educadores (Gratis)", motivo: "una base útil para avanzar rápido sin costo." };
+  if (i.includes("tecnolog")) return {
+    curso: "Tecnología para Educadores (Gratis)",
+    motivo: "una base útil para avanzar rápido sin costo."
+  };
 
-  if (t === "1-2") return { curso: "Inteligencia Emocional ($15)", motivo: "es una opción ligera y muy aplicable día a día." };
+  if (t === "1-2") return {
+    curso: "Inteligencia Emocional ($15)",
+    motivo: "es una opción ligera y muy aplicable día a día."
+  };
 
-  return { curso: "Formador de Formadores ($120)", motivo: "muy completo si quieres una formación sólida." };
+  return {
+    curso: "Formador de Formadores ($120)",
+    motivo: "muy completo si quieres una formación sólida."
+  };
 }
 
 // ============================
-// IA en memoria + límites (global)
+// IA en memoria + límites
 // ============================
 const sessions = new Map();
 const SESSION_TTL_MS = 30 * 60 * 1000;
 const MAX_SESSIONS = 300;
 
-const MAX_DAILY_AI_CALLS = Number(process.env.MAX_DAILY_AI_CALLS || 50);
 let aiCallsToday = 0;
 let aiCallsDayKey = getDayKeyEC();
 
@@ -703,6 +783,7 @@ function getDayKeyEC() {
     day: "2-digit",
   }).format(new Date());
 }
+
 function resetDailyIfNeeded() {
   const nowKey = getDayKeyEC();
   if (nowKey !== aiCallsDayKey) {
@@ -710,10 +791,12 @@ function resetDailyIfNeeded() {
     aiCallsToday = 0;
   }
 }
+
 function canUseAI() {
   resetDailyIfNeeded();
   return aiCallsToday < MAX_DAILY_AI_CALLS;
 }
+
 function incAI() {
   resetDailyIfNeeded();
   aiCallsToday++;
@@ -731,25 +814,50 @@ setInterval(() => {
   }
 }, 60 * 1000);
 
-// ============================
-// ✅ Anti-spam (cooldown por usuario para IA)
-// ============================
-const AI_COOLDOWN_MS = Math.max(0, Number(process.env.AI_COOLDOWN_MS || 2500));
-const lastAiCallAtByUser = new Map();
-const COOLDOWN_TTL_MS = 10 * 60 * 1000;
+// cooldown por sesión (para no spammear IA)
+const lastAiCallAt = new Map();
 
-setInterval(() => {
-  const now = Date.now();
-  for (const [k, t] of lastAiCallAtByUser.entries()) {
-    if (now - t > COOLDOWN_TTL_MS) lastAiCallAtByUser.delete(k);
+// Detecta errores “reintentables” (503 overloaded, 429, unavailable)
+function isRetryableGeminiError(err) {
+  const code = extractStatus(err);
+  const msg = normalizeText(extractMessage(err));
+
+  if (code === 429 || code === 503) return true;
+
+  // texto típico en español e inglés
+  if (msg.includes("sobrecargado")) return true;
+  if (msg.includes("no disponible")) return true;
+  if (msg.includes("unavailable")) return true;
+  if (msg.includes("resource_exhausted")) return true;
+  if (msg.includes("quota")) return true;
+  if (msg.includes("rate limit")) return true;
+
+  return false;
+}
+
+async function callGeminiWithRetry(chat, userMessage) {
+  let attempt = 0;
+  let delay = AI_RETRY_BASE_MS;
+
+  while (attempt < AI_RETRY_MAX) {
+    attempt++;
+    try {
+      const response = await chat.sendMessage({ message: userMessage });
+      return response;
+    } catch (e) {
+      if (!isRetryableGeminiError(e) || attempt >= AI_RETRY_MAX) {
+        throw e;
+      }
+
+      const jitter = Math.floor(Math.random() * 180);
+      const waitMs = Math.min(AI_RETRY_MAX_WAIT_MS, delay + jitter);
+      console.warn(`⚠️ Gemini temporal (intento ${attempt}/${AI_RETRY_MAX}). Reintentando en ${waitMs}ms...`);
+      await sleep(waitMs);
+      delay = Math.min(AI_RETRY_MAX_WAIT_MS, delay * 2);
+    }
   }
-}, 60 * 1000);
 
-function getCooldownRemainingMs(userKey) {
-  if (!AI_COOLDOWN_MS) return 0;
-  const last = lastAiCallAtByUser.get(userKey) || 0;
-  const diff = Date.now() - last;
-  return diff < AI_COOLDOWN_MS ? AI_COOLDOWN_MS - diff : 0;
+  throw new Error("No se pudo obtener respuesta de IA tras reintentos.");
 }
 
 // ============================
@@ -775,17 +883,21 @@ app.get("/sessions", async (req, res) => {
         includeConv ? "conversation_number" : null,
         includePinned ? "pinned" : null,
         includePinned ? "pinned_at" : null,
-      ]
-        .filter(Boolean)
-        .join(", ");
+      ].filter(Boolean).join(", ");
 
-      let q = supabase.from("chat_sessions").select(fields).eq("user_key", userKey);
+      let q = supabase
+        .from("chat_sessions")
+        .select(fields)
+        .eq("user_key", userKey);
 
       if (includePinned) {
-        q = q.order("pinned", { ascending: false, nullsFirst: false }).order("pinned_at", { ascending: false, nullsFirst: false });
+        q = q.order("pinned", { ascending: false, nullsFirst: false })
+             .order("pinned_at", { ascending: false, nullsFirst: false });
       }
 
-      q = q.order("last_message_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }).limit(limit);
+      q = q.order("last_message_at", { ascending: false, nullsFirst: false })
+           .order("created_at", { ascending: false })
+           .limit(limit);
 
       return await q;
     };
@@ -840,14 +952,10 @@ app.post("/session/:sessionId/pin", async (req, res) => {
     } catch (e) {
       const msg = String(e?.message || "").toLowerCase();
       if (msg.includes("pinned")) {
-        return sendJson(
-          res,
-          {
-            error: "Tu tabla chat_sessions no tiene columnas de PIN.",
-            hint: "Agrega columnas pinned y pinned_at.",
-          },
-          400
-        );
+        return sendJson(res, {
+          error: "Tu tabla chat_sessions no tiene columnas de PIN.",
+          hint: "Agrega columnas pinned y pinned_at."
+        }, 400);
       }
       throw e;
     }
@@ -882,6 +990,7 @@ app.delete("/session/:sessionId", async (req, res) => {
     sessions.delete(sessionId);
     resetFlows(sessionId);
     lastSchedulePrefId.delete(sessionId);
+    lastAiCallAt.delete(sessionId);
 
     return sendJson(res, { ok: true, sessionId }, 200);
   } catch (e) {
@@ -910,6 +1019,7 @@ app.get("/history/:sessionId", async (req, res) => {
       .limit(limit);
 
     if (error) return sendJson(res, { error: error.message }, 500);
+
     return sendJson(res, { sessionId, messages: data || [] }, 200);
   } catch (e) {
     return sendJson(res, { error: "Error en historial", details: String(e?.message || e) }, 500);
@@ -923,13 +1033,16 @@ app.post("/chat", async (req, res) => {
   try {
     const userMessage = String(req.body?.message || "").trim();
     let sessionId = String(req.body?.sessionId || "").trim();
-    if (!userMessage) return sendJson(res, { reply: "Mensaje no proporcionado." }, 400);
+
+    if (!userMessage) return sendJson(res, { reply: "Mensaje no proporcionado.", suggestions: suggestionsMenu() }, 200);
     if (!sessionId) sessionId = newSessionId();
 
     const userKey = getUserKey(req);
 
+    // Asegurar sesión
     if (supabase) await ensureSession(sessionId, userKey);
 
+    // Guardar msg usuario
     if (supabase) {
       await insertChatMessage(sessionId, userKey, "user", userMessage);
       await touchSessionLastMessage(sessionId, userKey, userMessage);
@@ -941,6 +1054,7 @@ app.post("/chat", async (req, res) => {
     if (isGreeting(t) || isMenuCommand(t)) {
       resetFlows(sessionId);
       const reply = menuOpcionesTexto();
+
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
@@ -951,6 +1065,7 @@ app.post("/chat", async (req, res) => {
     if (t === "cancelar") {
       resetFlows(sessionId);
       const reply = "✅ Listo. Cancelé el proceso. Escribe MENU para ver opciones.";
+
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1031,6 +1146,7 @@ app.post("/chat", async (req, res) => {
 • Padre/Madre
 • Estudiante
 • Profesional`;
+
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1045,7 +1161,7 @@ app.post("/chat", async (req, res) => {
 
       leadFlow.set(sessionId, {
         step: "nombre",
-        data: { nombre: "", whatsapp: "", curso: "", schedule_pref_id: schedId },
+        data: { nombre: "", whatsapp: "", curso: "", schedule_pref_id: schedId }
       });
 
       const extra = schedId ? "\n✅ Ya tengo tu horario guardado y lo vincularé a tu inscripción." : "";
@@ -1116,6 +1232,7 @@ Para ayudarte mejor, dime tu NOMBRE (solo nombre y apellido).`;
         const reply = `Por favor escribe tu CÉDULA (10 dígitos).
 Ejemplo: 0923456789
 (Para salir: MENU)`;
+
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1129,6 +1246,7 @@ Ejemplo: 0923456789
 Ahora escribe el NOMBRE DEL CURSO.
 Ejemplo: Inteligencia Emocional
 (Para salir: MENU)`;
+
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1178,6 +1296,7 @@ Intenta más tarde.`;
 • Habilidades blandas
 • Tecnología
 • Educación`;
+
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1195,6 +1314,7 @@ Intenta más tarde.`;
 • 1-2
 • 3-5
 • 5+`;
+
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1217,6 +1337,7 @@ Motivo: ${rec.motivo}
 
 Si quieres, te ayudo a inscribirte:
 Escribe: INSCRIBIRME`;
+
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1238,6 +1359,7 @@ Escribe: INSCRIBIRME`;
 
 Ahora escribe tu número de WhatsApp.
 Ejemplo: +593991112233 o 0991112233`;
+
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1250,6 +1372,7 @@ Ejemplo: +593991112233 o 0991112233`;
         if (!w) {
           const reply = `No pude leer el número 😅
 Escríbelo así: +593991112233 o 0991112233`;
+
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
             await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1266,6 +1389,7 @@ Escríbelo así: +593991112233 o 0991112233`;
 
 ¿En qué CURSO te gustaría inscribirte?
 (Ej: Inteligencia Emocional / Formador de Formadores / Tecnología para Padres)`;
+
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1294,6 +1418,7 @@ Curso: ${st.data.curso}${extra}
 
 En breve te contactaremos por WhatsApp.
 Si quieres ver opciones: escribe MENU`;
+
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1315,6 +1440,7 @@ Si quieres ver opciones: escribe MENU`;
 • Tarde
 • Noche
 (Para salir: MENU)`;
+
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
             await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1332,6 +1458,7 @@ Si quieres ver opciones: escribe MENU`;
 • Lun-Vie
 • Sábado
 • Domingo`;
+
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1376,7 +1503,15 @@ Revisa que en Render estén SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY (sb_secret.
           await touchSessionLastMessage(sessionId, userKey, reply);
         }
 
-        return sendJson(res, { reply, sessionId, suggestions: saved ? suggestionsAfterScheduleSaved() : suggestionsMenu() }, 200);
+        return sendJson(
+          res,
+          {
+            reply,
+            sessionId,
+            suggestions: saved ? suggestionsAfterScheduleSaved() : suggestionsMenu(),
+          },
+          200
+        );
       }
     }
 
@@ -1392,28 +1527,30 @@ Revisa que en Render estén SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY (sb_secret.
       return sendJson(res, { reply: msg, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
-    // ✅ IMPORTANTE: NO devolvemos 429 al navegador para que no aparezca “Failed to load resource”
     if (!canUseAI()) {
+      // ✅ antes devolvías 429, ahora devolvemos 200 para que el HTML no lo trate como “error”
       const msg = `Hoy ya se alcanzó el límite diario de respuestas con IA (${MAX_DAILY_AI_CALLS}/día).
-Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
+
+Puedes:
+• Escribir MENU para usar el bot en modo Fundación
+• O contactarnos por WhatsApp/Correo`;
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", msg);
         await touchSessionLastMessage(sessionId, userKey, msg);
       }
-      return sendJson(res, { reply: msg, sessionId, suggestions: suggestionsMenu(), limited: true }, 200);
+      return sendJson(res, { reply: msg, sessionId, suggestions: suggestionsMenu(), meta: { ai_limited: true } }, 200);
     }
 
-    // ✅ Cooldown anti-spam
-    const remaining = getCooldownRemainingMs(userKey);
-    if (remaining > 0) {
-      const s = Math.ceil(remaining / 1000);
-      const msg = `⏳ Dame ${s}s y te respondo, así evitamos saturar la IA.`;
-      if (supabase) {
-        await insertChatMessage(sessionId, userKey, "bot", msg);
-        await touchSessionLastMessage(sessionId, userKey, msg);
+    // cooldown (espera corta en vez de fallar)
+    if (AI_COOLDOWN_MS > 0) {
+      const last = lastAiCallAt.get(sessionId) || 0;
+      const diff = Date.now() - last;
+      const wait = AI_COOLDOWN_MS - diff;
+      if (wait > 0 && wait <= 4000) {
+        await sleep(wait);
       }
-      return sendJson(res, { reply: msg, sessionId, suggestions: suggestionsMenu(), cooldown: true }, 200);
     }
+    lastAiCallAt.set(sessionId, Date.now());
 
     let session = sessions.get(sessionId);
     if (!session) {
@@ -1432,45 +1569,26 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
       session.lastAccess = Date.now();
     }
 
-    // marcamos momento del último uso IA por usuario
-    lastAiCallAtByUser.set(userKey, Date.now());
-
-    // contamos uso global
     incAI();
 
     let reply = "";
     try {
-      const response = await session.chat.sendMessage({ message: userMessage });
-      reply = typeof response.text === "string" ? response.text.trim() : "";
+      const response = await callGeminiWithRetry(session.chat, userMessage);
+      reply = typeof response?.text === "string" ? response.text.trim() : "";
+      reply = stripMarkdownLite(reply);
     } catch (e) {
-      const msg = extractMessage(e);
-      console.error("❌ Error Gemini:", msg);
+      const m = extractMessage(e);
+      console.warn("⚠️ Gemini falló (después de reintentos):", m);
 
-      // ✅ Convertimos 429/cuotas a respuesta normal (status 200)
-      if (extractStatus(e) === 429 || /RESOURCE_EXHAUSTED|quota|rate limit|429/i.test(msg)) {
-        const soft = "En este momento la IA está temporalmente limitada. Escribe MENU para ver opciones o intenta de nuevo en unos minutos.";
-        if (supabase) {
-          await insertChatMessage(sessionId, userKey, "bot", soft);
-          await touchSessionLastMessage(sessionId, userKey, soft);
-        }
-        return sendJson(res, { reply: soft, sessionId, suggestions: suggestionsMenu(), limited: true }, 200);
-      }
+      // ✅ Respuesta bonita y estable (sin 500/503 al navegador)
+      reply = `Lo siento, la IA no pudo responder ahora mismo (servicio temporalmente ocupado).
 
-      const soft = "Lo siento, la IA no pudo responder ahora mismo. Escribe MENU para ver opciones.";
-      if (supabase) {
-        await insertChatMessage(sessionId, userKey, "bot", soft);
-        await touchSessionLastMessage(sessionId, userKey, soft);
-      }
-      return sendJson(res, { reply: soft, sessionId, suggestions: suggestionsMenu() }, 200);
+Mientras tanto puedo ayudarte con el menú de la Fundación.
+Escribe: MENU`;
     }
 
     if (!reply) {
-      const msg = "La IA respondió vacío. Intenta nuevamente.";
-      if (supabase) {
-        await insertChatMessage(sessionId, userKey, "bot", msg);
-        await touchSessionLastMessage(sessionId, userKey, msg);
-      }
-      return sendJson(res, { reply: msg, sessionId, suggestions: suggestionsMenu() }, 200);
+      reply = "Lo siento, no pude generar una respuesta. Escribe MENU para ver opciones.";
     }
 
     if (supabase) {
@@ -1479,28 +1597,28 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
     }
 
     return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
+
   } catch (error) {
     const status = extractStatus(error);
     const msg = extractMessage(error);
     console.error("❌ Error /chat:", msg);
 
+    // ✅ Para el widget, mejor devolver 200 con texto claro
     if (status === 403) {
-      // aquí sí puede seguir 403 porque es seguridad
-      return sendJson(res, { reply: "Esta conversación no te pertenece. Crea una nueva (botón Nueva).", sessionId: "" }, 403);
+      return sendJson(res, {
+        reply: "Esta conversación no te pertenece. Pulsa “＋ Nueva” para crear otra.",
+        sessionId: "",
+        suggestions: suggestionsMenu(),
+      }, 200);
     }
 
-    // ✅ incluso si algo se parece a 429, respondemos 200 para que no haya error visible en navegador
-    if (status === 429 || /RESOURCE_EXHAUSTED|quota|rate limit|429/i.test(msg)) {
-      return sendJson(res, { reply: "La IA está limitada por ahora. Intenta en unos minutos o mañana. Escribe MENU para ver opciones.", suggestions: suggestionsMenu() }, 200);
-    }
-
-    // para errores internos, devolvemos 200 con mensaje amigable (evita “Failed to load resource” en consola)
-    return sendJson(res, { reply: "Lo siento, hubo un error interno. Intenta más tarde. Escribe MENU para ver opciones.", suggestions: suggestionsMenu() }, 200);
+    return sendJson(res, {
+      reply: "Lo siento, hubo un error interno. Intenta más tarde o escribe MENU.",
+      suggestions: suggestionsMenu(),
+    }, 200);
   }
 });
 
 app.listen(port, "0.0.0.0", () => {
   console.log(`✅ Servidor escuchando en puerto ${port}`);
-  console.log(`🔧 Gemini: model=${GEMINI_MODEL} tokens=${GEMINI_MAX_TOKENS} temp=${GEMINI_TEMPERATURE}`);
-  console.log(`🔧 Limite IA: MAX_DAILY_AI_CALLS=${MAX_DAILY_AI_CALLS} AI_COOLDOWN_MS=${AI_COOLDOWN_MS}`);
 });

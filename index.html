@@ -261,6 +261,7 @@
       flex: 0 0 auto;
     }
     .suggestion:hover{ background:#1E90FF; color:#fff; }
+    .suggestion:disabled{ opacity:.6; cursor:not-allowed; }
 
     #chat-input-area{
       display:flex; padding:10px;
@@ -405,6 +406,11 @@
       return "bot";
     }
 
+    function setSuggestionsEnabled(enabled) {
+      const btns = suggestionWrap.querySelectorAll("button");
+      btns.forEach(b => b.disabled = !enabled);
+    }
+
     function renderSuggestions(list) {
       const items = Array.isArray(list) && list.length ? list : DEFAULT_MENU_SUGGESTIONS;
       suggestionWrap.innerHTML = "";
@@ -422,30 +428,25 @@
       suggestionWrap.scrollTop = 0;
     }
 
-    // ✅ apiFetch "amigable": NO lanza error por HTTP, solo por red.
-    async function apiFetch(path, opts = {}) {
+    async function apiFetch(path, opts = {}, allowNon2xx = false) {
       const headers = Object.assign(
         { "Content-Type": "application/json", "x-client-id": clientId },
         (opts.headers || {})
       );
 
-      let res;
-      try {
-        res = await fetch(SERVER_URL + path, { ...opts, headers });
-      } catch (e) {
-        // error de red real (offline, DNS, etc.)
-        return { _httpOk: false, _httpStatus: 0, error: "Sin conexión", details: String(e?.message || e) };
-      }
-
+      const res = await fetch(SERVER_URL + path, { ...opts, headers });
       const txt = await res.text();
       let json = null;
-      try { json = JSON.parse(txt); } catch { json = null; }
+      try { json = JSON.parse(txt); } catch {}
 
-      const out = json ?? {};
-      out._httpOk = res.ok;
-      out._httpStatus = res.status;
-      if (!res.ok && !out.error && !out.reply) out.error = txt || ("HTTP " + res.status);
+      if (!res.ok && !allowNon2xx) {
+        const msg = (json && (json.error || json.reply)) ? (json.error || json.reply) : txt;
+        throw new Error("HTTP " + res.status + ": " + msg);
+      }
 
+      // si allowNon2xx, devolvemos lo que haya
+      const out = (json ?? {});
+      out.__httpStatus = res.status;
       return out;
     }
 
@@ -454,18 +455,8 @@
     // =====================
     async function loadSessionsList() {
       const data = await apiFetch("/sessions?limit=50", { method: "GET" });
-      if (!data._httpOk) {
-        historyList.innerHTML = "";
-        const empty = document.createElement("div");
-        empty.style.opacity = "0.8";
-        empty.style.fontSize = "0.9em";
-        empty.style.padding = "10px";
-        empty.textContent = "No se pudo cargar el historial (Supabase no configurado o error).";
-        historyList.appendChild(empty);
-        return;
-      }
-
       const sessions = data.sessions || [];
+
       historyList.innerHTML = "";
 
       if (sessions.length === 0) {
@@ -553,11 +544,10 @@
     });
 
     async function togglePin(sid, pinnedNow) {
-      const r = await apiFetch(`/session/${encodeURIComponent(sid)}/pin`, {
+      await apiFetch(`/session/${encodeURIComponent(sid)}/pin`, {
         method: "POST",
         body: JSON.stringify({ pinned: !pinnedNow })
       });
-      if (!r._httpOk) throw new Error(r.error || r.reply || "No se pudo fijar");
       await loadSessionsList();
     }
 
@@ -593,22 +583,21 @@
         document.querySelectorAll(".history-menu").forEach(m => m.style.display = "none");
         if (!confirm("¿Eliminar esta conversación?")) return;
 
-        const r = await apiFetch(`/session/${encodeURIComponent(sid)}`, { method: "DELETE" });
-        if (!r._httpOk) {
-          alert("Error eliminando: " + (r.error || r.reply || "No se pudo eliminar"));
-          return;
-        }
+        try {
+          await apiFetch(`/session/${encodeURIComponent(sid)}`, { method: "DELETE" });
+          item.remove();
 
-        item.remove();
-
-        if (sid === currentSessionId) {
-          currentSessionId = "";
-          localStorage.removeItem(SESSION_KEY);
-          clearMessages();
-          addMessage("Conversación eliminada. Pulsa “Nueva” para crear otra.", "bot", new Date().toISOString());
+          if (sid === currentSessionId) {
+            currentSessionId = "";
+            localStorage.removeItem(SESSION_KEY);
+            clearMessages();
+            addMessage("Conversación eliminada. Pulsa “Nueva” para crear otra.", "bot", new Date().toISOString());
+          }
+          await loadSessionsList();
+          renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
+        } catch(err) {
+          alert("Error eliminando: " + err.message);
         }
-        await loadSessionsList();
-        renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
         return;
       }
 
@@ -626,29 +615,25 @@
 
       if (!sessionId) {
         const s = await apiFetch("/sessions", { method: "POST", body: JSON.stringify({ clientId }) });
-        if (s._httpOk && s.sessionId) {
-          currentSessionId = s.sessionId;
-          localStorage.setItem(SESSION_KEY, currentSessionId);
+        currentSessionId = s.sessionId;
+        localStorage.setItem(SESSION_KEY, currentSessionId);
+      }
+
+      try {
+        const data = await apiFetch(`/history/${encodeURIComponent(currentSessionId)}?limit=300`, { method: "GET" });
+        const msgs = data.messages || [];
+
+        if (msgs.length === 0) {
+          addMessage(menuWelcomeText(), "bot", new Date().toISOString());
+          renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
+          return;
         }
-      }
 
-      const data = await apiFetch(`/history/${encodeURIComponent(currentSessionId)}?limit=300`, { method: "GET" });
-
-      if (!data._httpOk) {
+        for (const m of msgs) {
+          addMessage(m.content || "", roleToSender(m.role), m.created_at);
+        }
+      } catch (e) {
         addMessage(menuWelcomeText(), "bot", new Date().toISOString());
-        renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
-        return;
-      }
-
-      const msgs = data.messages || [];
-      if (msgs.length === 0) {
-        addMessage(menuWelcomeText(), "bot", new Date().toISOString());
-        renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
-        return;
-      }
-
-      for (const m of msgs) {
-        addMessage(m.content || "", roleToSender(m.role), m.created_at);
       }
 
       renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
@@ -656,13 +641,8 @@
 
     async function newConversation() {
       const s = await apiFetch("/sessions", { method: "POST", body: JSON.stringify({ clientId }) });
-      if (s._httpOk && s.sessionId) {
-        currentSessionId = s.sessionId;
-        localStorage.setItem(SESSION_KEY, currentSessionId);
-      } else {
-        currentSessionId = "";
-        localStorage.removeItem(SESSION_KEY);
-      }
+      currentSessionId = s.sessionId;
+      localStorage.setItem(SESSION_KEY, currentSessionId);
 
       clearMessages();
       addMessage(menuWelcomeText(), "bot", new Date().toISOString());
@@ -672,6 +652,7 @@
       await loadSessionsList();
     }
 
+    // ✅ envío robusto
     async function sendMessage(textFromButton = null) {
       const rawText = textFromButton ? String(textFromButton) : (chatInput.value || "").trim();
       if (!rawText) return;
@@ -681,29 +662,36 @@
 
       chatInput.disabled = true;
       sendButton.disabled = true;
+      setSuggestionsEnabled(false);
       sendButton.textContent = "Cargando...";
 
-      const data = await apiFetch("/chat", {
-        method: "POST",
-        body: JSON.stringify({ message: rawText, sessionId: currentSessionId, clientId })
-      });
+      try {
+        // allowNon2xx = true para que si el server manda 403 u otro, igual usemos el JSON
+        const data = await apiFetch("/chat", {
+          method: "POST",
+          body: JSON.stringify({ message: rawText, sessionId: currentSessionId, clientId })
+        }, true);
 
-      // si vino session nueva
-      if (data.sessionId && data.sessionId !== currentSessionId) {
-        currentSessionId = data.sessionId;
-        localStorage.setItem(SESSION_KEY, currentSessionId);
+        if (data.sessionId && data.sessionId !== currentSessionId) {
+          currentSessionId = data.sessionId;
+          localStorage.setItem(SESSION_KEY, currentSessionId);
+        }
+
+        addMessage(data.reply || "Sin respuesta.", "bot", new Date().toISOString());
+        renderSuggestions(data.suggestions || DEFAULT_MENU_SUGGESTIONS);
+
+        await loadSessionsList();
+      } catch (err) {
+        console.error("Error:", err);
+        addMessage("Lo siento, hubo un problema de red. Verifica tu conexión e intenta otra vez.", "bot", new Date().toISOString());
+        renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
+      } finally {
+        chatInput.disabled = false;
+        sendButton.disabled = false;
+        setSuggestionsEnabled(true);
+        sendButton.textContent = "Enviar";
+        chatInput.focus();
       }
-
-      const replyText = data.reply || data.error || "Sin respuesta por ahora. Escribe MENU.";
-      addMessage(replyText, "bot", new Date().toISOString());
-
-      renderSuggestions(data.suggestions || DEFAULT_MENU_SUGGESTIONS);
-      await loadSessionsList();
-
-      chatInput.disabled = false;
-      sendButton.disabled = false;
-      sendButton.textContent = "Enviar";
-      chatInput.focus();
     }
 
     toggleButton.onclick = async () => {
@@ -712,6 +700,7 @@
 
       if (!isVisible) {
         renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
+
         fetch(SERVER_URL + "/health").catch(()=>{});
         await loadSessionsList();
         await loadHistory(currentSessionId);
