@@ -28,10 +28,7 @@ app.use(express.json({ strict: false, limit: "1mb" }));
 // IA (Gemini) - SOLO se usa si no cae en FAQ/Flujos
 // ============================
 const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-if (!apiKey)
-  console.warn(
-    "⚠️ Falta GEMINI_API_KEY (o GOOGLE_API_KEY). El bot funcionará en modo FAQ sin IA."
-  );
+if (!apiKey) console.warn("⚠️ Falta GEMINI_API_KEY (o GOOGLE_API_KEY). El bot funcionará en modo FAQ sin IA.");
 
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
@@ -47,9 +44,7 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
   supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   console.log("✅ Supabase configurada: verdadero");
 } else {
-  console.warn(
-    "⚠️ Supabase NO configurada. Falta SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY."
-  );
+  console.warn("⚠️ Supabase NO configurada. Falta SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY.");
 }
 
 // ============================
@@ -58,39 +53,29 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
 const systemInstruction = `
 Eres Lyro-Capacítamente, un asistente virtual amable y servicial. Tu objetivo es proporcionar información precisa, completa y concisa sobre la Fundación Capacítamente (https://fundacioncapacitamente.com/) y sus actividades, además de responder preguntas de conocimiento general.
 
-Usa esta info de la Fundación (resumen público):
-- Fundación sin fines de lucro, con capacitación online accesible.
-- Ofrece cursos online gratuitos y de bajo costo, con materiales disponibles y apoyo.
-- Beneficios destacados: clases flexibles (tú eliges horario), archivos disponibles, certificados listos para descargar, apoyo.
-
-Cursos (lista práctica para el chatbot):
-- Formador de Formadores ($120): Tatiana Arias.
-- Inteligencia Emocional ($15): Tatiana Arias.
-- TECNOLOGÍA PARA PADRES ($15): Yadira Suárez.
-- Tecnología para Educadores (Gratis): Tatiana Arias.
-- (Próximamente) Contabilidad para no contadores ($20)
-- (Próximamente) Docencia Virtual ($20)
-- (Próximamente) Habilidades Cognitivas y Emocionales (Aprender a Pensar) ($20)
-- (Próximamente) Metodología de la Pregunta (Gratis)
-- (Próximamente) Neuroeducación… También en casa (Gratis)
-
-Contacto:
-- Celular/WhatsApp: 0983222358
-- Correo: cursos@fundacioncapacitamente.com
-- Ubicación: Guayaquil - Ecuador
-
-Donaciones (pasos):
-1) Donaciones -> "Donar ahora"
-2) Elegir cantidad o personalizada -> "Continuar"
-3) Llenar datos
-4) Elegir método (Transferencia o PayPal)
-5) "Donar ahora"
-
-Regla de estilo:
-- Respuestas claras, cortas, sin Markdown.
-- Si el usuario pide “beneficios”, explica la fundación y sus ventajas.
-- Si pide “trabaja con nosotros”, indica que contacte al número o correo.
-- Si pide “cómo certificarme”, muéstrale cursos para elegir y luego guíalo a INSCRIBIRME.
+Utiliza esta info para la Fundación:
+- Misión Principal: Ofrecer capacitación de alto valor en habilidades blandas y digitales esenciales.
+- Cursos con Certificado:
+  - Formador de Formadores ($120): Tatiana Arias.
+  - Inteligencia Emocional ($15): Tatiana Arias.
+  - TECNOLOGÍA PARA PADRES ($15): Yadira Suárez.
+  - (Próximamente) Contabilidad para no contadores ($20)
+  - (Próximamente) Docencia Virtual ($20)
+  - (Próximamente) Habilidades Cognitivas y Emocionales (Aprender a Pensar) ($20)
+- Cursos Gratuitos:
+  - Tecnología para Educadores: Tatiana Arias.
+  - (Próximamente) Metodología de la Pregunta: Tatiana Arias.
+  - (Próximamente) Neuroeducación… También en casa: Prosandoval.
+- Contacto:
+  - Celular: 0983222358
+  - Correo: info@fundacioncapacitamente.com
+  - Ubicación: Guayaquil - Ecuador
+- Donaciones:
+  1) Donaciones -> "Donar ahora"
+  2) Elegir cantidad o personalizada -> "Continuar"
+  3) Llenar datos
+  4) Elegir método (Transferencia o PayPal)
+  5) "Donar ahora"
 
 Si la pregunta no es sobre la Fundación, usa tu conocimiento general.
 `;
@@ -99,15 +84,11 @@ Si la pregunta no es sobre la Fundación, usa tu conocimiento general.
 // Helpers base
 // ============================
 function normalizeText(s) {
-  // más robusto: quita tildes y también puntuación
   return String(s || "")
     .trim()
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 function getClientId(req) {
@@ -210,8 +191,7 @@ function contactoTexto() {
   return `📞 CONTACTO FUNDACIÓN CAPACÍTAMENTE
 
 📱 0983222358
-☎️ 046026948
-✉️ cursos@fundacioncapacitamente.com
+✉️ info@fundacioncapacitamente.com
 📍 Guayaquil - Ecuador`;
 }
 
@@ -223,36 +203,6 @@ function donarTexto() {
 3) Llena tus datos
 4) Elige método (Transferencia o PayPal)
 5) Presiona "Donar ahora"`;
-}
-
-// ✅ NUEVO: Beneficios (FAQ sin IA)
-function beneficiosTexto() {
-  return `✅ BENEFICIOS DE FUNDACIÓN CAPACÍTAMENTE
-
-Somos una Fundación sin fines de lucro que ofrece capacitación online accesible para impulsar tu perfil personal y profesional.
-
-Beneficios principales:
-• Cursos online gratuitos y de bajo costo
-• Clases flexibles: tú eliges el horario
-• Materiales según el curso (videos, PDFs, audios, fichas, etc.)
-• Evaluaciones por unidades y evaluación final
-• Certificados/diplomas al finalizar (según el curso)
-• Apoyo y acompañamiento durante tu aprendizaje
-
-Si quieres que te recomiende un curso, escribe: ASESOR
-Para ver el menú, escribe: MENU`;
-}
-
-// ✅ NUEVO: Trabaja con nosotros
-function trabajaConNosotrosTexto() {
-  return `🤝 TRABAJA CON NOSOTROS
-
-Si deseas colaborar, trabajar con nosotros o proponer una alianza, contáctanos:
-
-📱 0983222358
-✉️ cursos@fundacioncapacitamente.com
-
-Envíanos tu nombre, tu perfil (o propuesta) y cómo te gustaría aportar.`;
 }
 
 // ============================
@@ -347,75 +297,6 @@ function suggestionsLeadFlow() {
 }
 
 // ============================
-// ✅ NUEVO: Flujo “Cómo certificarme” (elegir curso -> luego INSCRIBIRME)
-// ============================
-const CERTIFY_COURSES = [
-  { id: "1", name: "Formador de Formadores", price: "$120", type: "Certificación" },
-  { id: "2", name: "Inteligencia Emocional", price: "$15", type: "Certificación" },
-  { id: "3", name: "Tecnología para Padres", price: "$15", type: "Certificación" },
-  { id: "4", name: "Tecnología para Educadores", price: "Gratis", type: "Gratuito" },
-
-  { id: "5", name: "Contabilidad para no contadores (Próximamente)", price: "$20", type: "Certificación" },
-  { id: "6", name: "Docencia Virtual (Próximamente)", price: "$20", type: "Certificación" },
-  { id: "7", name: "Habilidades Cognitivas y Emocionales (Aprender a Pensar) (Próximamente)", price: "$20", type: "Certificación" },
-  { id: "8", name: "Metodología de la Pregunta (Próximamente)", price: "Gratis", type: "Gratuito" },
-  { id: "9", name: "Neuroeducación… También en casa (Próximamente)", price: "Gratis", type: "Gratuito" },
-];
-
-function certificarmeIntroTexto() {
-  const list = CERTIFY_COURSES.map(c => `${c.id}) ${c.name} (${c.price})`).join("\n");
-  return `🎓 ¿CÓMO PUEDO CERTIFICARME?
-
-Primero elige el curso (responde con el número o el nombre):
-
-${list}
-
-Luego te indico el siguiente paso para inscribirte. (Para salir: MENU)`;
-}
-
-function suggestionsCertifyFlow() {
-  return [
-    ...CERTIFY_COURSES.map(c => ({ text: c.id, label: `${c.id}) ${c.name}` })),
-    { text: "inscribirme", label: "📝 Inscribirme" },
-    { text: "menu", label: "📌 Menú" },
-    { text: "cancelar", label: "✖ Cancelar" },
-  ];
-}
-
-function suggestionsAfterCourseChosen() {
-  return [
-    { text: "inscribirme", label: "📝 Inscribirme" },
-    { text: "menu", label: "📌 Menú" },
-    { text: "asesor", label: "✨ Asesor" },
-  ];
-}
-
-function matchCourseChoice(text) {
-  const s = normalizeText(text);
-
-  const m = s.match(/\b([1-9])\b/);
-  if (m) return CERTIFY_COURSES.find(c => c.id === m[1]) || null;
-
-  // match por nombre aproximado
-  for (const c of CERTIFY_COURSES) {
-    const n = normalizeText(c.name.replace(/\(.*?\)/g, ""));
-    if (n && s.includes(n)) return c;
-
-    // match por palabras clave pequeñas
-    if (n.includes("formador") && s.includes("formador")) return c;
-    if (n.includes("inteligencia emocional") && s.includes("emocional")) return c;
-    if (n.includes("tecnologia para padres") && (s.includes("padres") || s.includes("tecnologia para padres"))) return c;
-    if (n.includes("tecnologia para educadores") && (s.includes("educadores") || s.includes("tecnologia para educadores"))) return c;
-    if (n.includes("contabilidad") && s.includes("contabilidad")) return c;
-    if (n.includes("docencia") && s.includes("docencia")) return c;
-    if (n.includes("habilidades cognitivas") && (s.includes("cognitivas") || s.includes("aprender a pensar"))) return c;
-    if (n.includes("metodologia") && s.includes("metodologia")) return c;
-    if (n.includes("neuroeducacion") && s.includes("neuroeducacion")) return c;
-  }
-  return null;
-}
-
-// ============================
 // FAQ sin IA (incluye MENU por texto)
 // ============================
 function isGreeting(t) {
@@ -429,13 +310,12 @@ function isMenuCommand(t) {
 }
 
 // ============================
-// Flujos (asesor / inscripción / horarios / certificado / certificarme)
+// Flujos (asesor / inscripción / horarios / certificado)
 // ============================
 const certFlow = new Map();     // sessionId -> { step, cedula? }
 const advisorFlow = new Map();  // sessionId -> { step, persona?, interes?, tiempo? }
 const leadFlow = new Map();     // sessionId -> { step, data: { nombre, whatsapp, curso, schedule_pref_id? } }
 const scheduleFlow = new Map(); // sessionId -> { step, data: { franja, dias } }
-const certifyFlow = new Map();  // ✅ NUEVO: sessionId -> { step: "choose_course" }
 
 // ✅ NUEVO: recordar el último horario guardado por sesión para enlazar inscripción
 const lastSchedulePrefId = new Map(); // sessionId -> bigint/string
@@ -446,7 +326,6 @@ function resetFlows(sessionId) {
   advisorFlow.delete(sessionId);
   leadFlow.delete(sessionId);
   scheduleFlow.delete(sessionId);
-  certifyFlow.delete(sessionId); // ✅ NUEVO
   // NOTA: NO borramos lastSchedulePrefId aquí, para que si el usuario elige horario y luego inscribirse, se enlace.
 }
 
@@ -664,7 +543,7 @@ Actualizado: ${updated}
 
 Si aún no lo recibiste, escríbenos:
 📱 0983222358
-✉️ cursos@fundacioncapacitamente.com`;
+✉️ info@fundacioncapacitamente.com`;
   }
 
   if (estado === "en_proceso") {
@@ -684,7 +563,7 @@ Actualizado: ${updated}
 
 Si necesitas ayuda, contáctanos:
 📱 0983222358
-✉️ cursos@fundacioncapacitamente.com`;
+✉️ info@fundacioncapacitamente.com`;
   }
 
   return `📄 ESTADO DE CERTIFICADO
@@ -1004,7 +883,7 @@ app.delete("/session/:sessionId", async (req, res) => {
 
     sessions.delete(sessionId);
     resetFlows(sessionId);
-    lastSchedulePrefId.delete(sessionId);
+    lastSchedulePrefId.delete(sessionId); // ✅ NUEVO
 
     return sendJson(res, { ok: true, sessionId }, 200);
   } catch (e) {
@@ -1146,66 +1025,6 @@ app.post("/chat", async (req, res) => {
     }
 
     // ====== disparadores por palabra (SIN IA) ======
-
-    // ✅ NUEVO: Beneficios
-    if (
-      t.includes("beneficio") ||
-      t.includes("beneficios") ||
-      t.includes("en que me puede ayudar") ||
-      t.includes("en que puede ayudar") ||
-      t.includes("que ofrece") ||
-      t.includes("que hace la fundacion") ||
-      t.includes("que es la fundacion")
-    ) {
-      resetFlows(sessionId);
-      const reply = beneficiosTexto();
-      if (supabase) {
-        await insertChatMessage(sessionId, userKey, "bot", reply);
-        await touchSessionLastMessage(sessionId, userKey, reply);
-      }
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
-    }
-
-    // ✅ NUEVO: Trabaja con nosotros
-    if (
-      t.includes("trabaja con nosotros") ||
-      t.includes("trabajar con ustedes") ||
-      t.includes("quiero trabajar") ||
-      t.includes("empleo") ||
-      t.includes("vacante") ||
-      t.includes("voluntari") ||
-      t.includes("ser instructor") ||
-      t.includes("instructor")
-    ) {
-      resetFlows(sessionId);
-      const reply = trabajaConNosotrosTexto();
-      if (supabase) {
-        await insertChatMessage(sessionId, userKey, "bot", reply);
-        await touchSessionLastMessage(sessionId, userKey, reply);
-      }
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
-    }
-
-    // ✅ NUEVO: Cómo certificarme (flujo de elección de curso)
-    if (
-      (t.includes("certificarme") ||
-        t.includes("como certificar") ||
-        t.includes("como puedo certificar") ||
-        t.includes("certificacion") ||
-        t.includes("certificar")) &&
-      !t.includes("estado")
-    ) {
-      resetFlows(sessionId);
-      certifyFlow.set(sessionId, { step: "choose_course" });
-
-      const reply = certificarmeIntroTexto();
-      if (supabase) {
-        await insertChatMessage(sessionId, userKey, "bot", reply);
-        await touchSessionLastMessage(sessionId, userKey, reply);
-      }
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsCertifyFlow() }, 200);
-    }
-
     if (t.includes("asesor") || t.includes("recomendar") || t.includes("recomendacion")) {
       resetFlows(sessionId);
       advisorFlow.set(sessionId, { step: "persona", persona: "", interes: "", tiempo: "" });
@@ -1294,42 +1113,7 @@ Para ayudarte mejor, dime tu NOMBRE (solo nombre y apellido).`;
       return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
     }
 
-    // ====== FLUJO CERTIFICARME (elegir curso) ======
-    if (certifyFlow.has(sessionId)) {
-      const choice = matchCourseChoice(userMessage);
-
-      if (!choice) {
-        const reply = `No alcancé a entender cuál curso elegiste 😅
-Responde con el número (1-9) o escribe el nombre del curso.
-
-(Para salir: MENU)`;
-        if (supabase) {
-          await insertChatMessage(sessionId, userKey, "bot", reply);
-          await touchSessionLastMessage(sessionId, userKey, reply);
-        }
-        return sendJson(res, { reply, sessionId, suggestions: suggestionsCertifyFlow() }, 200);
-      }
-
-      certifyFlow.delete(sessionId);
-
-      const tipo = choice.type === "Gratuito" ? "Curso gratuito (diploma de la Fundación)" : "Curso con certificación (requiere aporte económico)";
-      const reply = `✅ Perfecto. Elegiste: ${choice.name}
-
-Tipo: ${tipo}
-Precio: ${choice.price}
-
-Siguiente paso:
-Escribe: INSCRIBIRME
-
-Y te registro con tus datos para que te contacten.`;
-      if (supabase) {
-        await insertChatMessage(sessionId, userKey, "bot", reply);
-        await touchSessionLastMessage(sessionId, userKey, reply);
-      }
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterCourseChosen() }, 200);
-    }
-
-    // ====== FLUJO CERTIFICADO (ESTADO) ======
+    // ====== FLUJO CERTIFICADO ======
     if (certFlow.has(sessionId)) {
       const cedula = extractCedula(userMessage);
       const curso = extractCourse(userMessage, cedula);
@@ -1368,7 +1152,7 @@ Ejemplo: Inteligencia Emocional
 
 Si crees que es un error, contáctanos:
 📱 0983222358
-✉️ cursos@fundacioncapacitamente.com`;
+✉️ info@fundacioncapacitamente.com`;
         } else {
           reply = certificateReplyFromRow(row);
         }
@@ -1572,7 +1356,7 @@ Si quieres ver opciones: escribe MENU`;
         try {
           const out = await saveSchedule(userKey, sessionId, st.data);
           schedId = out?.id ?? null;
-          if (schedId) lastSchedulePrefId.set(sessionId, schedId);
+          if (schedId) lastSchedulePrefId.set(sessionId, schedId); // ✅ NUEVO: guardamos el último ID
         } catch (e) {
           saved = false;
           console.warn("⚠️ No se pudo guardar horario:", extractMessage(e));
@@ -1693,3 +1477,4 @@ Puedes volver a intentar mañana o contactarnos por WhatsApp/Correo.`;
 app.listen(port, "0.0.0.0", () => {
   console.log(`✅ Servidor escuchando en puerto ${port}`);
 });
+
