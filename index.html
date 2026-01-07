@@ -49,7 +49,7 @@
       font-family:Arial, sans-serif;
     }
 
-    /* Móvil: pantalla completa (clave para que NO se tapen botones) */
+    /* Móvil: pantalla completa */
     @media (max-width: 520px) {
       #chat-container{
         width:100vw; height:100vh;
@@ -257,7 +257,7 @@
       padding-bottom: env(safe-area-inset-bottom);
     }
 
-    /* Sugerencias con scroll (ruedita) */
+    /* Sugerencias con scroll */
     #suggestion-buttons{
       padding:10px;
       background:#F4F7F9;
@@ -389,6 +389,16 @@
         .normalize("NFD").replace(/[\u0300-\u036f]/g,"");
     }
 
+    function isFoundationRelatedLocal(message){
+      const t = normalizeText(message);
+      const keys = [
+        "fundacion","fundación","capacitamente","lyro",
+        "curso","cursos","certificado","certificar","donar","donacion","donación",
+        "horario","inscrib","contacto","whatsapp","precio","costo","gratis"
+      ];
+      return keys.some(k => t.includes(k));
+    }
+
     function localMenuText(){
       return `👋 Hola, soy LYRO-CAPACÍTAMENTE 🤖
 
@@ -411,6 +421,14 @@ Responde con el número (1-6) o escribe tu pregunta.`;
 
       if (["hola","buenas","menu","menú","opciones","inicio","0"].includes(t)) {
         return { reply: localMenuText(), suggestions: DEFAULT_MENU_SUGGESTIONS };
+      }
+
+      // Si NO es de la fundación y el server cayó, no muestres menú completo
+      if (!isFoundationRelatedLocal(message)) {
+        return {
+          reply: "Ahora mismo no tengo conexión al servidor para responder preguntas generales. Si deseas información de la Fundación, escribe MENU.",
+          suggestions: [{ text:"menu", label:"📌 Menú" }]
+        };
       }
 
       if (t.includes("beneficio") || (t.includes("empresa") && t.includes("ayuda"))) {
@@ -458,7 +476,7 @@ Elige tu curso con certificado (1-3):
         if (t === "6") return { reply: "🕒 HORARIOS\n\nDime tu preferencia: Mañana / Tarde / Noche", suggestions: DEFAULT_MENU_SUGGESTIONS };
       }
 
-      // fallback general
+      // fallback fundación
       return { reply: "Puedo ayudarte con la Fundación Capacítamente. Escribe MENU para ver opciones.", suggestions: DEFAULT_MENU_SUGGESTIONS };
     }
 
@@ -495,9 +513,24 @@ Elige tu curso con certificado (1-3):
       return "bot";
     }
 
+    // ✅ CAMBIO CLAVE:
+    // - Si list es undefined/null => menú por defecto
+    // - Si list es [] => ocultar sugerencias (NO mostrar menú)
     function renderSuggestions(list) {
-      const items = Array.isArray(list) && list.length ? list : DEFAULT_MENU_SUGGESTIONS;
+      const isProvided = !(list === undefined || list === null);
+
+      const items = isProvided
+        ? (Array.isArray(list) ? list : DEFAULT_MENU_SUGGESTIONS)
+        : DEFAULT_MENU_SUGGESTIONS;
+
       suggestionWrap.innerHTML = "";
+
+      if (!items.length) {
+        suggestionWrap.style.display = "none";
+        return;
+      }
+
+      suggestionWrap.style.display = "flex";
 
       items.forEach(it => {
         const btn = document.createElement("button");
@@ -541,7 +574,7 @@ Elige tu curso con certificado (1-3):
 
           // aunque venga error, preferimos usar reply/suggestions si existen
           if (!res.ok) {
-            if (json && (json.reply || json.suggestions)) return json;
+            if (json && (json.reply !== undefined || json.suggestions !== undefined)) return json;
             throw new Error("HTTP " + res.status);
           }
           return json ?? {};
@@ -635,7 +668,6 @@ Elige tu curso con certificado (1-3):
           });
         });
       } catch {
-        // si el server cae, no rompemos UI
         historyList.innerHTML = "";
       }
     }
@@ -710,14 +742,12 @@ Elige tu curso con certificado (1-3):
     async function loadHistory(sessionId) {
       clearMessages();
 
-      // si no hay session, crea nueva
       if (!sessionId) {
         try {
           const s = await apiFetch("/sessions", { method: "POST", body: JSON.stringify({ clientId }) });
           currentSessionId = s.sessionId;
           localStorage.setItem(SESSION_KEY, currentSessionId);
         } catch {
-          // sin server: seguimos con local
           currentSessionId = "";
         }
       }
@@ -736,7 +766,6 @@ Elige tu curso con certificado (1-3):
           addMessage(m.content || "", roleToSender(m.role), m.created_at);
         }
       } catch {
-        // Local fallback (sin mostrar “error”)
         addMessage(localMenuText(), "bot", new Date().toISOString());
       }
 
@@ -780,15 +809,23 @@ Elige tu curso con certificado (1-3):
           localStorage.setItem(SESSION_KEY, currentSessionId);
         }
 
-        addMessage(data.reply || localReply(rawText).reply, "bot", new Date().toISOString());
-        renderSuggestions(data.suggestions || DEFAULT_MENU_SUGGESTIONS);
+        const botText = (data.reply !== undefined && data.reply !== null && String(data.reply).trim() !== "")
+          ? data.reply
+          : localReply(rawText).reply;
+
+        addMessage(botText, "bot", new Date().toISOString());
+
+        // ✅ IMPORTANTE:
+        // Si el servidor manda suggestions: [] => se ocultan botones
+        // Si el servidor no manda suggestions => usamos menú por defecto
+        const hasSuggestions = Object.prototype.hasOwnProperty.call(data, "suggestions");
+        renderSuggestions(hasSuggestions ? data.suggestions : undefined);
 
         await loadSessionsList();
       } catch {
-        // ✅ SIN “problemas de conexión”: responde local
         const loc = localReply(rawText);
         addMessage(loc.reply, "bot", new Date().toISOString());
-        renderSuggestions(loc.suggestions || DEFAULT_MENU_SUGGESTIONS);
+        renderSuggestions(loc.suggestions);
       } finally {
         chatInput.disabled = false;
         sendButton.disabled = false;
@@ -799,8 +836,6 @@ Elige tu curso con certificado (1-3):
 
     function openChat() {
       chatContainer.style.display = "flex";
-
-      // ✅ Para que NO tape en móvil: ocultamos flotantes mientras el chat está abierto
       toggleButton.style.display = "none";
       whatsappToggle.style.display = "none";
     }

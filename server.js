@@ -28,7 +28,7 @@ app.use(express.json({ strict: false, limit: "2mb" }));
 // IA (Gemini)
 // ============================
 const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-if (!apiKey) console.warn("⚠️ Falta GEMINI_API_KEY (o GOOGLE_API_KEY). El bot funcionará en modo FAQ sin IA.");
+if (!apiKey) console.warn("⚠️ Falta GEMINI_API_KEY (o GOOGLE_API_KEY).");
 
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
@@ -50,28 +50,21 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
 }
 
 // ============================
-// System instruction (IA) - ACTUALIZADO
-// - Fundación si hablan de "empresa"/"beneficios"/etc
-// - Si NO es fundación: responde con conocimiento general normal
+// System instruction (IA)
 // ============================
+// CLAVE:
+// - Si NO es sobre la Fundación => responde como IA general
+// - No muestres el menú salvo que el usuario lo pida
 const systemInstruction = `
-Eres Lyro-Capacítamente, asistente virtual oficial de la Fundación Capacítamente (Guayaquil - Ecuador).
+Eres Lyro-Capacítamente.
 
-REGLA A (Prioridad Fundación):
-Si el usuario menciona o insinúa: "fundación", "capacítamente", "capacitaciones", "cursos", "certificados", "donaciones",
-o se refiere a "empresa" / "institución" / "beneficios" en este contexto, responde sobre la FUNDACIÓN CAPACÍTAMENTE.
+REGLAS IMPORTANTES:
+1) Si el usuario pregunta sobre la Fundación Capacítamente (Guayaquil - Ecuador), responde como asistente oficial de la Fundación.
+2) Si el usuario pregunta algo general (fuera de la Fundación), responde con conocimiento general como un asistente normal.
+3) Si la pregunta es general, NO menciones a la Fundación y NO muestres el menú (a menos que el usuario lo pida).
+4) No inventes datos. Si no sabes algo exacto, dilo y sugiere verificar o dar contexto.
 
-REGLA B (Fuera de la Fundación):
-Si la pregunta NO es sobre la Fundación, responde con conocimiento general como un asistente normal.
-NO digas “no tengo información” solo por no ser de la fundación. Responde lo mejor posible.
-Si es información que puede cambiar con el tiempo (por ejemplo: presidentes, noticias, cifras), aclara que podría requerir verificación.
-
-ESTILO:
-- Respuestas claras, útiles, sin inventar datos específicos.
-- Si falta un dato específico de la Fundación, ofrece contacto o el sitio web.
-
-Información clave Fundación:
-- Sitio: https://fundacioncapacitamente.com/
+INFO DE LA FUNDACIÓN (para preguntas relacionadas):
 - Fundación Capacítamente (sin fines de lucro): capacitación de alto valor en habilidades blandas y digitales.
 - Cursos con Certificado:
   - Formador de Formadores ($120): Tatiana Arias.
@@ -151,6 +144,31 @@ function isMissingColumn(err) {
 }
 
 // ============================
+// 🔥 Detectar si es tema Fundación o tema General
+// ============================
+function isFoundationRelated(text) {
+  const t = normalizeText(text);
+
+  // Si menciona directamente
+  if (t.includes("fundacion") || t.includes("fundación") || t.includes("capacitamente") || t.includes("lyro")) return true;
+
+  // Palabras muy fuertes relacionadas a tu bot
+  const strong = ["inscrib", "certific", "donar", "donaci", "horario", "whatsapp", "info@fundacioncapacitamente.com", "0983222358"];
+  if (strong.some(k => t.includes(k))) return true;
+
+  // Palabras comunes del contexto fundación (ojo: pueden existir en general, pero aquí te sirve para tesis)
+  const mid = ["cursos", "curso", "capacitacion", "capacitación", "precio", "costo", "pago", "gratis", "gratuito", "contacto", "correo"];
+  if (mid.some(k => t.includes(k))) return true;
+
+  // “empresa” o “institución” se asume Fundación si habla de beneficios/cursos
+  if (t.includes("empresa") || t.includes("institucion") || t.includes("institución")) {
+    if (t.includes("beneficio") || t.includes("cursos") || t.includes("certific") || t.includes("inscrib") || t.includes("capacit")) return true;
+  }
+
+  return false;
+}
+
+// ============================
 // Textos (sin markdown)
 // ============================
 function menuOpcionesTexto() {
@@ -226,8 +244,6 @@ La Fundación Capacítamente (sin fines de lucro) te ayuda con:
 • Cursos gratuitos y cursos con certificado.
 • Horarios flexibles (100% online).
 • Acompañamiento para inscribirte y resolver dudas.
-
-Sitio web: https://fundacioncapacitamente.com/
 
 Si quieres, dime qué te interesa:
 1) Cursos gratis
@@ -414,7 +430,7 @@ async function detectFirst(list) {
     const { error } = await supabase.from(m.table).select("*").limit(1);
     if (!error) return m;
     if (isMissingRelation(error)) continue;
-    return m; // existe pero quizá hay permisos/rls (con service role no debería)
+    return m;
   }
   return null;
 }
@@ -428,7 +444,6 @@ async function initDbMaps() {
   DB.schedule = await detectFirst(MAPS.schedule);
   DB.cert = await detectFirst(MAPS.cert);
 
-  // Detecta si schedule tiene franja/dias o solo preferencia
   if (DB.schedule) {
     const c = DB.schedule.cols;
     const r = await supabase.from(DB.schedule.table).select(`${c.franja},${c.dias}`).limit(1);
@@ -626,7 +641,17 @@ async function setPinned(sessionId, userKey, pinned) {
   updates[c.pinned] = !!pinned;
   updates[c.pinnedAt] = pinned ? now : null;
 
-  await safeUpdate(DB.sessions.table, c.sid, sessionId, updates);
+  try {
+    await safeUpdate(DB.sessions.table, c.sid, sessionId, updates);
+  } catch (e) {
+    const msg = String(e?.message || "").toLowerCase();
+    if (msg.includes("pinned") || msg.includes("fijado")) {
+      const err = new Error("Tu tabla de sesiones no tiene columnas de PIN.");
+      err.status = 400;
+      throw err;
+    }
+    throw e;
+  }
 }
 
 async function saveSchedule(userKey, sessionId, data) {
@@ -702,7 +727,7 @@ async function saveLead(userKey, sessionId, data, schedulePrefId = null) {
 }
 
 // ============================
-// Certificado (consulta)
+// Certificado
 // ============================
 function extractCedula(text) {
   const m = String(text || "").match(/\b\d{10}\b/);
@@ -809,7 +834,7 @@ function pickCourseFromText(userMessage) {
   const t = normalizeText(userMessage);
 
   if (t === "1" || t === "2" || t === "3") {
-    const found = COURSE_OPTIONS.find((o) => o.key === t);
+    const found = COURSE_OPTIONS.find(o => o.key === t);
     return found ? found.name : "";
   }
 
@@ -832,7 +857,7 @@ const sessionsAI = new Map();
 const SESSION_TTL_MS = 30 * 60 * 1000;
 const MAX_SESSIONS = 300;
 
-const MAX_DAILY_AI_CALLS = Number(process.env.MAX_DAILY_AI_CALLS || 50);
+const MAX_DAILY_AI_CALLS = Number(process.env.MAX_DAILY_AI_CALLS || 200); // sube para tesis si quieres
 let aiCallsToday = 0;
 let aiCallsDayKey = getDayKeyEC();
 
@@ -851,14 +876,8 @@ function resetDailyIfNeeded() {
     aiCallsToday = 0;
   }
 }
-function canUseAI() {
-  resetDailyIfNeeded();
-  return aiCallsToday < MAX_DAILY_AI_CALLS;
-}
-function incAI() {
-  resetDailyIfNeeded();
-  aiCallsToday++;
-}
+function canUseAI() { resetDailyIfNeeded(); return aiCallsToday < MAX_DAILY_AI_CALLS; }
+function incAI() { resetDailyIfNeeded(); aiCallsToday++; }
 
 setInterval(() => {
   const now = Date.now();
@@ -877,7 +896,6 @@ setInterval(() => {
 // ============================
 app.get("/health", (req, res) => res.status(200).send("ok"));
 
-// Lista sesiones (normaliza campos para el HTML) - con fallback si faltan columnas
 app.get("/sessions", async (req, res) => {
   try {
     await initDbMaps();
@@ -886,70 +904,38 @@ app.get("/sessions", async (req, res) => {
     const userKey = getUserKey(req);
     const limit = Math.min(Number(req.query.limit || 30), 100);
     const c = DB.sessions.cols;
-    const table = DB.sessions.table;
 
-    const tries = [
-      { includePinned: true, includeConv: true, includeLast: true },
-      { includePinned: false, includeConv: true, includeLast: true },
-      { includePinned: false, includeConv: false, includeLast: true },
-      { includePinned: false, includeConv: false, includeLast: false },
-    ];
+    const fields = [c.sid, c.created, c.lastSeen, c.lastMsgAt, c.lastPreview, c.conv, c.pinned, c.pinnedAt].filter(Boolean).join(", ");
 
-    for (const tr of tries) {
-      const fields = [
-        c.sid,
-        c.created,
-        c.lastSeen,
-        tr.includeLast ? c.lastMsgAt : null,
-        c.lastPreview,
-        tr.includeConv ? c.conv : null,
-        tr.includePinned ? c.pinned : null,
-        tr.includePinned ? c.pinnedAt : null,
-      ]
-        .filter(Boolean)
-        .join(", ");
+    let q = supabase.from(DB.sessions.table).select(fields).eq(c.user, userKey);
 
-      let q = supabase.from(table).select(fields).eq(c.user, userKey);
+    q = q
+      .order(c.pinned, { ascending: false, nullsFirst: false })
+      .order(c.pinnedAt, { ascending: false, nullsFirst: false })
+      .order(c.lastMsgAt, { ascending: false, nullsFirst: false })
+      .order(c.created, { ascending: false })
+      .limit(limit);
 
-      if (tr.includePinned && c.pinned && c.pinnedAt) {
-        q = q.order(c.pinned, { ascending: false, nullsFirst: false }).order(c.pinnedAt, { ascending: false, nullsFirst: false });
-      }
+    const { data, error } = await q;
+    if (error) return sendJson(res, { sessions: [] }, 200);
 
-      if (tr.includeLast && c.lastMsgAt) {
-        q = q.order(c.lastMsgAt, { ascending: false, nullsFirst: false });
-      }
+    const out = (data || []).map(r => ({
+      session_id: r[c.sid],
+      created_at: r[c.created] || null,
+      last_seen: r[c.lastSeen] || null,
+      last_message_at: r[c.lastMsgAt] || null,
+      last_message_preview: r[c.lastPreview] || null,
+      conversation_number: typeof r[c.conv] === "number" ? r[c.conv] : null,
+      pinned: !!r[c.pinned],
+      pinned_at: r[c.pinnedAt] || null,
+    }));
 
-      if (c.created) q = q.order(c.created, { ascending: false });
-
-      q = q.limit(limit);
-
-      const { data, error } = await q;
-      if (error) {
-        if (isMissingColumn(error)) continue;
-        return sendJson(res, { sessions: [] }, 200);
-      }
-
-      const out = (data || []).map((r) => ({
-        session_id: r[c.sid],
-        created_at: r[c.created] || null,
-        last_seen: r[c.lastSeen] || null,
-        last_message_at: tr.includeLast ? (r[c.lastMsgAt] || null) : null,
-        last_message_preview: r[c.lastPreview] || null,
-        conversation_number: tr.includeConv && typeof r[c.conv] === "number" ? r[c.conv] : null,
-        pinned: tr.includePinned ? !!r[c.pinned] : false,
-        pinned_at: tr.includePinned ? (r[c.pinnedAt] || null) : null,
-      }));
-
-      return sendJson(res, { sessions: out }, 200);
-    }
-
-    return sendJson(res, { sessions: [] }, 200);
+    return sendJson(res, { sessions: out }, 200);
   } catch {
     return sendJson(res, { sessions: [] }, 200);
   }
 });
 
-// Crear nueva conversación
 app.post("/sessions", async (req, res) => {
   try {
     const userKey = getUserKey(req);
@@ -958,16 +944,13 @@ app.post("/sessions", async (req, res) => {
     if (supabase) await ensureSession(sessionId, userKey);
     return sendJson(res, { sessionId }, 200);
   } catch (e) {
-    // Importante: que el frontend no "reviente"
-    const sessionId = newSessionId();
-    return sendJson(res, { sessionId, warning: "No se pudo guardar en BD, pero la sesión existe." }, 200);
+    return sendJson(res, { error: "Error creando sesión", details: String(e?.message || e) }, 500);
   }
 });
 
-// PIN / UNPIN
 app.post("/session/:sessionId/pin", async (req, res) => {
   try {
-    if (!supabase) return sendJson(res, { ok: false, error: "Supabase no configurado." }, 200);
+    if (!supabase) return sendJson(res, { error: "Supabase no configurado." }, 500);
 
     const sessionId = String(req.params.sessionId || "").trim();
     const userKey = getUserKey(req);
@@ -976,40 +959,42 @@ app.post("/session/:sessionId/pin", async (req, res) => {
     await setPinned(sessionId, userKey, pinned);
     return sendJson(res, { ok: true, sessionId, pinned }, 200);
   } catch (e) {
-    return sendJson(res, { ok: false, error: "No se pudo fijar", details: String(e?.message || e) }, 200);
+    const status = extractStatus(e) || 400;
+    return sendJson(res, { error: "Error en pin", details: String(e?.message || e) }, status);
   }
 });
 
-// Eliminar conversación
 app.delete("/session/:sessionId", async (req, res) => {
   try {
     await initDbMaps();
-    if (!supabase || !DB.sessions || !DB.messages) return sendJson(res, { ok: false, error: "Supabase/Tablas no configuradas." }, 200);
+    if (!supabase || !DB.sessions || !DB.messages) return sendJson(res, { error: "Supabase/Tablas no configuradas." }, 500);
 
     const sessionId = String(req.params.sessionId || "").trim();
-    if (!sessionId) return sendJson(res, { ok: false, error: "Falta sessionId" }, 200);
+    if (!sessionId) return sendJson(res, { error: "Falta sessionId" }, 400);
 
     const userKey = getUserKey(req);
     const s = await getSessionRow(sessionId);
-    if (!s) return sendJson(res, { ok: false, error: "Sesión no encontrada." }, 200);
+    if (!s) return sendJson(res, { error: "Sesión no encontrada." }, 404);
 
     const sc = DB.sessions.cols;
-    if (s[sc.user] !== userKey) return sendJson(res, { ok: false, error: "No autorizado." }, 200);
+    if (s[sc.user] !== userKey) return sendJson(res, { error: "No autorizado." }, 403);
 
     const mc = DB.messages.cols;
-    await supabase.from(DB.messages.table).delete().eq(mc.sid, sessionId);
-    await supabase.from(DB.sessions.table).delete().eq(sc.sid, sessionId);
+    const { error: mErr } = await supabase.from(DB.messages.table).delete().eq(mc.sid, sessionId);
+    if (mErr) return sendJson(res, { error: "Error borrando mensajes", details: mErr.message }, 500);
+
+    const { error: dErr } = await supabase.from(DB.sessions.table).delete().eq(sc.sid, sessionId);
+    if (dErr) return sendJson(res, { error: "Error borrando sesión", details: dErr.message }, 500);
 
     sessionsAI.delete(sessionId);
     resetFlows(sessionId);
 
     return sendJson(res, { ok: true, sessionId }, 200);
   } catch (e) {
-    return sendJson(res, { ok: false, error: "Error interno", details: String(e?.message || e) }, 200);
+    return sendJson(res, { error: "Error interno", details: String(e?.message || e) }, 500);
   }
 });
 
-// Historial
 app.get("/history/:sessionId", async (req, res) => {
   try {
     await initDbMaps();
@@ -1033,7 +1018,6 @@ app.get("/history/:sessionId", async (req, res) => {
       .limit(limit);
 
     if (error) return sendJson(res, { sessionId, messages: [] }, 200);
-
     return sendJson(res, { sessionId, messages: data || [] }, 200);
   } catch {
     return sendJson(res, { sessionId: "", messages: [] }, 200);
@@ -1044,20 +1028,19 @@ app.get("/history/:sessionId", async (req, res) => {
 // Chat principal
 // ============================
 app.post("/chat", async (req, res) => {
+  let sessionId = String(req.body?.sessionId || "").trim() || newSessionId();
+  let userMessage = String(req.body?.message || "").trim();
+
+  // Si viene vacío, no rompas
+  if (!userMessage) {
+    return sendJson(res, { reply: menuOpcionesTexto(), sessionId, suggestions: suggestionsMenu() }, 200);
+  }
+
+  const userKey = getUserKey(req);
+  const t = normalizeText(userMessage);
+  const foundationTopic = isFoundationRelated(userMessage);
+
   try {
-    const userMessage = String(req.body?.message || "").trim();
-    let sessionId = String(req.body?.sessionId || "").trim();
-
-    if (!sessionId) sessionId = newSessionId();
-
-    // Si llega vacío: devuelve menú (200)
-    if (!userMessage) {
-      const reply = menuOpcionesTexto();
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
-    }
-
-    const userKey = getUserKey(req);
-
     // sesión
     if (supabase) await ensureSession(sessionId, userKey);
 
@@ -1066,8 +1049,6 @@ app.post("/chat", async (req, res) => {
       await insertChatMessage(sessionId, userKey, "user", userMessage);
       await touchSessionLastMessage(sessionId, userKey, userMessage);
     }
-
-    const t = normalizeText(userMessage);
 
     // ===== Global: saludo/menu
     if (isGreeting(t) || isMenuCommand(t)) {
@@ -1082,7 +1063,7 @@ app.post("/chat", async (req, res) => {
 
     if (t === "cancelar") {
       resetFlows(sessionId);
-      const reply = "✅ Listo. Cancelé el proceso. Escribe MENU para ver opciones.";
+      const reply = "✅ Listo. Cancelé el proceso.";
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1090,7 +1071,67 @@ app.post("/chat", async (req, res) => {
       return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
-    // ===== Beneficios (SIN IA) para tu tesis: respuesta estable
+    // ===== Si es tema GENERAL, responde con IA y NO metas menú
+    // (Aquí está tu arreglo principal)
+    if (!foundationTopic) {
+      resetFlows(sessionId);
+
+      if (!ai) {
+        const reply = "Ahora mismo la IA no está activa en el servidor (falta GEMINI_API_KEY).";
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        // suggestions vacío para que el HTML NO pinte menú
+        return sendJson(res, { reply, sessionId, suggestions: [] }, 200);
+      }
+
+      if (!canUseAI()) {
+        const reply = "Hoy se alcanzó el límite de uso de IA. Intenta más tarde.";
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: [] }, 200);
+      }
+
+      let session = sessionsAI.get(sessionId);
+      if (!session) {
+        const chat = ai.chats.create({
+          model: GEMINI_MODEL,
+          config: { systemInstruction, temperature: 0.3, maxOutputTokens: 500 },
+        });
+        session = { chat, lastAccess: Date.now() };
+        sessionsAI.set(sessionId, session);
+      } else {
+        session.lastAccess = Date.now();
+      }
+
+      incAI();
+
+      let reply = "";
+      try {
+        const response = await session.chat.sendMessage({ message: userMessage });
+        reply = typeof response.text === "string" ? response.text.trim() : "";
+      } catch {
+        reply = "";
+      }
+
+      if (!reply) {
+        reply = "No pude generar una respuesta con IA en este momento. Intenta reformular tu pregunta.";
+      }
+
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+
+      // IMPORTANTÍSIMO: suggestions: [] para no mostrar menú
+      return sendJson(res, { reply, sessionId, suggestions: [] }, 200);
+    }
+
+    // ===== A PARTIR DE AQUÍ: tema FUNDACIÓN (FAQ/Flujos)
+    // Beneficios (sin IA)
     if (t.includes("beneficio") || (t.includes("empresa") && (t.includes("ayuda") || t.includes("beneficio")))) {
       const reply = beneficiosTexto();
       if (supabase) {
@@ -1100,11 +1141,8 @@ app.post("/chat", async (req, res) => {
       return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
-    // ===== Certificarme -> selección curso + inscripción
-    if (
-      (t.includes("certificar") || t.includes("certificarme") || t.includes("certificacion")) &&
-      (t.includes("como") || t.includes("quiero") || t.includes("puedo"))
-    ) {
+    // Certificarme (sin IA) -> inscripción
+    if ((t.includes("certificar") || t.includes("certificarme") || t.includes("certificacion")) && (t.includes("como") || t.includes("quiero"))) {
       resetFlows(sessionId);
       leadFlow.set(sessionId, { step: "curso", data: { curso: "", nombre: "", whatsapp: "" }, needSchedule: true });
 
@@ -1116,7 +1154,7 @@ app.post("/chat", async (req, res) => {
       return sendJson(res, { reply, sessionId, suggestions: suggestionsCoursePick() }, 200);
     }
 
-    // ===== menú por número
+    // Menú por número
     if (/^[1-6]$/.test(t)) {
       resetFlows(sessionId);
 
@@ -1177,7 +1215,7 @@ app.post("/chat", async (req, res) => {
       }
     }
 
-    // ===== disparadores (inscribirme)
+    // disparadores fundación
     if (t.includes("inscrib") || t.includes("inscripcion") || t === "inscribirme") {
       resetFlows(sessionId);
       leadFlow.set(sessionId, { step: "curso", data: { curso: "", nombre: "", whatsapp: "" }, needSchedule: true });
@@ -1239,7 +1277,7 @@ app.post("/chat", async (req, res) => {
       return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
     }
 
-    // ===== FLUJO CERTIFICADO (estado)
+    // FLUJO certificado
     if (certFlow.has(sessionId)) {
       const cedula = extractCedula(userMessage);
       const curso = extractCourse(userMessage, cedula);
@@ -1291,11 +1329,10 @@ Si crees que es un error, contáctanos:
       return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
-    // ===== FLUJO INSCRIPCIÓN (curso -> nombre -> whatsapp -> horario -> guardar)
+    // FLUJO inscripción
     if (leadFlow.has(sessionId)) {
       const st = leadFlow.get(sessionId);
 
-      // 1) curso
       if (st.step === "curso") {
         const curso = pickCourseFromText(userMessage);
         if (!curso) {
@@ -1325,7 +1362,6 @@ Ahora dime tu NOMBRE y APELLIDO.`;
         return sendJson(res, { reply, sessionId, suggestions: [{ text: "cancelar", label: "✖ Cancelar" }, { text: "menu", label: "📌 Menú" }] }, 200);
       }
 
-      // 2) nombre
       if (st.step === "nombre") {
         st.data.nombre = userMessage.trim();
         st.step = "whatsapp";
@@ -1342,7 +1378,6 @@ Ejemplo: +593991112233 o 0991112233`;
         return sendJson(res, { reply, sessionId, suggestions: [{ text: "cancelar", label: "✖ Cancelar" }, { text: "menu", label: "📌 Menú" }] }, 200);
       }
 
-      // 3) whatsapp
       if (st.step === "whatsapp") {
         const w = extractWhatsapp(userMessage);
         if (!w) {
@@ -1358,9 +1393,7 @@ Escríbelo así: +593991112233 o 0991112233`;
         st.data.whatsapp = w;
 
         let schedId = lastScheduleId.get(sessionId);
-        if (!schedId) {
-          schedId = await getLatestSchedulePrefId(userKey, sessionId);
-        }
+        if (!schedId) schedId = await getLatestSchedulePrefId(userKey, sessionId);
 
         if (!schedId && st.needSchedule) {
           st.step = "await_schedule";
@@ -1370,7 +1403,7 @@ Escríbelo así: +593991112233 o 0991112233`;
 
           const reply = `✅ Perfecto.
 
-Antes de finalizar, dime tu HORARIO preferido para las clases online:
+Antes de finalizar, dime tu HORARIO preferido:
 • Mañana
 • Tarde
 • Noche`;
@@ -1395,8 +1428,7 @@ Curso: ${st.data.curso}
 Nombre: ${st.data.nombre}
 WhatsApp: ${st.data.whatsapp}
 
-En breve te contactaremos por WhatsApp para ayudarte con tu certificación.
-Escribe MENU para ver opciones.`;
+En breve te contactaremos por WhatsApp.`;
 
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -1406,7 +1438,7 @@ Escribe MENU para ver opciones.`;
       }
     }
 
-    // ===== FLUJO HORARIO
+    // FLUJO horario
     if (scheduleFlow.has(sessionId)) {
       const st = scheduleFlow.get(sessionId);
 
@@ -1414,7 +1446,7 @@ Escribe MENU para ver opciones.`;
         const v = normalizeText(userMessage);
         const ok = ["manana", "tarde", "noche"].includes(v);
         if (!ok) {
-          const reply = `Dime tu preferencia escribiendo:
+          const reply = `Dime tu preferencia:
 • Mañana
 • Tarde
 • Noche
@@ -1432,7 +1464,7 @@ Escribe MENU para ver opciones.`;
 
         const reply = `✅ Anotado: ${v.toUpperCase()}.
 
-¿En qué días se te facilita más?
+¿En qué días?
 • Lun-Vie
 • Sábado
 • Domingo`;
@@ -1456,7 +1488,6 @@ Escribe MENU para ver opciones.`;
 
         scheduleFlow.delete(sessionId);
 
-        // Si hay inscripción esperando horario, guardamos
         if (leadFlow.has(sessionId) && leadFlow.get(sessionId).step === "await_schedule") {
           const lf = leadFlow.get(sessionId);
           const prefId = schedId || lastScheduleId.get(sessionId) || null;
@@ -1500,25 +1531,10 @@ Días: ${st.data.dias}
       }
     }
 
-    // ============================
-    // IA (si existe y no cayó en flujo)
-    // ============================
-    if (!ai) {
-      // Sin IA: menú estable
+    // Si llegó aquí y es Fundación pero no entró a nada:
+    // usamos IA como apoyo (pero aquí sí puedes dejar menú si quieres)
+    if (!ai || !canUseAI()) {
       const reply = menuOpcionesTexto();
-      if (supabase) {
-        await insertChatMessage(sessionId, userKey, "bot", reply);
-        await touchSessionLastMessage(sessionId, userKey, reply);
-      }
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
-    }
-
-    if (!canUseAI()) {
-      // Límite IA: NO 429, para que el front no diga “conexión”
-      const reply = `⏳ Hoy se alcanzó el límite de IA.
-
-Mientras tanto, puedo ayudarte con el menú:
-${menuOpcionesTexto()}`;
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1530,7 +1546,7 @@ ${menuOpcionesTexto()}`;
     if (!session) {
       const chat = ai.chats.create({
         model: GEMINI_MODEL,
-        config: { systemInstruction, temperature: 0.35, maxOutputTokens: 650 },
+        config: { systemInstruction, temperature: 0.3, maxOutputTokens: 500 },
       });
       session = { chat, lastAccess: Date.now() };
       sessionsAI.set(sessionId, session);
@@ -1548,13 +1564,7 @@ ${menuOpcionesTexto()}`;
       reply = "";
     }
 
-    if (!reply) {
-      // Fallback suave (sin romper)
-      reply = `Puedo ayudarte con la Fundación Capacítamente o con preguntas generales.
-
-Si quieres ver opciones de la Fundación:
-${menuOpcionesTexto()}`;
-    }
+    if (!reply) reply = menuOpcionesTexto();
 
     if (supabase) {
       await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -1563,12 +1573,22 @@ ${menuOpcionesTexto()}`;
 
     return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
   } catch (error) {
-    // TESIS MODE: siempre responder algo útil (nunca 500)
-    const sessionId = String(req.body?.sessionId || "").trim() || newSessionId();
-    const reply = `⚠️ Tuve una dificultad momentánea, pero sigo aquí.
+    // Nunca devuelvas "error interno" feo: siempre algo útil
+    const msg = extractMessage(error);
 
-${menuOpcionesTexto()}`;
-    return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
+    const reply = foundationTopic
+      ? menuOpcionesTexto()
+      : "Tuve un problema respondiendo con IA en este momento. Intenta nuevamente.";
+
+    try {
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+    } catch {}
+
+    // si era general => suggestions vacío (sin menú)
+    return sendJson(res, { reply, sessionId, suggestions: foundationTopic ? suggestionsMenu() : [] }, 200);
   }
 });
 
