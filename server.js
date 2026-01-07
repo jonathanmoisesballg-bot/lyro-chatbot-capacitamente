@@ -28,11 +28,14 @@ app.use(express.json({ strict: false, limit: "1mb" }));
 // IA (Gemini) - SOLO se usa si NO es tema Fundación
 // ============================
 const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-if (!apiKey) console.warn("⚠️ Falta GEMINI_API_KEY (o GOOGLE_API_KEY). El bot funcionará en modo Fundación/FAQ sin IA.");
-
+if (!apiKey) {
+  console.warn(
+    "⚠️ Falta GEMINI_API_KEY (o GOOGLE_API_KEY). El bot funcionará en modo Fundación/FAQ sin IA."
+  );
+}
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
-// Variables que YA tienes en Render (las usamos ahora)
+// Variables que YA tienes en Render (las usamos)
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const GEMINI_TEMPERATURE = Number(process.env.GEMINI_TEMPERATURE || 0.3);
 const GEMINI_MAX_TOKENS = Number(process.env.GEMINI_MAX_TOKENS || 600);
@@ -40,7 +43,10 @@ const AI_COOLDOWN_MS = Number(process.env.AI_COOLDOWN_MS || 0);
 
 // Reintentos contra "modelo ocupado"
 const GEMINI_RETRIES = Math.max(0, Number(process.env.GEMINI_RETRIES || 2));
-const GEMINI_RETRY_BASE_MS = Math.max(100, Number(process.env.GEMINI_RETRY_BASE_MS || 700));
+const GEMINI_RETRY_BASE_MS = Math.max(
+  100,
+  Number(process.env.GEMINI_RETRY_BASE_MS || 700)
+);
 
 // ============================
 // Supabase
@@ -53,40 +59,18 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
   supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   console.log("✅ Supabase configurada: verdadero");
 } else {
-  console.warn("⚠️ Supabase NO configurada. Falta SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY.");
+  console.warn(
+    "⚠️ Supabase NO configurada. Falta SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY."
+  );
 }
 
 // ============================
 // System instruction (IA)
+// (La Fundación se responde SIN IA por reglas abajo)
 // ============================
 const systemInstruction = `
-Eres Lyro-Capacítamente, un asistente virtual amable y servicial. Tu objetivo es proporcionar información precisa, completa y concisa sobre la Fundación Capacítamente (https://fundacioncapacitamente.com/) y sus actividades, además de responder preguntas de conocimiento general.
-
-Utiliza esta info para la Fundación:
-- Misión Principal: Ofrecer capacitación de alto valor en habilidades blandas y digitales esenciales.
-- Cursos con Certificado:
-  - Formador de Formadores ($120): Tatiana Arias.
-  - Inteligencia Emocional ($15): Tatiana Arias.
-  - TECNOLOGÍA PARA PADRES ($15): Yadira Suárez.
-  - (Próximamente) Contabilidad para no contadores ($20)
-  - (Próximamente) Docencia Virtual ($20)
-  - (Próximamente) Habilidades Cognitivas y Emocionales (Aprender a Pensar) ($20)
-- Cursos Gratuitos:
-  - Tecnología para Educadores: Tatiana Arias.
-  - (Próximamente) Metodología de la Pregunta: Tatiana Arias.
-  - (Próximamente) Neuroeducación… También en casa: Prosandoval.
-- Contacto:
-  - Celular: 0983222358
-  - Correo: info@fundacioncapacitamente.com
-  - Ubicación: Guayaquil - Ecuador
-- Donaciones:
-  1) Donaciones -> "Donar ahora"
-  2) Elegir cantidad o personalizada -> "Continuar"
-  3) Llenar datos
-  4) Elegir método (Transferencia o PayPal)
-  5) "Donar ahora"
-
-Si la pregunta no es sobre la Fundación, usa tu conocimiento general.
+Eres Lyro-Capacítamente, un asistente virtual amable y servicial.
+Responde de forma clara, completa y concisa. Si algo es ambiguo, pide un dato puntual.
 `;
 
 // ============================
@@ -117,11 +101,19 @@ function getUserKey(req) {
 }
 
 function newSessionId() {
-  return `session-${Date.now()}-${crypto.randomBytes(6).toString("hex")}`;
+  return `session-${Date.now()}-${crypto
+    .randomBytes(6)
+    .toString("hex")}`;
 }
 
 function extractStatus(err) {
-  return err?.status || err?.code || err?.error?.code || err?.response?.status || null;
+  return (
+    err?.status ||
+    err?.code ||
+    err?.error?.code ||
+    err?.response?.status ||
+    null
+  );
 }
 
 function extractMessage(err) {
@@ -146,13 +138,14 @@ function isRetryableGeminiError(status, msg) {
   const m = String(msg || "");
   if (status === 503) return true;
   if (status === 429) return true;
-  if (/overloaded|temporarily|unavailable|try again|timeout/i.test(m)) return true;
+  if (/overloaded|temporarily|unavailable|try again|timeout/i.test(m))
+    return true;
   if (/NO DISPONIBLE/i.test(m)) return true;
   return false;
 }
 
+// ✅ Fallback neutro (NUNCA dice “IA no pudo responder”)
 function aiFallbackMenuText() {
-  // ✅ NO menciona IA, y NO dice “IA no pudo responder”
   return `En este momento no puedo responder esa consulta.
 
 📌 Puedes:
@@ -160,11 +153,13 @@ function aiFallbackMenuText() {
 2) Elegir una opción del menú (1-6)
 3) O contactarnos:
 📱 0983222358
+☎️ 046026948
 ✉️ info@fundacioncapacitamente.com`;
 }
 
 // ============================
-// Textos (limpios, sin markdown)
+// Textos Fundación (SIN IA)
+// Fuente: https://fundacioncapacitamente.com/acerca-de/ y /contacto/
 // ============================
 function menuOpcionesTexto() {
   return `👋 Hola, soy LYRO-CAPACÍTAMENTE 🤖
@@ -179,17 +174,6 @@ function menuOpcionesTexto() {
 6) Horarios
 
 Responde con el número (1-6) o escribe tu pregunta.`;
-}
-
-function horariosTexto() {
-  return `🕒 HORARIOS (modalidad virtual)
-
-Los horarios son FLEXIBLES: se ajustan a tu disponibilidad porque las clases son 100% online.
-
-📌 Dime tu preferencia:
-• Mañana
-• Tarde
-• Noche`;
 }
 
 function cursosGratisTexto() {
@@ -225,6 +209,7 @@ function contactoTexto() {
   return `📞 CONTACTO FUNDACIÓN CAPACÍTAMENTE
 
 📱 0983222358
+☎️ 046026948
 ✉️ info@fundacioncapacitamente.com
 📍 Guayaquil - Ecuador`;
 }
@@ -239,50 +224,91 @@ function donarTexto() {
 5) Presiona "Donar ahora"`;
 }
 
-// ✅ NUEVOS (SIN IA)
+function horariosTexto() {
+  return `🕒 HORARIOS (modalidad virtual)
+
+Los horarios son FLEXIBLES: se ajustan a tu disponibilidad porque las clases son 100% online.
+
+📌 Dime tu preferencia:
+• Mañana
+• Tarde
+• Noche`;
+}
+
 function beneficiosTexto() {
   return `✅ BENEFICIOS EN FUNDACIÓN CAPACÍTAMENTE
 
-• Capacitación en habilidades blandas y digitales esenciales.
-• Cursos gratuitos y cursos con certificado a bajo costo.
-• Modalidad 100% virtual con horarios flexibles.
+• Formación online accesible y de excelencia.
+• Metodología innovadora basada en: tecnología, constructivismo, neurociencia e inteligencia emocional.
+• Enfoque social: orientado especialmente a población vulnerable, con compromiso en progreso social, económico y en valores.
+• Cursos gratuitos y cursos con certificación a bajo costo.
+• Modalidad virtual y flexible.
 • Acompañamiento y asesoría para elegir el curso ideal.
-• Certificación según el curso seleccionado.
 
-Si quieres ver cursos escribe:
+Para ver cursos escribe:
 • 1 (Cursos gratis)
 • 2 (Cursos con certificados y precios)
 O escribe: ASESOR`;
 }
 
-// ✅ NUEVO: ¿Quiénes somos? / Acerca de (SIN IA)
+function misionTexto() {
+  return `🎯 NUESTRA MISIÓN
+
+Brindar una formación online de excelencia y accesible, con una metodología innovadora basada en el uso de estrategias tecnológicas, constructivismo, neurociencia e inteligencia emocional, con el objetivo de responder a las necesidades del campo laboral actual, orientada sobre todo a la población más vulnerable, comprometida con el progreso social, económico y en valores de la sociedad.`;
+}
+
+function visionTexto() {
+  return `🌟 NUESTRA VISIÓN
+
+Ser reconocida nacional e internacionalmente como un referente de educación con enfoque social, dirigida para todo aquel que desee adquirir conocimientos significativos.
+
+• Implementar las mejores e innovadoras estrategias pedagógicas y tecnológicas en sus cursos para lograr mayor integración laboral.
+• Consolidarse como el mejor centro de capacitación online y presencial del Ecuador y Latinoamérica.
+• Transferir metodologías constructivistas, inteligencia emocional y neurociencia a nivel nacional e internacional.`;
+}
+
+function valoresTexto() {
+  return `🧭 VALORES
+
+• Disciplina
+• Compromiso social
+• Liderazgo
+• Aprendizaje continuo
+• Integridad
+• Inclusión
+• Empatía`;
+}
+
+function pilaresTexto() {
+  return `🏛️ NUESTRA DIFERENCIA: PILARES FUNDAMENTALES
+
+Contamos con 4 pilares sobre los cuales se soportan nuestros cursos:
+• Tecnología
+• Constructivismo
+• Inteligencia Emocional
+• Neurociencia`;
+}
+
 function quienesSomosTexto() {
-  return `🏛️ ¿QUIÉNES SOMOS?
+  return `👥 ¿QUIÉNES SOMOS?
 
-Somos la Fundación Capacítamente, una organización que impulsa la capacitación de alto valor en habilidades blandas y digitales esenciales, enfocada en el crecimiento personal y profesional.
+La Fundación Capacítamente nace hace más de 10 años como expresión del compromiso social de su fundadora. En 2021 nace la Fundación Capacítamente “Formando Mentes y Corazones” como Centro de Formación Profesional y Asesorías, para el Trabajo y el Desarrollo Humano, especializada en capacitación en educación, tecnología, inteligencia emocional, neurociencia y más.
 
-¿Qué hacemos?
-• Ofrecemos cursos gratuitos y cursos con certificado a bajo costo.
-• Trabajamos en modalidad 100% virtual con horarios flexibles.
-• Brindamos acompañamiento para ayudarte a elegir el curso ideal.
-
-Si deseas ver cursos:
-• 1 (Cursos gratis)
-• 2 (Cursos con certificados y precios)
-Si deseas contactarnos:
-• 3 (Contacto)`;
+Uno de nuestros objetivos es ayudar a las personas a alcanzar sus metas por medio de una educación de alta calidad y al alcance de todos.`;
 }
 
 function trabajarConNosotrosTexto() {
   return `🤝 TRABAJA / COLABORA CON NOSOTROS
 
-¡Gracias por tu interés! Para colaborar, ser voluntario/a, proponer alianzas o participar como facilitador/a, contáctanos:
+Para colaborar, ser voluntario/a, proponer alianzas o participar como facilitador/a, contáctanos:
 
 📱 WhatsApp: 0983222358
-✉️ Correo: info@fundacioncapacitamente.com
+☎️ 046026948
+✉️ info@fundacioncapacitamente.com
 📍 Guayaquil - Ecuador`;
 }
 
+// Certificarme (sin IA)
 function certificarmeIntroTexto() {
   return `📜 CERTIFICACIÓN
 
@@ -311,6 +337,17 @@ function suggestionsAfterInfo() {
     { text: "asesor", label: "✨ Asesor de cursos" },
     { text: "inscribirme", label: "📝 Inscribirme" },
     { text: "3", label: "📞 Contacto" },
+  ];
+}
+
+function suggestionsFundacionInfo() {
+  return [
+    { text: "menu", label: "📌 Menú" },
+    { text: "quienes somos", label: "👥 ¿Quiénes somos?" },
+    { text: "mision", label: "🎯 Misión" },
+    { text: "vision", label: "🌟 Visión" },
+    { text: "valores", label: "🧭 Valores" },
+    { text: "pilares", label: "🏛️ Pilares" },
   ];
 }
 
@@ -382,7 +419,6 @@ function suggestionsLeadFlow() {
   ];
 }
 
-// ✅ NUEVO: Certificarme (sin IA)
 function suggestionsCertificarmeCursos() {
   return [
     { text: "Formador de Formadores", label: "🎓 Formador de Formadores ($120)" },
@@ -394,7 +430,7 @@ function suggestionsCertificarmeCursos() {
 }
 
 // ============================
-// FAQ sin IA (incluye MENU por texto)
+// Detectores (SIN IA para Fundación)
 // ============================
 function isGreeting(t) {
   const s = normalizeText(t);
@@ -406,30 +442,6 @@ function isMenuCommand(t) {
   return ["menu", "menú", "opciones", "inicio", "start", "0"].includes(s);
 }
 
-// ✅ Detector: TODO lo de Fundación SIN IA
-function isFoundationQuery(t) {
-  const s = normalizeText(t);
-  const keys = [
-    "fundacion", "fundación", "capacitamente", "capacítamente",
-
-    // QUIENES SOMOS / ACERCA DE / QUÉ HACEN
-    "quienes somos", "quienes son", "quien es la fundacion", "que es la fundacion",
-    "acerca de", "sobre la fundacion", "sobre ustedes", "sobre nosotros",
-    "que hacen", "que hace la fundacion", "a que se dedican", "que servicios ofrecen",
-
-    "curso", "cursos", "certificado", "certificacion", "certificación", "certificar", "certificarme",
-    "donar", "donacion", "donación", "donaciones", "paypal", "transferencia",
-    "whatsapp", "correo", "contacto", "guayaquil",
-    "tatiana", "yadira",
-    "formador de formadores", "inteligencia emocional", "tecnologia para padres", "tecnología para padres",
-    "tecnologia para educadores", "tecnología para educadores",
-    "horario", "horarios", "inscribirme", "inscripcion", "inscripción",
-    "beneficio", "beneficios", "ventajas", "mision", "misión",
-    "trabaja con nosotros", "trabajar", "vacante", "empleo", "voluntario", "colaborar", "alianza"
-  ];
-  return keys.some((k) => s.includes(normalizeText(k)));
-}
-
 function isBenefitsQuery(t) {
   const s = normalizeText(t);
   return (
@@ -439,30 +451,6 @@ function isBenefitsQuery(t) {
     s.includes("que ofrece") ||
     s.includes("que me da") ||
     s.includes("beneficia")
-  );
-}
-
-// ✅ NUEVO: ¿Quiénes somos? / acerca de / qué hacen (SIN IA)
-function isQuienesSomosQuery(t) {
-  const s = normalizeText(t);
-  return (
-    s.includes("quienes somos") ||
-    s.includes("quienes son") ||
-    s.includes("quien es la fundacion") ||
-    s.includes("quien es la fundación") ||
-    s.includes("que es la fundacion") ||
-    s.includes("que es la fundación") ||
-    s.includes("acerca de") ||
-    s.includes("sobre la fundacion") ||
-    s.includes("sobre la fundación") ||
-    s.includes("sobre ustedes") ||
-    s.includes("sobre nosotros") ||
-    s.includes("que hacen") ||
-    s.includes("que hace la fundacion") ||
-    s.includes("que hace la fundación") ||
-    s.includes("a que se dedican") ||
-    s.includes("a que se dedica") ||
-    s.includes("que servicios ofrecen")
   );
 }
 
@@ -482,29 +470,86 @@ function isWorkWithUsQuery(t) {
 
 function isCertificarmeQuery(t) {
   const s = normalizeText(t);
-  return s.includes("certificarme") || s.includes("como certificarme") || s.includes("certificacion") || s.includes("certificación") || s.includes("certificar");
+  return (
+    s.includes("certificarme") ||
+    s.includes("como certificarme") ||
+    s.includes("certificacion") ||
+    s.includes("certificación") ||
+    s.includes("certificar")
+  );
+}
+
+function isMissionQuery(t) {
+  const s = normalizeText(t);
+  return s === "mision" || s === "misión" || s.includes("mision") || s.includes("misión");
+}
+
+function isVisionQuery(t) {
+  const s = normalizeText(t);
+  return s === "vision" || s === "visión" || s.includes("vision") || s.includes("visión");
+}
+
+function isValuesQuery(t) {
+  const s = normalizeText(t);
+  return s.includes("valores") || s.includes("principios");
+}
+
+function isPillarsQuery(t) {
+  const s = normalizeText(t);
+  return s.includes("pilares") || s.includes("nuestra diferencia") || s.includes("diferencia");
+}
+
+function isAboutUsQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("quienes son") ||
+    s.includes("quienes somos") ||
+    s.includes("quiénes son") ||
+    s.includes("quiénes somos") ||
+    s.includes("historia") ||
+    s.includes("acerca de") ||
+    s.includes("nosotros")
+  );
+}
+
+function isFoundationQuery(t) {
+  const s = normalizeText(t);
+  const keys = [
+    "fundacion","fundación","capacitamente","capacítamente",
+    "curso","cursos","certificado","certificacion","certificación","certificar","certificarme",
+    "donar","donacion","donación","donaciones","paypal","transferencia",
+    "whatsapp","correo","contacto","guayaquil",
+    "tatiana","yadira",
+    "formador de formadores","inteligencia emocional","tecnologia para padres","tecnología para padres",
+    "tecnologia para educadores","tecnología para educadores",
+    "horario","horarios","inscribirme","inscripcion","inscripción",
+    "beneficio","beneficios","ventajas",
+    "mision","misión","vision","visión","valores","pilares",
+    "quienes somos","quiénes somos","acerca de","nosotros",
+    "trabaja con nosotros","trabajar","vacante","empleo","voluntario","colaborar","alianza"
+  ];
+  return keys.some((k) => s.includes(normalizeText(k)));
 }
 
 // ============================
 // Flujos
 // ============================
-const certFlow = new Map();         // sessionId -> { step, cedula? }
-const advisorFlow = new Map();      // sessionId -> { step, persona?, interes?, tiempo? }
-const leadFlow = new Map();         // sessionId -> { step, data: { nombre, whatsapp, curso, schedule_pref_id? } }
+const certFlow = new Map();         // sessionId -> { step }
+const advisorFlow = new Map();      // sessionId -> { step, persona, interes, tiempo }
+const leadFlow = new Map();         // sessionId -> { step, data: { nombre, whatsapp, curso, schedule_pref_id } }
 const scheduleFlow = new Map();     // sessionId -> { step, data: { franja, dias } }
-const certificarmeFlow = new Map(); // ✅ NUEVO
+const certificarmeFlow = new Map(); // sessionId -> { step }
 
-// ✅ recordar el último horario guardado por sesión para enlazar inscripción
-const lastSchedulePrefId = new Map(); // sessionId -> bigint/string
+// recordar el último horario guardado por sesión para enlazar inscripción
+const lastSchedulePrefId = new Map(); // sessionId -> id
 
-// reset rápido si el usuario cambia de tema
 function resetFlows(sessionId) {
   certFlow.delete(sessionId);
   advisorFlow.delete(sessionId);
   leadFlow.delete(sessionId);
   scheduleFlow.delete(sessionId);
   certificarmeFlow.delete(sessionId);
-  // NOTA: NO borramos lastSchedulePrefId aquí.
+  // NO borramos lastSchedulePrefId aquí
 }
 
 // ============================
@@ -531,7 +576,10 @@ async function getNextConversationNumber(userKey) {
       .limit(1)
       .maybeSingle();
     if (error) throw error;
-    const last = data && typeof data.conversation_number === "number" ? data.conversation_number : 0;
+    const last =
+      data && typeof data.conversation_number === "number"
+        ? data.conversation_number
+        : 0;
     return last + 1;
   } catch {
     return null;
@@ -634,7 +682,7 @@ async function insertChatMessage(sessionId, userKey, role, content) {
 }
 
 // ============================
-// PIN (Fijar conversación)
+// PIN (Fijar conversación) - opcional
 // ============================
 async function setPinned(sessionId, userKey, pinned) {
   if (!supabase) return;
@@ -647,7 +695,9 @@ async function setPinned(sessionId, userKey, pinned) {
   }
 
   const now = new Date().toISOString();
-  const payload = pinned ? { pinned: true, pinned_at: now } : { pinned: false, pinned_at: null };
+  const payload = pinned
+    ? { pinned: true, pinned_at: now }
+    : { pinned: false, pinned_at: null };
 
   const { error } = await supabase
     .from("chat_sessions")
@@ -719,6 +769,7 @@ Actualizado: ${updated}
 
 Si aún no lo recibiste, escríbenos:
 📱 0983222358
+☎️ 046026948
 ✉️ info@fundacioncapacitamente.com`;
   }
 
@@ -739,6 +790,7 @@ Actualizado: ${updated}
 
 Si necesitas ayuda, contáctanos:
 📱 0983222358
+☎️ 046026948
 ✉️ info@fundacioncapacitamente.com`;
   }
 
@@ -791,7 +843,13 @@ function extractWhatsapp(text) {
 // ============================
 function pickScheduleId(row) {
   if (!row) return null;
-  return row.id ?? row.identificacion ?? row["identificación"] ?? row.identificacion_id ?? null;
+  return (
+    row.id ??
+    row.identificacion ??
+    row["identificación"] ??
+    row.identificacion_id ??
+    null
+  );
 }
 
 async function saveSchedule(userKey, sessionId, data) {
@@ -799,16 +857,18 @@ async function saveSchedule(userKey, sessionId, data) {
 
   const try1 = await supabase
     .from("schedule_preferences")
-    .insert([{
-      user_key: userKey,
-      session_id: sessionId,
-      franja: data.franja,
-      dias: data.dias
-    }])
+    .insert([
+      {
+        user_key: userKey,
+        session_id: sessionId,
+        franja: data.franja,
+        dias: data.dias,
+      },
+    ])
     .select("*");
 
   if (!try1.error) {
-    const row = (try1.data && try1.data[0]) ? try1.data[0] : null;
+    const row = try1.data && try1.data[0] ? try1.data[0] : null;
     return { id: pickScheduleId(row), row };
   }
 
@@ -818,16 +878,18 @@ async function saveSchedule(userKey, sessionId, data) {
     const pref = JSON.stringify({ franja: data.franja, dias: data.dias });
     const try2 = await supabase
       .from("schedule_preferences")
-      .insert([{
-        user_key: userKey,
-        session_id: sessionId,
-        preferencia: pref
-      }])
+      .insert([
+        {
+          user_key: userKey,
+          session_id: sessionId,
+          preferencia: pref,
+        },
+      ])
       .select("*");
 
     if (try2.error) throw try2.error;
 
-    const row = (try2.data && try2.data[0]) ? try2.data[0] : null;
+    const row = try2.data && try2.data[0] ? try2.data[0] : null;
     return { id: pickScheduleId(row), row };
   }
 
@@ -835,52 +897,64 @@ async function saveSchedule(userKey, sessionId, data) {
 }
 
 // ============================
-// Asesor (recomendador)
+// Asesor (recomendador) - SIN IA (reglas)
 // ============================
 function recommendCourse({ persona, interes, tiempo }) {
   const p = normalizeText(persona);
   const i = normalizeText(interes);
   const t = normalizeText(tiempo);
 
-  if (p.includes("padre")) return {
-    curso: "Tecnología para Padres ($15)",
-    motivo: "ideal si quieres acompañar y guiar mejor el uso de tecnología en casa."
-  };
-
-  if (p.includes("docente")) {
-    if (i.includes("tecnolog")) return {
-      curso: "Tecnología para Educadores (Gratis)",
-      motivo: "enfocado a herramientas y recursos útiles para docentes."
-    };
+  if (p.includes("padre")) {
     return {
-      curso: "Formador de Formadores ($120)",
-      motivo: "perfecto para fortalecer habilidades de enseñanza y facilitación."
+      curso: "Tecnología para Padres ($15)",
+      motivo: "ideal si quieres acompañar y guiar mejor el uso de tecnología en casa.",
     };
   }
 
-  if (i.includes("habilidades") || i.includes("blandas")) return {
-    curso: "Inteligencia Emocional ($15)",
-    motivo: "fortalece comunicación, manejo de emociones y relaciones."
-  };
+  if (p.includes("docente")) {
+    if (i.includes("tecnolog")) {
+      return {
+        curso: "Tecnología para Educadores (Gratis)",
+        motivo: "enfocado a herramientas y recursos útiles para docentes.",
+      };
+    }
+    return {
+      curso: "Formador de Formadores ($120)",
+      motivo: "perfecto para fortalecer habilidades de enseñanza y facilitación.",
+    };
+  }
 
-  if (i.includes("educa")) return {
-    curso: "Formador de Formadores ($120)",
-    motivo: "te ayuda a estructurar sesiones y enseñar con mejor metodología."
-  };
+  if (i.includes("habilidades") || i.includes("blandas")) {
+    return {
+      curso: "Inteligencia Emocional ($15)",
+      motivo: "fortalece comunicación, manejo de emociones y relaciones.",
+    };
+  }
 
-  if (i.includes("tecnolog")) return {
-    curso: "Tecnología para Educadores (Gratis)",
-    motivo: "una base útil para avanzar rápido sin costo."
-  };
+  if (i.includes("educa")) {
+    return {
+      curso: "Formador de Formadores ($120)",
+      motivo: "te ayuda a estructurar sesiones y enseñar con mejor metodología.",
+    };
+  }
 
-  if (t === "1-2") return {
-    curso: "Inteligencia Emocional ($15)",
-    motivo: "es una opción ligera y muy aplicable día a día."
-  };
+  if (i.includes("tecnolog")) {
+    return {
+      curso: "Tecnología para Educadores (Gratis)",
+      motivo: "una base útil para avanzar rápido sin costo.",
+    };
+  }
+
+  if (t === "1-2") {
+    return {
+      curso: "Inteligencia Emocional ($15)",
+      motivo: "es una opción ligera y muy aplicable día a día.",
+    };
+  }
 
   return {
     curso: "Formador de Formadores ($120)",
-    motivo: "muy completo si quieres una formación sólida."
+    motivo: "muy completo si quieres una formación sólida.",
   };
 }
 
@@ -895,7 +969,7 @@ const MAX_DAILY_AI_CALLS = Number(process.env.MAX_DAILY_AI_CALLS || 50);
 let aiCallsToday = 0;
 let aiCallsDayKey = getDayKeyEC();
 
-// cooldown real por sesión (si quieres)
+// cooldown real por sesión
 const aiLastCallAt = new Map(); // sessionId -> timestamp
 
 function getDayKeyEC() {
@@ -931,18 +1005,20 @@ setInterval(() => {
     if (now - s.lastAccess > SESSION_TTL_MS) sessions.delete(sid);
   }
   if (sessions.size > MAX_SESSIONS) {
-    const ordered = [...sessions.entries()].sort((a, b) => a[1].lastAccess - b[1].lastAccess);
+    const ordered = [...sessions.entries()].sort(
+      (a, b) => a[1].lastAccess - b[1].lastAccess
+    );
     const extra = sessions.size - MAX_SESSIONS;
     for (let i = 0; i < extra; i++) sessions.delete(ordered[i][0]);
   }
 }, 60 * 1000);
 
-async function geminiSendWithRetry(session, userMessage) {
+async function geminiSendWithRetry(sessionObj, userMessage) {
   let lastErr = null;
 
   for (let attempt = 0; attempt <= GEMINI_RETRIES; attempt++) {
     try {
-      const out = await session.chat.sendMessage({ message: userMessage });
+      const out = await sessionObj.chat.sendMessage({ message: userMessage });
       return out;
     } catch (e) {
       lastErr = e;
@@ -983,7 +1059,9 @@ app.get("/sessions", async (req, res) => {
         includeConv ? "conversation_number" : null,
         includePinned ? "pinned" : null,
         includePinned ? "pinned_at" : null,
-      ].filter(Boolean).join(", ");
+      ]
+        .filter(Boolean)
+        .join(", ");
 
       let q = supabase
         .from("chat_sessions")
@@ -991,13 +1069,15 @@ app.get("/sessions", async (req, res) => {
         .eq("user_key", userKey);
 
       if (includePinned) {
-        q = q.order("pinned", { ascending: false, nullsFirst: false })
-             .order("pinned_at", { ascending: false, nullsFirst: false });
+        q = q
+          .order("pinned", { ascending: false, nullsFirst: false })
+          .order("pinned_at", { ascending: false, nullsFirst: false });
       }
 
-      q = q.order("last_message_at", { ascending: false, nullsFirst: false })
-           .order("created_at", { ascending: false })
-           .limit(limit);
+      q = q
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false })
+        .limit(limit);
 
       return await q;
     };
@@ -1007,9 +1087,7 @@ app.get("/sessions", async (req, res) => {
     if (r.error) {
       const msg = String(r.error.message || "").toLowerCase();
 
-      if (msg.includes("pinned")) {
-        r = await tryQuery({ includePinned: false, includeConv: true });
-      }
+      if (msg.includes("pinned")) r = await tryQuery({ includePinned: false, includeConv: true });
 
       if (r.error && String(r.error.message || "").toLowerCase().includes("conversation_number")) {
         r = await tryQuery({ includePinned: false, includeConv: false });
@@ -1052,10 +1130,14 @@ app.post("/session/:sessionId/pin", async (req, res) => {
     } catch (e) {
       const msg = String(e?.message || "").toLowerCase();
       if (msg.includes("pinned")) {
-        return sendJson(res, {
-          error: "Tu tabla chat_sessions no tiene columnas de PIN.",
-          hint: "Agrega columnas pinned y pinned_at."
-        }, 400);
+        return sendJson(
+          res,
+          {
+            error: "Tu tabla chat_sessions no tiene columnas de PIN.",
+            hint: "Agrega columnas pinned y pinned_at.",
+          },
+          400
+        );
       }
       throw e;
     }
@@ -1079,7 +1161,8 @@ app.delete("/session/:sessionId", async (req, res) => {
 
     const s = await getSession(sessionId);
     if (!s) return sendJson(res, { error: "Sesión no encontrada." }, 404);
-    if (s.user_key !== userKey) return sendJson(res, { error: "No autorizado para borrar esta sesión." }, 403);
+    if (s.user_key !== userKey)
+      return sendJson(res, { error: "No autorizado para borrar esta sesión." }, 403);
 
     const { error: mErr } = await supabase.from("chat_messages").delete().eq("session_id", sessionId);
     if (mErr) return sendJson(res, { error: "Error borrando mensajes", details: mErr.message }, 500);
@@ -1109,7 +1192,8 @@ app.get("/history/:sessionId", async (req, res) => {
     const limit = Math.min(Number(req.query.limit || 200), 500);
 
     const s = await getSession(sessionId);
-    if (!s || s.user_key !== userKey) return sendJson(res, { error: "Sesión no encontrada." }, 404);
+    if (!s || s.user_key !== userKey)
+      return sendJson(res, { error: "Sesión no encontrada." }, 404);
 
     const { data, error } = await supabase
       .from("chat_messages")
@@ -1133,6 +1217,7 @@ app.post("/chat", async (req, res) => {
   try {
     const userMessage = String(req.body?.message || "").trim();
     let sessionId = String(req.body?.sessionId || "").trim();
+
     if (!userMessage) return sendJson(res, { reply: "Mensaje no proporcionado." }, 400);
     if (!sessionId) sessionId = newSessionId();
 
@@ -1170,18 +1255,7 @@ app.post("/chat", async (req, res) => {
       return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
-    // ====== FUNDACIÓN (SIN IA): quienes somos / acerca de ======
-    if (isQuienesSomosQuery(userMessage)) {
-      resetFlows(sessionId);
-      const reply = quienesSomosTexto();
-      if (supabase) {
-        await insertChatMessage(sessionId, userKey, "bot", reply);
-        await touchSessionLastMessage(sessionId, userKey, reply);
-      }
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
-    }
-
-    // ====== FUNDACIÓN (SIN IA): beneficios ======
+    // ====== FUNDACIÓN: info directa (SIN IA) ======
     if (isBenefitsQuery(userMessage)) {
       resetFlows(sessionId);
       const reply = beneficiosTexto();
@@ -1192,7 +1266,6 @@ app.post("/chat", async (req, res) => {
       return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
     }
 
-    // ====== FUNDACIÓN (SIN IA): trabaja con nosotros ======
     if (isWorkWithUsQuery(userMessage)) {
       resetFlows(sessionId);
       const reply = trabajarConNosotrosTexto();
@@ -1203,17 +1276,66 @@ app.post("/chat", async (req, res) => {
       return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
-    // ====== FUNDACIÓN (SIN IA): certificarme ======
+    if (isMissionQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = misionTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsFundacionInfo() }, 200);
+    }
+
+    if (isVisionQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = visionTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsFundacionInfo() }, 200);
+    }
+
+    if (isValuesQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = valoresTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsFundacionInfo() }, 200);
+    }
+
+    if (isPillarsQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = pilaresTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsFundacionInfo() }, 200);
+    }
+
+    if (isAboutUsQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = quienesSomosTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsFundacionInfo() }, 200);
+    }
+
+    // ====== FUNDACIÓN: certificarme (SIN IA) ======
     if (isCertificarmeQuery(userMessage)) {
       resetFlows(sessionId);
-      certificarmeFlow.set(sessionId, { step: "choose_course", curso: "" });
+      certificarmeFlow.set(sessionId, { step: "choose_course" });
 
       const reply = certificarmeIntroTexto();
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
-
       return sendJson(res, { reply, sessionId, suggestions: suggestionsCertificarmeCursos() }, 200);
     }
 
@@ -1279,7 +1401,7 @@ app.post("/chat", async (req, res) => {
     }
 
     // ====== disparadores por palabra (SIN IA) ======
-    if (t.includes("asesor") || t.includes("recomendar") || t.includes("recomendacion")) {
+    if (t.includes("asesor") || t.includes("recomendar") || t.includes("recomendacion") || t.includes("recomendación")) {
       resetFlows(sessionId);
       advisorFlow.set(sessionId, { step: "persona", persona: "", interes: "", tiempo: "" });
 
@@ -1297,14 +1419,14 @@ app.post("/chat", async (req, res) => {
       return sendJson(res, { reply, sessionId, suggestions: suggestionsAdvisorStart() }, 200);
     }
 
-    if (t.includes("inscrib") || t.includes("inscripcion")) {
+    if (t.includes("inscrib") || t.includes("inscripcion") || t.includes("inscripción")) {
       resetFlows(sessionId);
 
       const schedId = lastSchedulePrefId.get(sessionId) || null;
 
       leadFlow.set(sessionId, {
         step: "nombre",
-        data: { nombre: "", whatsapp: "", curso: "", schedule_pref_id: schedId }
+        data: { nombre: "", whatsapp: "", curso: "", schedule_pref_id: schedId },
       });
 
       const extra = schedId ? "\n✅ Ya tengo tu horario guardado y lo vincularé a tu inscripción." : "";
@@ -1395,7 +1517,7 @@ Para ayudarte mejor, dime tu NOMBRE (solo nombre y apellido).`;
         const schedId = lastSchedulePrefId.get(sessionId) || null;
         leadFlow.set(sessionId, {
           step: "nombre",
-          data: { nombre: "", whatsapp: "", curso: match, schedule_pref_id: schedId }
+          data: { nombre: "", whatsapp: "", curso: match, schedule_pref_id: schedId },
         });
 
         const extra = schedId ? "\n✅ Ya tengo tu horario guardado y lo vincularé a tu inscripción." : "";
@@ -1415,7 +1537,7 @@ Dime tu NOMBRE (solo nombre y apellido).`;
       }
     }
 
-    // ====== FLUJO CERTIFICADO ======
+    // ====== FLUJO CERTIFICADO (estado) ======
     if (certFlow.has(sessionId)) {
       const cedula = extractCedula(userMessage);
       const curso = extractCourse(userMessage, cedula);
@@ -1454,6 +1576,7 @@ Ejemplo: Inteligencia Emocional
 
 Si crees que es un error, contáctanos:
 📱 0983222358
+☎️ 046026948
 ✉️ info@fundacioncapacitamente.com`;
         } else {
           reply = certificateReplyFromRow(row);
@@ -1472,7 +1595,7 @@ Intenta más tarde.`;
       return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
-    // ====== FLUJO ASESOR ======
+    // ====== FLUJO ASESOR (SIN IA) ======
     if (advisorFlow.has(sessionId)) {
       const st = advisorFlow.get(sessionId);
 
@@ -1567,9 +1690,10 @@ Escríbelo así: +593991112233 o 0991112233`;
 
         st.data.whatsapp = w;
 
-        // ✅ si el curso ya venía preseleccionado (certificarme), cerramos aquí
+        // si el curso ya venía preseleccionado (certificarme), cerramos aquí
         if (st.data.curso && String(st.data.curso).trim().length > 0) {
-          st.data.schedule_pref_id = st.data.schedule_pref_id ?? (lastSchedulePrefId.get(sessionId) || null);
+          st.data.schedule_pref_id =
+            st.data.schedule_pref_id ?? (lastSchedulePrefId.get(sessionId) || null);
 
           try {
             await saveLead(userKey, sessionId, st.data);
@@ -1579,7 +1703,9 @@ Escríbelo así: +593991112233 o 0991112233`;
 
           leadFlow.delete(sessionId);
 
-          const extra = st.data.schedule_pref_id ? `\nHorario vinculado (ID): ${st.data.schedule_pref_id}` : "";
+          const extra = st.data.schedule_pref_id
+            ? `\nHorario vinculado (ID): ${st.data.schedule_pref_id}`
+            : "";
           const reply = `✅ ¡Listo! Recibimos tus datos.
 
 Nombre: ${st.data.nombre}
@@ -1599,7 +1725,8 @@ Si quieres ver opciones: escribe MENU`;
 
         // si NO hay curso, seguimos normal
         st.step = "curso";
-        st.data.schedule_pref_id = st.data.schedule_pref_id ?? (lastSchedulePrefId.get(sessionId) || null);
+        st.data.schedule_pref_id =
+          st.data.schedule_pref_id ?? (lastSchedulePrefId.get(sessionId) || null);
         leadFlow.set(sessionId, st);
 
         const reply = `Perfecto ✅
@@ -1615,7 +1742,8 @@ Si quieres ver opciones: escribe MENU`;
 
       if (st.step === "curso") {
         st.data.curso = userMessage.trim();
-        st.data.schedule_pref_id = st.data.schedule_pref_id ?? (lastSchedulePrefId.get(sessionId) || null);
+        st.data.schedule_pref_id =
+          st.data.schedule_pref_id ?? (lastSchedulePrefId.get(sessionId) || null);
 
         try {
           await saveLead(userKey, sessionId, st.data);
@@ -1625,7 +1753,9 @@ Si quieres ver opciones: escribe MENU`;
 
         leadFlow.delete(sessionId);
 
-        const extra = st.data.schedule_pref_id ? `\nHorario vinculado (ID): ${st.data.schedule_pref_id}` : "";
+        const extra = st.data.schedule_pref_id
+          ? `\nHorario vinculado (ID): ${st.data.schedule_pref_id}`
+          : "";
         const reply = `✅ ¡Listo! Recibimos tus datos.
 
 Nombre: ${st.data.nombre}
@@ -1634,6 +1764,7 @@ Curso: ${st.data.curso}${extra}
 
 En breve te contactaremos por WhatsApp.
 Si quieres ver opciones: escribe MENU`;
+
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1716,11 +1847,15 @@ Revisa que en Render estén SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY.`;
           await touchSessionLastMessage(sessionId, userKey, reply);
         }
 
-        return sendJson(res, {
-          reply,
-          sessionId,
-          suggestions: saved ? suggestionsAfterScheduleSaved() : suggestionsMenu(),
-        }, 200);
+        return sendJson(
+          res,
+          {
+            reply,
+            sessionId,
+            suggestions: saved ? suggestionsAfterScheduleSaved() : suggestionsMenu(),
+          },
+          200
+        );
       }
     }
 
@@ -1730,8 +1865,12 @@ Revisa que en Render estén SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY.`;
 
 Escribe:
 • MENU (ver opciones)
-• BENEFICIOS
 • QUIENES SOMOS
+• MISION
+• VISION
+• VALORES
+• PILARES
+• BENEFICIOS
 • CERTIFICARME
 • TRABAJA CON NOSOTROS`;
 
@@ -1740,14 +1879,15 @@ Escribe:
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
 
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsFundacionInfo() }, 200);
     }
 
     // ============================
     // Si no cayó en Fundación/FAQ/Flujos -> IA
     // ============================
     if (!ai) {
-      const msg = "Ahora mismo solo puedo ayudarte con el menú de la Fundación. Escribe MENU para ver opciones.";
+      const msg =
+        "Ahora mismo solo puedo ayudarte con el menú e información de la Fundación. Escribe MENU para ver opciones.";
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", msg);
         await touchSessionLastMessage(sessionId, userKey, msg);
@@ -1755,7 +1895,7 @@ Escribe:
       return sendJson(res, { reply: msg, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
-    // ✅ No devolvemos 429: devolvemos 200 con fallback neutro tipo menú
+    // ✅ No devolvemos 429/503: devolvemos 200 con fallback neutro tipo menú
     if (!canUseAI()) {
       const msg = aiFallbackMenuText();
       if (supabase) {
@@ -1765,7 +1905,7 @@ Escribe:
       return sendJson(res, { reply: msg, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
-    // Cooldown por sesión (opcional)
+    // Cooldown por sesión
     if (AI_COOLDOWN_MS > 0) {
       const last = aiLastCallAt.get(sessionId) || 0;
       const now = Date.now();
@@ -1780,8 +1920,9 @@ Escribe:
       aiLastCallAt.set(sessionId, now);
     }
 
-    let session = sessions.get(sessionId);
-    if (!session) {
+    // Crear / recuperar sesión IA
+    let sessionObj = sessions.get(sessionId);
+    if (!sessionObj) {
       const chat = ai.chats.create({
         model: GEMINI_MODEL,
         config: {
@@ -1790,17 +1931,17 @@ Escribe:
           maxOutputTokens: GEMINI_MAX_TOKENS,
         },
       });
-      session = { chat, lastAccess: Date.now() };
-      sessions.set(sessionId, session);
+      sessionObj = { chat, lastAccess: Date.now() };
+      sessions.set(sessionId, sessionObj);
       console.log("🆕 Nueva sesión IA:", sessionId);
     } else {
-      session.lastAccess = Date.now();
+      sessionObj.lastAccess = Date.now();
     }
 
     incAI();
 
     // ✅ Reintentos automáticos si el modelo está ocupado
-    const response = await geminiSendWithRetry(session, userMessage);
+    const response = await geminiSendWithRetry(sessionObj, userMessage);
 
     let reply = typeof response?.text === "string" ? response.text.trim() : "";
     reply = reply.replace(/\r/g, "").replace(/\n{3,}/g, "\n\n").trim();
@@ -1826,23 +1967,43 @@ Escribe:
     console.error("❌ Error /chat:", msg);
 
     if (status === 403) {
-      return sendJson(res, { reply: "Esta conversación no te pertenece. Crea una nueva (botón Nueva).", sessionId: "" }, 403);
+      return sendJson(
+        res,
+        { reply: "Esta conversación no te pertenece. Crea una nueva (botón Nueva).", sessionId: "" },
+        403
+      );
     }
 
     // ✅ Cualquier error de Gemini/429/503: NO mandamos error, mandamos fallback neutro tipo menú
-    if (status === 429 || status === 503 || /RESOURCE_EXHAUSTED|quota|rate limit|429|overloaded|NO DISPONIBLE/i.test(msg)) {
+    if (
+      status === 429 ||
+      status === 503 ||
+      /RESOURCE_EXHAUSTED|quota|rate limit|429|overloaded|NO DISPONIBLE/i.test(msg)
+    ) {
       const reply = aiFallbackMenuText();
-      return sendJson(res, { reply, sessionId: String(req.body?.sessionId || ""), suggestions: suggestionsMenu() }, 200);
+      return sendJson(
+        res,
+        { reply, sessionId: String(req.body?.sessionId || ""), suggestions: suggestionsMenu() },
+        200
+      );
     }
 
     // ✅ Error genérico: también sin romper el frontend
     const reply = aiFallbackMenuText();
-    return sendJson(res, { reply, sessionId: String(req.body?.sessionId || ""), suggestions: suggestionsMenu() }, 200);
+    return sendJson(
+      res,
+      { reply, sessionId: String(req.body?.sessionId || ""), suggestions: suggestionsMenu() },
+      200
+    );
   }
 });
 
 app.listen(port, "0.0.0.0", () => {
   console.log(`✅ Servidor escuchando en puerto ${port}`);
-  console.log(`🤖 Gemini: modelo=${GEMINI_MODEL} tokens=${GEMINI_MAX_TOKENS} temperatura=${GEMINI_TEMPERATURE}`);
-  console.log(`⏱️ Cooldown(ms)=${AI_COOLDOWN_MS} | max diarios IA=${MAX_DAILY_AI_CALLS} | retries=${GEMINI_RETRIES}`);
+  console.log(
+    `🤖 Gemini: modelo=${GEMINI_MODEL} tokens=${GEMINI_MAX_TOKENS} temperatura=${GEMINI_TEMPERATURE}`
+  );
+  console.log(
+    `⏱️ Cooldown(ms)=${AI_COOLDOWN_MS} | max diarios IA=${MAX_DAILY_AI_CALLS} | retries=${GEMINI_RETRIES}`
+  );
 });

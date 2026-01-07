@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -9,7 +8,7 @@
   <style>
     body { margin:0; padding:0; }
 
-    /* Botón Abrir */
+    /* Botón Abrir/Cerrar */
     #chat-toggle{
       position:fixed; bottom:20px; right:20px; padding:15px 20px;
       background:#1E90FF; color:#fff; border:none; border-radius:30px;
@@ -18,7 +17,7 @@
     }
     #chat-toggle:hover{ filter:brightness(.97); transform: translateY(-2px); }
 
-    /* WhatsApp flotante */
+    /* WhatsApp solo ícono */
     #whatsapp-toggle{
       position:fixed; bottom:20px; right:200px;
       width:56px; height:56px;
@@ -39,7 +38,7 @@
       background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23fff' d='M19.11 17.53c-.27-.13-1.6-.79-1.85-.88-.25-.09-.43-.13-.61.13-.18.27-.7.88-.86 1.06-.16.18-.32.2-.59.07-.27-.13-1.14-.42-2.17-1.34-.8-.71-1.34-1.59-1.5-1.86-.16-.27-.02-.41.12-.55.12-.12.27-.32.41-.48.14-.16.18-.27.27-.45.09-.18.04-.34-.02-.48-.07-.13-.61-1.47-.84-2.01-.22-.53-.45-.46-.61-.47h-.52c-.18 0-.48.07-.73.34-.25.27-.95.93-.95 2.28 0 1.35.98 2.65 1.11 2.83.13.18 1.93 2.95 4.68 4.13.65.28 1.16.45 1.56.57.65.21 1.24.18 1.71.11.52-.08 1.6-.65 1.82-1.28.23-.63.23-1.17.16-1.28-.07-.11-.25-.18-.52-.32z'/%3E%3Cpath fill='%23fff' d='M26.66 5.34A14.9 14.9 0 0016.04.99C7.86.99 1.2 7.64 1.2 15.82c0 2.62.69 5.18 2 7.44L1.08 31l7.9-2.07a14.8 14.8 0 007.06 1.8h.01c8.18 0 14.84-6.65 14.84-14.83 0-3.96-1.55-7.69-4.23-10.56zM16.04 28.2h-.01a12.3 12.3 0 01-6.28-1.72l-.45-.27-4.69 1.23 1.25-4.57-.29-.47a12.3 12.3 0 01-1.89-6.58c0-6.79 5.52-12.31 12.32-12.31a12.24 12.24 0 018.72 3.62 12.25 12.25 0 013.6 8.69c0 6.79-5.52 12.31-12.28 12.38z'/%3E%3C/svg%3E");
     }
 
-    /* Contenedor principal */
+    /* Chat */
     #chat-container{
       position:fixed; bottom:80px; right:20px;
       width:360px; height:640px;
@@ -50,13 +49,13 @@
       font-family:Arial, sans-serif;
     }
 
-    /* Header */
     #chat-header{
       background:#1E90FF; color:#fff; padding:10px 12px;
       font-weight:bold; font-size:1.02em;
       display:flex; align-items:center; justify-content:space-between;
       gap:10px;
     }
+
     #chat-header .left, #chat-header .right{
       display:flex; align-items:center; gap:8px;
     }
@@ -76,7 +75,7 @@
       max-width:210px;
     }
 
-    /* Drawer historial */
+    /* Drawer Historial */
     #history-drawer{
       position:absolute;
       top:0; left:0; bottom:0;
@@ -138,7 +137,6 @@
       font-size:.78em; opacity:.85;
       display:flex; gap:8px; align-items:center;
       margin-bottom:6px;
-      flex-wrap:wrap;
     }
     .pin-badge{
       font-size:.78em;
@@ -245,63 +243,58 @@
       flex-direction:column;
     }
 
-    /* Sugerencias */
+    /* ✅ Botones: GRID + scroll + “ruedita” */
     #suggestion-buttons{
       padding:10px;
       background:#F4F7F9;
-      display:flex;
-      flex-wrap:wrap;
-      gap:6px;
       border-bottom:1px solid #eee;
 
-      max-height: 160px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:8px;
+
+      max-height: 170px;
       overflow-y: auto;
       overscroll-behavior: contain;
       scrollbar-width: thin;
     }
+    @media (max-width:420px){
+      #suggestion-buttons{ grid-template-columns: 1fr; }
+    }
+
     #suggestion-buttons::-webkit-scrollbar{ width: 10px; }
     #suggestion-buttons::-webkit-scrollbar-thumb{ background: rgba(0,0,0,.18); border-radius: 999px; }
     #suggestion-buttons::-webkit-scrollbar-track{ background: transparent; }
 
-    /* ✅ Botones con “ruedita” para opciones numéricas */
     .suggestion{
+      width:100%;
       background:#fff; color:#1E90FF; border:1px solid #1E90FF;
-      padding:8px 12px; border-radius:20px; cursor:pointer; font-size:.85em;
-      transition: background-color .2s, color .2s;
-      flex: 0 0 auto;
-
-      display:flex;
-      align-items:center;
-      gap:8px;
-    }
-    .suggestion:hover{ background:#1E90FF; color:#fff; }
-
-    .suggestion-badge{
-      width:20px; height:20px;
-      border-radius:999px;
-      background:#1E90FF;
-      color:#fff;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      font-size:.78em;
-      font-weight:800;
-      flex: 0 0 20px;
-      line-height: 1;
-    }
-    .suggestion:hover .suggestion-badge{
-      background:#fff;
-      color:#1E90FF;
+      padding:10px 12px; border-radius:16px;
+      cursor:pointer; font-size:.88em;
+      transition: background-color .2s, color .2s, transform .08s;
+      display:flex; align-items:center; justify-content:flex-start; gap:10px;
+      text-align:left;
     }
 
-    .suggestion-text{
-      display:inline-block;
-      line-height:1.1;
-      font-weight:700;
-      white-space: nowrap;
+    /* ✅ “ruedita” (circulito) */
+    .suggestion::before{
+      content:"";
+      width:10px; height:10px;
+      border-radius:50%;
+      border:2px solid #1E90FF;
+      flex:0 0 auto;
+      box-sizing:border-box;
     }
 
-    /* Input */
+    .suggestion:hover{
+      background:#1E90FF; color:#fff;
+      transform: translateY(-1px);
+    }
+    .suggestion:hover::before{
+      border-color:#fff;
+      background: rgba(255,255,255,.25);
+    }
+
     #chat-input-area{
       display:flex; padding:10px;
       background:#fff;
@@ -320,14 +313,15 @@
 </head>
 
 <body>
+
   <button id="chat-toggle">🤖 Chatea con Lyro</button>
 
-  <a id="whatsapp-toggle" href="https://wa.me/593991667561" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
+  <a id="whatsapp-toggle" href="https://wa.me/593983222358" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
     <span class="wa-icon" aria-hidden="true"></span>
   </a>
 
   <div id="chat-container">
-    <!-- Drawer historial -->
+
     <div id="history-drawer">
       <div id="history-top">
         <b>📚 Historial</b>
@@ -356,13 +350,13 @@
         <button id="send-button">Enviar</button>
       </div>
     </div>
+
   </div>
 
   <script>
-    // ⚠️ Cambia esto si tu URL es distinta
     const SERVER_URL = "https://lyro-chatbot-capacitamente.onrender.com";
 
-    // ====== ClientId persistente ======
+    // Identidad estable del usuario
     const CLIENT_ID_KEY = "lyroClientId";
     let clientId = localStorage.getItem(CLIENT_ID_KEY);
     if (!clientId) {
@@ -370,11 +364,10 @@
       localStorage.setItem(CLIENT_ID_KEY, clientId);
     }
 
-    // ====== SessionId persistente ======
     const SESSION_KEY = "chatSessionId";
     let currentSessionId = localStorage.getItem(SESSION_KEY) || "";
 
-    // ====== Elementos UI ======
+    // UI refs
     const toggleButton = document.getElementById("chat-toggle");
     const chatContainer = document.getElementById("chat-container");
     const sendButton = document.getElementById("send-button");
@@ -388,17 +381,42 @@
     const historyList = document.getElementById("history-list");
     const newChatBtn = document.getElementById("new-chat");
 
-    // ====== Sugerencias default ======
     const DEFAULT_MENU_SUGGESTIONS = [
       { text: "1", label: "1) Cursos gratis" },
-      { text: "2", label: "2) Cursos con certificados y precios" },
+      { text: "2", label: "2) Cursos con certificados" },
       { text: "3", label: "3) Contacto" },
       { text: "4", label: "4) Donar" },
       { text: "5", label: "5) Estado de certificado" },
       { text: "6", label: "6) Horarios" },
+      { text: "7", label: "7) Quiénes somos" },
+      { text: "8", label: "8) Misión y visión" },
+      { text: "9", label: "9) Valores" },
+      { text: "10", label: "10) Beneficios" },
+      { text: "11", label: "11) Trabaja con nosotros" },
+      { text: "12", label: "12) Certificarme" },
     ];
 
-    // ====== Utils ======
+    function menuWelcomeText() {
+      return `👋 Hola, soy LYRO-CAPACÍTAMENTE 🤖
+
+📌 MENÚ PRINCIPAL (elige una opción)
+
+1) Cursos gratis
+2) Cursos con certificados
+3) Contacto
+4) Donar
+5) Estado de certificado
+6) Horarios
+7) Quiénes somos
+8) Misión y visión
+9) Valores
+10) Beneficios
+11) Trabaja con nosotros
+12) Certificarme
+
+(Responde con 1-12 o escribe tu pregunta)`;
+    }
+
     function fmtDate(d) {
       return new Date(d).toLocaleDateString("es-EC", { year:"numeric", month:"2-digit", day:"2-digit" });
     }
@@ -432,22 +450,6 @@
       return "bot";
     }
 
-    function setBusy(isBusy) {
-      sendButton.disabled = isBusy;
-      chatInput.disabled = isBusy;
-    }
-
-    function safeText(s) {
-      return String(s || "").replace(/\r/g, "").trim();
-    }
-
-    // ====== Render sugerencias (con ruedita si es "N) ...") ======
-    function splitNumericLabel(label) {
-      const m = String(label || "").trim().match(/^(\d+)\)\s*(.+)$/);
-      if (!m) return null;
-      return { num: m[1], text: m[2] };
-    }
-
     function renderSuggestions(list) {
       const items = Array.isArray(list) && list.length ? list : DEFAULT_MENU_SUGGESTIONS;
       suggestionWrap.innerHTML = "";
@@ -456,373 +458,292 @@
         const btn = document.createElement("button");
         btn.className = "suggestion";
         btn.type = "button";
-
-        const sendText = String(it.text || "").trim() || String(it.label || "").trim();
-        btn.dataset.text = sendText;
-
-        const labelRaw = String(it.label || it.text || "").trim();
-        const parts = splitNumericLabel(labelRaw);
-
-        if (parts) {
-          const badge = document.createElement("span");
-          badge.className = "suggestion-badge";
-          badge.textContent = parts.num;
-
-          const txt = document.createElement("span");
-          txt.className = "suggestion-text";
-          txt.textContent = parts.text;
-
-          btn.appendChild(badge);
-          btn.appendChild(txt);
-        } else {
-          // Para botones no numéricos, solo texto
-          const txt = document.createElement("span");
-          txt.className = "suggestion-text";
-          txt.textContent = labelRaw || sendText;
-          btn.appendChild(txt);
-        }
-
-        btn.addEventListener("click", () => {
-          const t = btn.dataset.text || "";
-          if (!t) return;
-          chatInput.value = t;
-          sendMessage();
-        });
-
+        btn.textContent = it.label || it.text;
+        btn.dataset.text = it.text;
+        btn.addEventListener("click", () => sendMessage(btn.dataset.text));
         suggestionWrap.appendChild(btn);
       });
+
+      suggestionWrap.scrollTop = 0;
     }
 
-    // ====== Fetch helper ======
-    async function api(path, options = {}) {
+    async function apiFetch(path, opts = {}) {
       const headers = Object.assign(
         { "Content-Type": "application/json", "x-client-id": clientId },
-        options.headers || {}
+        (opts.headers || {})
       );
-      const res = await fetch(SERVER_URL + path, Object.assign({}, options, { headers }));
-      const text = await res.text();
-      let data = null;
-      try { data = JSON.parse(text); } catch { data = { raw: text }; }
-      return { ok: res.ok, status: res.status, data };
-    }
 
-    // ====== Chat: enviar mensaje ======
-    async function sendMessage() {
-      const message = safeText(chatInput.value);
-      if (!message) return;
+      const res = await fetch(SERVER_URL + path, { ...opts, headers });
+      const txt = await res.text();
+      let json = null;
+      try { json = JSON.parse(txt); } catch {}
 
-      chatInput.value = "";
-      addMessage(message, "user", Date.now());
-      setBusy(true);
-
-      try {
-        const body = { message, sessionId: currentSessionId };
-        const r = await api("/chat", { method: "POST", body: JSON.stringify(body) });
-
-        if (!r.ok) {
-          addMessage("No pude enviar el mensaje. Intenta nuevamente.", "bot", Date.now());
-          renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
-          return;
-        }
-
-        const reply = safeText(r.data.reply);
-        const sid = String(r.data.sessionId || currentSessionId || "").trim();
-
-        if (sid && sid !== currentSessionId) {
-          currentSessionId = sid;
-          localStorage.setItem(SESSION_KEY, currentSessionId);
-        }
-
-        if (reply) addMessage(reply, "bot", Date.now());
-
-        if (Array.isArray(r.data.suggestions)) renderSuggestions(r.data.suggestions);
-        else renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
-
-      } catch (e) {
-        addMessage("Error de conexión. Revisa tu internet o el servidor.", "bot", Date.now());
-        renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
-      } finally {
-        setBusy(false);
+      if (!res.ok) {
+        const msg = (json && (json.error || json.reply)) ? (json.error || json.reply) : txt;
+        throw new Error("HTTP " + res.status + ": " + msg);
       }
-    }
-
-    // ====== Historial: cargar mensajes ======
-    async function loadHistory(sessionId) {
-      if (!sessionId) return;
-
-      setBusy(true);
-      try {
-        const r = await api("/history/" + encodeURIComponent(sessionId) + "?limit=300", { method: "GET" });
-
-        clearMessages();
-
-        if (!r.ok) {
-          addMessage("No pude cargar el historial.", "bot", Date.now());
-          renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
-          return;
-        }
-
-        const msgs = Array.isArray(r.data.messages) ? r.data.messages : [];
-        msgs.forEach(m => {
-          addMessage(safeText(m.content), roleToSender(m.role), m.created_at || Date.now());
-        });
-
-        renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
-      } catch (e) {
-        clearMessages();
-        addMessage("Error al cargar historial.", "bot", Date.now());
-        renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
-      } finally {
-        setBusy(false);
-      }
-    }
-
-    // ====== Sesiones: crear nueva ======
-    async function createNewSessionAndLoad() {
-      setBusy(true);
-      try {
-        const r = await api("/sessions", { method: "POST", body: JSON.stringify({}) });
-        if (!r.ok) {
-          addMessage("No pude crear una nueva conversación.", "bot", Date.now());
-          return;
-        }
-
-        const sid = String(r.data.sessionId || "").trim();
-        if (!sid) {
-          addMessage("No se recibió sessionId.", "bot", Date.now());
-          return;
-        }
-
-        currentSessionId = sid;
-        localStorage.setItem(SESSION_KEY, currentSessionId);
-
-        await loadHistory(currentSessionId);
-        await loadSessionsList(); // refresca drawer
-      } catch (e) {
-        addMessage("Error creando conversación.", "bot", Date.now());
-      } finally {
-        setBusy(false);
-      }
-    }
-
-    // ====== Drawer: cargar lista de sesiones ======
-    function closeAllHistoryMenus() {
-      const menus = historyList.querySelectorAll(".history-menu");
-      menus.forEach(m => m.style.display = "none");
+      return json ?? {};
     }
 
     async function loadSessionsList() {
+      const data = await apiFetch("/sessions?limit=50", { method: "GET" });
+      const sessions = data.sessions || [];
+      historyList.innerHTML = "";
+
+      if (sessions.length === 0) {
+        const empty = document.createElement("div");
+        empty.style.opacity = "0.8";
+        empty.style.fontSize = "0.9em";
+        empty.style.padding = "10px";
+        empty.textContent = "Aún no hay conversaciones. Pulsa “Nueva”.";
+        historyList.appendChild(empty);
+        return;
+      }
+
+      const hasNumbers = sessions.some(s => typeof s.conversation_number === "number");
+      let fallbackMap = new Map();
+      if (!hasNumbers) {
+        const byCreated = [...sessions].sort((a,b) => new Date(a.created_at||0) - new Date(b.created_at||0));
+        byCreated.forEach((s, i) => fallbackMap.set(s.session_id, i + 1));
+      }
+
+      const groups = {};
+      for (const s of sessions) {
+        const stamp = s.last_message_at || s.created_at || Date.now();
+        const day = fmtDate(stamp);
+        if (!groups[day]) groups[day] = [];
+        groups[day].push(s);
+      }
+
+      const orderedDays = Object.keys(groups).sort((a,b) => {
+        const pa = a.split("/").reverse().join("-");
+        const pb = b.split("/").reverse().join("-");
+        return pb.localeCompare(pa);
+      });
+
+      orderedDays.forEach(day => {
+        const sep = document.createElement("div");
+        sep.className = "day-sep";
+        sep.textContent = "📅 " + day;
+        historyList.appendChild(sep);
+
+        groups[day].forEach(s => {
+          const stamp = s.last_message_at || s.created_at || Date.now();
+          const convNum = (typeof s.conversation_number === "number")
+            ? s.conversation_number
+            : (fallbackMap.get(s.session_id) || 1);
+
+          const label = `Conversación #${convNum}`;
+          const pinned = !!s.pinned;
+
+          const itemDiv = document.createElement("div");
+          itemDiv.className = "session-item" + (s.session_id === currentSessionId ? " active" : "");
+          itemDiv.dataset.session = s.session_id;
+          itemDiv.dataset.pinned = pinned ? "1" : "0";
+
+          const pinBadge = pinned ? `<span class="pin-badge">📌 Fijada</span>` : "";
+
+          itemDiv.innerHTML = `
+            <div class="session-content-click">
+              <div class="meta">
+                🕒 ${fmtTime(stamp)}
+                <span style="opacity:.7;">•</span>
+                <span style="opacity:.95;">${label}</span>
+                ${pinBadge}
+              </div>
+              <div class="preview">${(s.last_message_preview || "Conversación nueva").replace(/</g,"&lt;")}</div>
+            </div>
+
+            <button class="history-more" type="button" title="Opciones">⋯</button>
+
+            <div class="history-menu">
+              <button class="history-pin" type="button">${pinned ? "📌 Quitar pin" : "📌 Fijar"}</button>
+              <button class="history-delete danger" type="button">🗑️ Eliminar</button>
+            </div>
+          `;
+
+          historyList.appendChild(itemDiv);
+        });
+      });
+    }
+
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".session-item")) {
+        document.querySelectorAll(".history-menu").forEach(m => m.style.display = "none");
+      }
+    });
+
+    async function togglePin(sid, pinnedNow) {
+      await apiFetch(`/session/${encodeURIComponent(sid)}/pin`, {
+        method: "POST",
+        body: JSON.stringify({ pinned: !pinnedNow })
+      });
+      await loadSessionsList();
+    }
+
+    historyList.addEventListener("click", async (e) => {
+      const item = e.target.closest(".session-item");
+      if (!item) return;
+
+      const sid = item.getAttribute("data-session");
+      const pinnedNow = item.dataset.pinned === "1";
+
+      if (e.target.closest(".history-more")) {
+        e.stopPropagation();
+        document.querySelectorAll(".history-menu").forEach(m => m.style.display = "none");
+        const menu = item.querySelector(".history-menu");
+        const isOpen = menu.style.display === "block";
+        menu.style.display = isOpen ? "none" : "block";
+        return;
+      }
+
+      if (e.target.closest(".history-pin")) {
+        e.stopPropagation();
+        document.querySelectorAll(".history-menu").forEach(m => m.style.display = "none");
+        try { await togglePin(sid, pinnedNow); }
+        catch (err) { alert("Error fijando: " + err.message); }
+        return;
+      }
+
+      if (e.target.closest(".history-delete")) {
+        e.stopPropagation();
+        document.querySelectorAll(".history-menu").forEach(m => m.style.display = "none");
+        if (!confirm("¿Eliminar esta conversación?")) return;
+
+        try {
+          await apiFetch(`/session/${encodeURIComponent(sid)}`, { method: "DELETE" });
+          item.remove();
+
+          if (sid === currentSessionId) {
+            currentSessionId = "";
+            localStorage.removeItem(SESSION_KEY);
+            clearMessages();
+            addMessage("Conversación eliminada. Pulsa “Nueva” para crear otra.", "bot", new Date().toISOString());
+          }
+          await loadSessionsList();
+          renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
+        } catch(err) {
+          alert("Error eliminando: " + err.message);
+        }
+        return;
+      }
+
+      if (!e.target.closest(".history-menu")) {
+        currentSessionId = sid;
+        localStorage.setItem(SESSION_KEY, currentSessionId);
+        await loadHistory(currentSessionId);
+        await loadSessionsList();
+        historyDrawer.classList.remove("open");
+      }
+    });
+
+    async function loadHistory(sessionId) {
+      clearMessages();
+
+      if (!sessionId) {
+        const s = await apiFetch("/sessions", { method: "POST", body: JSON.stringify({ clientId }) });
+        currentSessionId = s.sessionId;
+        localStorage.setItem(SESSION_KEY, currentSessionId);
+      }
+
       try {
-        const r = await api("/sessions?limit=60", { method: "GET" });
-        historyList.innerHTML = "";
+        const data = await apiFetch(`/history/${encodeURIComponent(currentSessionId)}?limit=300`, { method: "GET" });
+        const msgs = data.messages || [];
 
-        if (!r.ok) {
-          const div = document.createElement("div");
-          div.className = "session-item";
-          div.textContent = "No pude cargar sesiones.";
-          historyList.appendChild(div);
+        if (msgs.length === 0) {
+          addMessage(menuWelcomeText(), "bot", new Date().toISOString());
+          renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
           return;
         }
 
-        const sessions = Array.isArray(r.data.sessions) ? r.data.sessions : [];
-        if (!sessions.length) {
-          const div = document.createElement("div");
-          div.className = "session-item";
-          div.textContent = "Aún no hay conversaciones.";
-          historyList.appendChild(div);
-          return;
+        for (const m of msgs) {
+          addMessage(m.content || "", roleToSender(m.role), m.created_at);
         }
+      } catch (e) {
+        addMessage(menuWelcomeText(), "bot", new Date().toISOString());
+      }
 
-        // agrupar por día usando last_message_at o created_at
-        let lastDay = "";
-        sessions.forEach(s => {
-          const when = s.last_message_at || s.created_at || s.last_seen || Date.now();
-          const day = fmtDate(when);
-          if (day !== lastDay) {
-            const sep = document.createElement("div");
-            sep.className = "day-sep";
-            sep.textContent = day;
-            historyList.appendChild(sep);
-            lastDay = day;
-          }
+      renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
+    }
 
-          const item = document.createElement("div");
-          item.className = "session-item";
-          if (String(s.session_id) === String(currentSessionId)) item.classList.add("active");
+    async function newConversation() {
+      const s = await apiFetch("/sessions", { method: "POST", body: JSON.stringify({ clientId }) });
+      currentSessionId = s.sessionId;
+      localStorage.setItem(SESSION_KEY, currentSessionId);
 
-          const contentClick = document.createElement("div");
-          contentClick.className = "session-content-click";
+      clearMessages();
+      addMessage(menuWelcomeText(), "bot", new Date().toISOString());
+      renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
 
-          const meta = document.createElement("div");
-          meta.className = "meta";
+      try { await loadHistory(currentSessionId); } catch {}
+      await loadSessionsList();
+    }
 
-          const title = document.createElement("span");
-          const conv = s.conversation_number ? ("Conv. #" + s.conversation_number) : ("Conv. " + String(s.session_id || "").slice(-6));
-          title.textContent = conv;
+    async function sendMessage(textFromButton = null) {
+      const rawText = textFromButton ? String(textFromButton) : (chatInput.value || "").trim();
+      if (!rawText) return;
 
-          const time = document.createElement("span");
-          time.textContent = fmtTime(when);
+      addMessage(rawText, "user", new Date().toISOString());
+      chatInput.value = "";
 
-          meta.appendChild(title);
-          meta.appendChild(time);
+      chatInput.disabled = true;
+      sendButton.disabled = true;
+      sendButton.textContent = "Cargando...";
 
-          if (s.pinned) {
-            const pin = document.createElement("span");
-            pin.className = "pin-badge";
-            pin.textContent = "📌";
-            meta.appendChild(pin);
-          }
-
-          const preview = document.createElement("div");
-          preview.className = "preview";
-          preview.textContent = safeText(s.last_message_preview || "Sin mensajes aún.");
-
-          contentClick.appendChild(meta);
-          contentClick.appendChild(preview);
-
-          contentClick.addEventListener("click", async () => {
-            currentSessionId = String(s.session_id || "");
-            localStorage.setItem(SESSION_KEY, currentSessionId);
-            closeAllHistoryMenus();
-            await loadHistory(currentSessionId);
-            await loadSessionsList();
-            historyDrawer.classList.remove("open");
-          });
-
-          // menú 3 puntos
-          const moreBtn = document.createElement("button");
-          moreBtn.className = "history-more";
-          moreBtn.type = "button";
-          moreBtn.textContent = "⋯";
-
-          const menu = document.createElement("div");
-          menu.className = "history-menu";
-
-          const pinBtn = document.createElement("button");
-          pinBtn.type = "button";
-          pinBtn.textContent = s.pinned ? "📌 Quitar pin" : "📌 Fijar";
-
-          pinBtn.addEventListener("click", async (ev) => {
-            ev.stopPropagation();
-            closeAllHistoryMenus();
-            const pinned = !s.pinned;
-            await api("/session/" + encodeURIComponent(s.session_id) + "/pin", {
-              method: "POST",
-              body: JSON.stringify({ pinned })
-            });
-            await loadSessionsList();
-          });
-
-          const delBtn = document.createElement("button");
-          delBtn.type = "button";
-          delBtn.className = "danger";
-          delBtn.textContent = "🗑️ Eliminar";
-
-          delBtn.addEventListener("click", async (ev) => {
-            ev.stopPropagation();
-            closeAllHistoryMenus();
-
-            const ok = confirm("¿Eliminar esta conversación? Se borrará el historial.");
-            if (!ok) return;
-
-            await api("/session/" + encodeURIComponent(s.session_id), { method: "DELETE" });
-
-            // Si borraste la actual, crea otra
-            if (String(s.session_id) === String(currentSessionId)) {
-              currentSessionId = "";
-              localStorage.removeItem(SESSION_KEY);
-              clearMessages();
-              renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
-              await createNewSessionAndLoad();
-              return;
-            }
-
-            await loadSessionsList();
-          });
-
-          menu.appendChild(pinBtn);
-          menu.appendChild(delBtn);
-
-          moreBtn.addEventListener("click", (ev) => {
-            ev.stopPropagation();
-            const visible = menu.style.display === "block";
-            closeAllHistoryMenus();
-            menu.style.display = visible ? "none" : "block";
-          });
-
-          item.appendChild(contentClick);
-          item.appendChild(moreBtn);
-          item.appendChild(menu);
-
-          historyList.appendChild(item);
+      try {
+        const data = await apiFetch("/chat", {
+          method: "POST",
+          body: JSON.stringify({ message: rawText, sessionId: currentSessionId, clientId })
         });
 
-      } catch (e) {
-        historyList.innerHTML = "";
-        const div = document.createElement("div");
-        div.className = "session-item";
-        div.textContent = "Error cargando sesiones.";
-        historyList.appendChild(div);
+        if (data.sessionId && data.sessionId !== currentSessionId) {
+          currentSessionId = data.sessionId;
+          localStorage.setItem(SESSION_KEY, currentSessionId);
+        }
+
+        addMessage(data.reply || "Sin respuesta.", "bot", new Date().toISOString());
+        renderSuggestions(data.suggestions || DEFAULT_MENU_SUGGESTIONS);
+
+        await loadSessionsList();
+      } catch (err) {
+        console.error("Error:", err);
+        addMessage("Lo siento, estoy teniendo problemas de conexión. Intenta más tarde.", "bot", new Date().toISOString());
+        renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
+      } finally {
+        chatInput.disabled = false;
+        sendButton.disabled = false;
+        sendButton.textContent = "Enviar";
+        chatInput.focus();
       }
     }
 
-    // cerrar menús al hacer click fuera
-    document.addEventListener("click", (e) => {
-      if (!historyDrawer.classList.contains("open")) return;
-      const isMenu = e.target.closest(".history-menu") || e.target.closest(".history-more");
-      if (!isMenu) closeAllHistoryMenus();
-    });
+    toggleButton.onclick = async () => {
+      const isVisible = chatContainer.style.display === "flex";
+      chatContainer.style.display = isVisible ? "none" : "flex";
 
-    // ====== Eventos UI ======
-    toggleButton.addEventListener("click", async () => {
-      const isOpen = chatContainer.style.display === "flex";
-      chatContainer.style.display = isOpen ? "none" : "flex";
+      if (!isVisible) {
+        renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
+        fetch(SERVER_URL + "/health").catch(()=>{});
+        await loadSessionsList();
+        await loadHistory(currentSessionId);
+        setTimeout(() => chatInput.focus(), 120);
+      }
+    };
 
-      if (!isOpen) {
-        // Al abrir: asegura sesión
-        if (!currentSessionId) {
-          await createNewSessionAndLoad();
-        } else {
-          await loadHistory(currentSessionId);
-        }
+    sendButton.onclick = () => sendMessage();
+
+    chatInput.addEventListener("keypress", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        sendMessage();
       }
     });
 
-    historyOpen.addEventListener("click", async () => {
-      historyDrawer.classList.add("open");
-      await loadSessionsList();
-    });
+    historyOpen.onclick = () => historyDrawer.classList.add("open");
+    historyClose.onclick = () => historyDrawer.classList.remove("open");
+    newChatBtn.onclick = async () => { await newConversation(); };
 
-    historyClose.addEventListener("click", () => {
-      historyDrawer.classList.remove("open");
-      closeAllHistoryMenus();
-    });
-
-    newChatBtn.addEventListener("click", async () => {
-      closeAllHistoryMenus();
-      historyDrawer.classList.remove("open");
-      await createNewSessionAndLoad();
-    });
-
-    sendButton.addEventListener("click", sendMessage);
-
-    chatInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") sendMessage();
-    });
-
-    // ====== Inicial ======
     renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
-
-    // Si ya hay sesión guardada, puedes precargar historial (opcional)
-    // Si no quieres precargar, comenta esto.
-    (async () => {
-      if (currentSessionId) {
-        // no abre el chat, solo prepara data por si abres
-        // si prefieres cargar al abrir, comenta lo de abajo
-        try { await loadHistory(currentSessionId); } catch {}
-      }
-    })();
   </script>
 </body>
 </html>
-```
