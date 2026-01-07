@@ -7,7 +7,6 @@
 
   <style>
     body { margin:0; padding:0; }
-
     #chat-toggle{
       position:fixed; bottom:20px; right:20px; padding:15px 20px;
       background:#1E90FF; color:#fff; border:none; border-radius:30px;
@@ -261,7 +260,6 @@
       flex: 0 0 auto;
     }
     .suggestion:hover{ background:#1E90FF; color:#fff; }
-    .suggestion:disabled{ opacity:.6; cursor:not-allowed; }
 
     #chat-input-area{
       display:flex; padding:10px;
@@ -281,7 +279,6 @@
 </head>
 
 <body>
-
   <button id="chat-toggle">🤖 Chatea con Lyro</button>
 
   <a id="whatsapp-toggle" href="https://wa.me/593991667561" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
@@ -289,7 +286,6 @@
   </a>
 
   <div id="chat-container">
-
     <div id="history-drawer">
       <div id="history-top">
         <b>📚 Historial</b>
@@ -318,7 +314,6 @@
         <button id="send-button">Enviar</button>
       </div>
     </div>
-
   </div>
 
   <script>
@@ -406,11 +401,6 @@
       return "bot";
     }
 
-    function setSuggestionsEnabled(enabled) {
-      const btns = suggestionWrap.querySelectorAll("button");
-      btns.forEach(b => b.disabled = !enabled);
-    }
-
     function renderSuggestions(list) {
       const items = Array.isArray(list) && list.length ? list : DEFAULT_MENU_SUGGESTIONS;
       suggestionWrap.innerHTML = "";
@@ -428,7 +418,8 @@
       suggestionWrap.scrollTop = 0;
     }
 
-    async function apiFetch(path, opts = {}, allowNon2xx = false) {
+    // ✅ Mejorado: si el server devuelve {reply}, NO lo tratamos como error aunque HTTP no sea 200
+    async function apiFetch(path, opts = {}) {
       const headers = Object.assign(
         { "Content-Type": "application/json", "x-client-id": clientId },
         (opts.headers || {})
@@ -439,20 +430,16 @@
       let json = null;
       try { json = JSON.parse(txt); } catch {}
 
-      if (!res.ok && !allowNon2xx) {
+      // Si viene reply, lo aceptamos como respuesta usable
+      if (json && typeof json.reply === "string") return json;
+
+      if (!res.ok) {
         const msg = (json && (json.error || json.reply)) ? (json.error || json.reply) : txt;
         throw new Error("HTTP " + res.status + ": " + msg);
       }
-
-      // si allowNon2xx, devolvemos lo que haya
-      const out = (json ?? {});
-      out.__httpStatus = res.status;
-      return out;
+      return json ?? {};
     }
 
-    // =====================
-    // Historial
-    // =====================
     async function loadSessionsList() {
       const data = await apiFetch("/sessions?limit=50", { method: "GET" });
       const sessions = data.sessions || [];
@@ -573,7 +560,7 @@
         try {
           await togglePin(sid, pinnedNow);
         } catch (err) {
-          alert("Error fijando: " + err.message + "\n\nTip: agrega columnas pinned/pinned_at en Supabase.");
+          alert("Error fijando: " + err.message);
         }
         return;
       }
@@ -652,7 +639,6 @@
       await loadSessionsList();
     }
 
-    // ✅ envío robusto
     async function sendMessage(textFromButton = null) {
       const rawText = textFromButton ? String(textFromButton) : (chatInput.value || "").trim();
       if (!rawText) return;
@@ -662,15 +648,13 @@
 
       chatInput.disabled = true;
       sendButton.disabled = true;
-      setSuggestionsEnabled(false);
       sendButton.textContent = "Cargando...";
 
       try {
-        // allowNon2xx = true para que si el server manda 403 u otro, igual usemos el JSON
         const data = await apiFetch("/chat", {
           method: "POST",
           body: JSON.stringify({ message: rawText, sessionId: currentSessionId, clientId })
-        }, true);
+        });
 
         if (data.sessionId && data.sessionId !== currentSessionId) {
           currentSessionId = data.sessionId;
@@ -683,12 +667,17 @@
         await loadSessionsList();
       } catch (err) {
         console.error("Error:", err);
-        addMessage("Lo siento, hubo un problema de red. Verifica tu conexión e intenta otra vez.", "bot", new Date().toISOString());
+
+        // ✅ Fallback neutro tipo menú (sin “IA no pudo responder”)
+        addMessage(
+          "En este momento no puedo responder esa consulta. Escribe MENU para ver opciones o usa Contacto.",
+          "bot",
+          new Date().toISOString()
+        );
         renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
       } finally {
         chatInput.disabled = false;
         sendButton.disabled = false;
-        setSuggestionsEnabled(true);
         sendButton.textContent = "Enviar";
         chatInput.focus();
       }
@@ -700,7 +689,6 @@
 
       if (!isVisible) {
         renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
-
         fetch(SERVER_URL + "/health").catch(()=>{});
         await loadSessionsList();
         await loadHistory(currentSessionId);
