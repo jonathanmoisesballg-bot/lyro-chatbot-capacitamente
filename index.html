@@ -8,7 +8,7 @@
   <style>
     body { margin:0; padding:0; }
 
-    /* Botón Abrir/Cerrar */
+    /* Botón Abrir */
     #chat-toggle{
       position:fixed; bottom:20px; right:20px; padding:15px 20px;
       background:#1E90FF; color:#fff; border:none; border-radius:30px;
@@ -17,7 +17,7 @@
     }
     #chat-toggle:hover{ filter:brightness(.97); transform: translateY(-2px); }
 
-    /* WhatsApp solo ícono */
+    /* WhatsApp flotante */
     #whatsapp-toggle{
       position:fixed; bottom:20px; right:200px;
       width:56px; height:56px;
@@ -49,6 +49,16 @@
       font-family:Arial, sans-serif;
     }
 
+    /* Móvil: pantalla completa (clave para que NO se tapen botones) */
+    @media (max-width: 520px) {
+      #chat-container{
+        width:100vw; height:100vh;
+        right:0; bottom:0;
+        max-width:100vw; max-height:100vh;
+        border-radius:0;
+      }
+    }
+
     #chat-header{
       background:#1E90FF; color:#fff; padding:10px 12px;
       font-weight:bold; font-size:1.02em;
@@ -72,7 +82,7 @@
     #chat-title{
       font-weight:800;
       white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-      max-width:210px;
+      max-width:190px;
     }
 
     /* Drawer Historial */
@@ -237,16 +247,17 @@
       margin-top:4px;
     }
 
-    /* Footer (sugerencias + input) */
+    /* Footer */
     #chat-footer{
       background:#fff;
       border-top:1px solid #eee;
       flex: 0 0 auto;
       display:flex;
       flex-direction:column;
+      padding-bottom: env(safe-area-inset-bottom);
     }
 
-    /* ✅ Sugerencias con scroll (ruedita) para que NO se tapen */
+    /* Sugerencias con scroll (ruedita) */
     #suggestion-buttons{
       padding:10px;
       background:#F4F7F9;
@@ -255,8 +266,8 @@
       gap:6px;
       border-bottom:1px solid #eee;
 
-      max-height: 160px;      /* un poquito más alto */
-      overflow-y: auto;       /* CLAVE */
+      max-height: 170px;
+      overflow-y: auto;
       overscroll-behavior: contain;
       scrollbar-width: thin;
     }
@@ -293,7 +304,8 @@
 
   <button id="chat-toggle">🤖 Chatea con Lyro</button>
 
-  <a id="whatsapp-toggle" href="https://wa.me/593991667561" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
+  <!-- WhatsApp de la fundación (0983222358 -> 593983222358) -->
+  <a id="whatsapp-toggle" href="https://wa.me/593983222358" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
     <span class="wa-icon" aria-hidden="true"></span>
   </a>
 
@@ -314,6 +326,7 @@
       </div>
       <div class="right">
         <button class="header-btn" id="new-chat">＋ Nueva</button>
+        <button class="header-btn" id="chat-close-btn">✕</button>
       </div>
     </div>
 
@@ -337,7 +350,8 @@
     const CLIENT_ID_KEY = "lyroClientId";
     let clientId = localStorage.getItem(CLIENT_ID_KEY);
     if (!clientId) {
-      clientId = (crypto.randomUUID ? crypto.randomUUID() : ("cid-" + Date.now() + "-" + Math.random().toString(36).slice(2)));
+      const wcrypto = window.crypto || {};
+      clientId = (wcrypto.randomUUID ? wcrypto.randomUUID() : ("cid-" + Date.now() + "-" + Math.random().toString(36).slice(2)));
       localStorage.setItem(CLIENT_ID_KEY, clientId);
     }
 
@@ -346,6 +360,7 @@
 
     // UI refs
     const toggleButton = document.getElementById("chat-toggle");
+    const whatsappToggle = document.getElementById("whatsapp-toggle");
     const chatContainer = document.getElementById("chat-container");
     const sendButton = document.getElementById("send-button");
     const chatInput = document.getElementById("chat-input");
@@ -357,6 +372,7 @@
     const historyClose = document.getElementById("history-close");
     const historyList = document.getElementById("history-list");
     const newChatBtn = document.getElementById("new-chat");
+    const chatCloseBtn = document.getElementById("chat-close-btn");
 
     const DEFAULT_MENU_SUGGESTIONS = [
       { text: "1", label: "1) Cursos gratis" },
@@ -367,12 +383,18 @@
       { text: "6", label: "6) Horarios" },
     ];
 
-    function menuWelcomeText() {
+    // =============== Local fallback (para que NUNCA salga “error”)
+    function normalizeText(s){
+      return String(s||"").trim().toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+    }
+
+    function localMenuText(){
       return `👋 Hola, soy LYRO-CAPACÍTAMENTE 🤖
 
 ¿En qué te puedo ayudar?
 
-📌 Elige una opción:
+📌 MENÚ PRINCIPAL (elige una opción)
 
 1) Cursos gratis
 2) Cursos con certificados y precios
@@ -381,7 +403,63 @@
 5) Estado de certificado
 6) Horarios
 
-(Responde con 1-6 o escribe tu pregunta)`;
+Responde con el número (1-6) o escribe tu pregunta.`;
+    }
+
+    function localReply(message){
+      const t = normalizeText(message);
+
+      if (["hola","buenas","menu","menú","opciones","inicio","0"].includes(t)) {
+        return { reply: localMenuText(), suggestions: DEFAULT_MENU_SUGGESTIONS };
+      }
+
+      if (t.includes("beneficio") || (t.includes("empresa") && t.includes("ayuda"))) {
+        return {
+          reply:
+`✅ BENEFICIOS EN FUNDACIÓN CAPACÍTAMENTE
+
+La Fundación Capacítamente (sin fines de lucro) ofrece:
+• Capacitación en habilidades blandas y digitales.
+• Cursos gratuitos y cursos con certificado.
+• Horarios flexibles (100% online).
+• Acompañamiento para inscribirte.
+
+Escribe MENU para ver opciones.`,
+          suggestions: DEFAULT_MENU_SUGGESTIONS
+        };
+      }
+
+      if ((t.includes("certificar") || t.includes("certificarme") || t.includes("certificacion")) && t.includes("como")) {
+        return {
+          reply:
+`🎓 CERTIFICARTE EN UN CURSO
+
+Para certificarte, primero debes INSCRIBIRTE.
+Elige tu curso con certificado (1-3):
+
+1) Formador de Formadores ($120)
+2) Inteligencia Emocional ($15)
+3) Tecnología para Padres ($15)`,
+          suggestions: [
+            { text:"1", label:"1) Formador de Formadores" },
+            { text:"2", label:"2) Inteligencia Emocional" },
+            { text:"3", label:"3) Tecnología para Padres" },
+            { text:"menu", label:"📌 Menú" }
+          ]
+        };
+      }
+
+      if (/^[1-6]$/.test(t)) {
+        if (t === "1") return { reply: "🎓 CURSOS GRATUITOS\n\n• Tecnología para Educadores – Tatiana Arias\n\nEscribe: INSCRIBIRME", suggestions: DEFAULT_MENU_SUGGESTIONS };
+        if (t === "2") return { reply: "🎓 CURSOS CON CERTIFICADO\n\n• Formador de Formadores ($120)\n• Inteligencia Emocional ($15)\n• Tecnología para Padres ($15)\n\nEscribe: INSCRIBIRME", suggestions: DEFAULT_MENU_SUGGESTIONS };
+        if (t === "3") return { reply: "📞 CONTACTO\n\n📱 0983222358\n✉️ info@fundacioncapacitamente.com\n📍 Guayaquil - Ecuador", suggestions: DEFAULT_MENU_SUGGESTIONS };
+        if (t === "4") return { reply: "💙 DONAR\n\n1) Donaciones → Donar ahora\n2) Elegir cantidad → Continuar\n3) Llenar datos\n4) Transferencia o PayPal\n5) Donar ahora", suggestions: DEFAULT_MENU_SUGGESTIONS };
+        if (t === "5") return { reply: "📄 ESTADO DE CERTIFICADO\n\nEscribe tu CÉDULA (10 dígitos) y el curso.\nEj: 0923456789 - Inteligencia Emocional", suggestions: DEFAULT_MENU_SUGGESTIONS };
+        if (t === "6") return { reply: "🕒 HORARIOS\n\nDime tu preferencia: Mañana / Tarde / Noche", suggestions: DEFAULT_MENU_SUGGESTIONS };
+      }
+
+      // fallback general
+      return { reply: "Puedo ayudarte con la Fundación Capacítamente. Escribe MENU para ver opciones.", suggestions: DEFAULT_MENU_SUGGESTIONS };
     }
 
     function fmtDate(d) {
@@ -431,112 +509,135 @@
         suggestionWrap.appendChild(btn);
       });
 
-      suggestionWrap.scrollTop = 0; // que se vea “bonito” arriba
+      suggestionWrap.scrollTop = 0;
     }
 
-    async function apiFetch(path, opts = {}) {
+    // Fetch con timeout + retry
+    function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+    async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(url, { ...options, signal: controller.signal });
+        return res;
+      } finally {
+        clearTimeout(id);
+      }
+    }
+
+    async function apiFetch(path, opts = {}, retries = 2) {
       const headers = Object.assign(
         { "Content-Type": "application/json", "x-client-id": clientId },
         (opts.headers || {})
       );
 
-      const res = await fetch(SERVER_URL + path, { ...opts, headers });
-      const txt = await res.text();
-      let json = null;
-      try { json = JSON.parse(txt); } catch {}
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+          const res = await fetchWithTimeout(SERVER_URL + path, { ...opts, headers }, 12000);
+          const txt = await res.text();
+          let json = null;
+          try { json = JSON.parse(txt); } catch {}
 
-      if (!res.ok) {
-        const msg = (json && (json.error || json.reply)) ? (json.error || json.reply) : txt;
-        throw new Error("HTTP " + res.status + ": " + msg);
+          // aunque venga error, preferimos usar reply/suggestions si existen
+          if (!res.ok) {
+            if (json && (json.reply || json.suggestions)) return json;
+            throw new Error("HTTP " + res.status);
+          }
+          return json ?? {};
+        } catch (e) {
+          if (attempt === retries) throw e;
+          await sleep(450 + attempt * 400);
+        }
       }
-      return json ?? {};
     }
 
     // =====================
     // Historial
     // =====================
     async function loadSessionsList() {
-      const data = await apiFetch("/sessions?limit=50", { method: "GET" });
-      const sessions = data.sessions || [];
+      try {
+        const data = await apiFetch("/sessions?limit=50", { method: "GET" });
+        const sessions = data.sessions || [];
 
-      historyList.innerHTML = "";
+        historyList.innerHTML = "";
 
-      if (sessions.length === 0) {
-        const empty = document.createElement("div");
-        empty.style.opacity = "0.8";
-        empty.style.fontSize = "0.9em";
-        empty.style.padding = "10px";
-        empty.textContent = "Aún no hay conversaciones. Pulsa “Nueva”.";
-        historyList.appendChild(empty);
-        return;
-      }
+        if (sessions.length === 0) {
+          const empty = document.createElement("div");
+          empty.style.opacity = "0.8";
+          empty.style.fontSize = "0.9em";
+          empty.style.padding = "10px";
+          empty.textContent = "Aún no hay conversaciones. Pulsa “Nueva”.";
+          historyList.appendChild(empty);
+          return;
+        }
 
-      const hasNumbers = sessions.some(s => typeof s.conversation_number === "number");
-      let fallbackMap = new Map();
-      if (!hasNumbers) {
-        const byCreated = [...sessions].sort((a,b) => new Date(a.created_at||0) - new Date(b.created_at||0));
-        byCreated.forEach((s, i) => fallbackMap.set(s.session_id, i + 1));
-      }
+        const hasNumbers = sessions.some(s => typeof s.conversation_number === "number");
+        let fallbackMap = new Map();
+        if (!hasNumbers) {
+          const byCreated = [...sessions].sort((a,b) => new Date(a.created_at||0) - new Date(b.created_at||0));
+          byCreated.forEach((s, i) => fallbackMap.set(s.session_id, i + 1));
+        }
 
-      const groups = {};
-      for (const s of sessions) {
-        const stamp = s.last_message_at || s.created_at || Date.now();
-        const day = fmtDate(stamp);
-        if (!groups[day]) groups[day] = [];
-        groups[day].push(s);
-      }
-
-      const orderedDays = Object.keys(groups).sort((a,b) => {
-        const pa = a.split("/").reverse().join("-");
-        const pb = b.split("/").reverse().join("-");
-        return pb.localeCompare(pa);
-      });
-
-      orderedDays.forEach(day => {
-        const sep = document.createElement("div");
-        sep.className = "day-sep";
-        sep.textContent = "📅 " + day;
-        historyList.appendChild(sep);
-
-        groups[day].forEach(s => {
+        const groups = {};
+        for (const s of sessions) {
           const stamp = s.last_message_at || s.created_at || Date.now();
+          const day = fmtDate(stamp);
+          if (!groups[day]) groups[day] = [];
+          groups[day].push(s);
+        }
 
-          const convNum = (typeof s.conversation_number === "number")
-            ? s.conversation_number
-            : (fallbackMap.get(s.session_id) || 1);
-
-          const label = `Conversación #${convNum}`;
-          const pinned = !!s.pinned;
-
-          const itemDiv = document.createElement("div");
-          itemDiv.className = "session-item" + (s.session_id === currentSessionId ? " active" : "");
-          itemDiv.dataset.session = s.session_id;
-          itemDiv.dataset.pinned = pinned ? "1" : "0";
-
-          const pinBadge = pinned ? `<span class="pin-badge">📌 Fijada</span>` : "";
-
-          itemDiv.innerHTML = `
-            <div class="session-content-click">
-              <div class="meta">
-                🕒 ${fmtTime(stamp)}
-                <span style="opacity:.7;">•</span>
-                <span style="opacity:.95;">${label}</span>
-                ${pinBadge}
-              </div>
-              <div class="preview">${(s.last_message_preview || "Conversación nueva").replace(/</g,"&lt;")}</div>
-            </div>
-
-            <button class="history-more" type="button" title="Opciones">⋯</button>
-
-            <div class="history-menu">
-              <button class="history-pin" type="button">${pinned ? "📌 Quitar pin" : "📌 Fijar"}</button>
-              <button class="history-delete danger" type="button">🗑️ Eliminar</button>
-            </div>
-          `;
-
-          historyList.appendChild(itemDiv);
+        const orderedDays = Object.keys(groups).sort((a,b) => {
+          const pa = a.split("/").reverse().join("-");
+          const pb = b.split("/").reverse().join("-");
+          return pb.localeCompare(pa);
         });
-      });
+
+        orderedDays.forEach(day => {
+          const sep = document.createElement("div");
+          sep.className = "day-sep";
+          sep.textContent = "📅 " + day;
+          historyList.appendChild(sep);
+
+          groups[day].forEach(s => {
+            const stamp = s.last_message_at || s.created_at || Date.now();
+            const convNum = (typeof s.conversation_number === "number") ? s.conversation_number : (fallbackMap.get(s.session_id) || 1);
+            const label = `Conversación #${convNum}`;
+            const pinned = !!s.pinned;
+
+            const itemDiv = document.createElement("div");
+            itemDiv.className = "session-item" + (s.session_id === currentSessionId ? " active" : "");
+            itemDiv.dataset.session = s.session_id;
+            itemDiv.dataset.pinned = pinned ? "1" : "0";
+
+            const pinBadge = pinned ? `<span class="pin-badge">📌 Fijada</span>` : "";
+
+            itemDiv.innerHTML = `
+              <div class="session-content-click">
+                <div class="meta">
+                  🕒 ${fmtTime(stamp)}
+                  <span style="opacity:.7;">•</span>
+                  <span style="opacity:.95;">${label}</span>
+                  ${pinBadge}
+                </div>
+                <div class="preview">${(s.last_message_preview || "Conversación nueva").replace(/</g,"&lt;")}</div>
+              </div>
+
+              <button class="history-more" type="button" title="Opciones">⋯</button>
+
+              <div class="history-menu">
+                <button class="history-pin" type="button">${pinned ? "📌 Quitar pin" : "📌 Fijar"}</button>
+                <button class="history-delete danger" type="button">🗑️ Eliminar</button>
+              </div>
+            `;
+
+            historyList.appendChild(itemDiv);
+          });
+        });
+      } catch {
+        // si el server cae, no rompemos UI
+        historyList.innerHTML = "";
+      }
     }
 
     document.addEventListener("click", (e) => {
@@ -572,11 +673,7 @@
       if (e.target.closest(".history-pin")) {
         e.stopPropagation();
         document.querySelectorAll(".history-menu").forEach(m => m.style.display = "none");
-        try {
-          await togglePin(sid, pinnedNow);
-        } catch (err) {
-          alert("Error fijando: " + err.message + "\n\nTip: agrega columnas pinned/pinned_at en Supabase.");
-        }
+        try { await togglePin(sid, pinnedNow); } catch {}
         return;
       }
 
@@ -597,9 +694,7 @@
           }
           await loadSessionsList();
           renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
-        } catch(err) {
-          alert("Error eliminando: " + err.message);
-        }
+        } catch {}
         return;
       }
 
@@ -617,9 +712,14 @@
 
       // si no hay session, crea nueva
       if (!sessionId) {
-        const s = await apiFetch("/sessions", { method: "POST", body: JSON.stringify({ clientId }) });
-        currentSessionId = s.sessionId;
-        localStorage.setItem(SESSION_KEY, currentSessionId);
+        try {
+          const s = await apiFetch("/sessions", { method: "POST", body: JSON.stringify({ clientId }) });
+          currentSessionId = s.sessionId;
+          localStorage.setItem(SESSION_KEY, currentSessionId);
+        } catch {
+          // sin server: seguimos con local
+          currentSessionId = "";
+        }
       }
 
       try {
@@ -627,8 +727,7 @@
         const msgs = data.messages || [];
 
         if (msgs.length === 0) {
-          // ✅ MENSAJE BONITO + BOTONES COMPLETOS al entrar
-          addMessage(menuWelcomeText(), "bot", new Date().toISOString());
+          addMessage(localMenuText(), "bot", new Date().toISOString());
           renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
           return;
         }
@@ -636,29 +735,27 @@
         for (const m of msgs) {
           addMessage(m.content || "", roleToSender(m.role), m.created_at);
         }
-      } catch (e) {
-        // ✅ si falla el historial: igual mostramos bienvenida + menú
-        addMessage(menuWelcomeText(), "bot", new Date().toISOString());
+      } catch {
+        // Local fallback (sin mostrar “error”)
+        addMessage(localMenuText(), "bot", new Date().toISOString());
       }
 
-      // ✅ Siempre mostrar todos los botones al abrir
       renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
     }
 
     async function newConversation() {
-      const s = await apiFetch("/sessions", { method: "POST", body: JSON.stringify({ clientId }) });
-      currentSessionId = s.sessionId;
-      localStorage.setItem(SESSION_KEY, currentSessionId);
+      try {
+        const s = await apiFetch("/sessions", { method: "POST", body: JSON.stringify({ clientId }) });
+        currentSessionId = s.sessionId;
+        localStorage.setItem(SESSION_KEY, currentSessionId);
+      } catch {
+        currentSessionId = "";
+      }
 
       clearMessages();
-
-      // ✅ mensaje inmediato (no depende de red) + botones completos
-      addMessage(menuWelcomeText(), "bot", new Date().toISOString());
-      renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
-
-      // luego carga historial real (si Supabase insertó el menú en servidor)
-      try { await loadHistory(currentSessionId); } catch {}
+      await loadHistory(currentSessionId);
       await loadSessionsList();
+      renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
     }
 
     async function sendMessage(textFromButton = null) {
@@ -683,16 +780,15 @@
           localStorage.setItem(SESSION_KEY, currentSessionId);
         }
 
-        addMessage(data.reply || "Sin respuesta.", "bot", new Date().toISOString());
-
-        // ✅ Botones dinámicos desde server (si vienen); si no, menú completo
+        addMessage(data.reply || localReply(rawText).reply, "bot", new Date().toISOString());
         renderSuggestions(data.suggestions || DEFAULT_MENU_SUGGESTIONS);
 
         await loadSessionsList();
-      } catch (err) {
-        console.error("Error:", err);
-        addMessage("Lo siento, estoy teniendo problemas de conexión. Intenta más tarde.", "bot", new Date().toISOString());
-        renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
+      } catch {
+        // ✅ SIN “problemas de conexión”: responde local
+        const loc = localReply(rawText);
+        addMessage(loc.reply, "bot", new Date().toISOString());
+        renderSuggestions(loc.suggestions || DEFAULT_MENU_SUGGESTIONS);
       } finally {
         chatInput.disabled = false;
         sendButton.disabled = false;
@@ -701,20 +797,30 @@
       }
     }
 
+    function openChat() {
+      chatContainer.style.display = "flex";
+
+      // ✅ Para que NO tape en móvil: ocultamos flotantes mientras el chat está abierto
+      toggleButton.style.display = "none";
+      whatsappToggle.style.display = "none";
+    }
+
+    function closeChat() {
+      chatContainer.style.display = "none";
+      toggleButton.style.display = "inline-block";
+      whatsappToggle.style.display = "inline-flex";
+      historyDrawer.classList.remove("open");
+    }
+
     toggleButton.onclick = async () => {
-      const isVisible = chatContainer.style.display === "flex";
-      chatContainer.style.display = isVisible ? "none" : "flex";
-
-      if (!isVisible) {
-        // ✅ al abrir: que SIEMPRE se vean TODOS los botones y el scroll
-        renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
-
-        fetch(SERVER_URL + "/health").catch(()=>{});
-        await loadSessionsList();
-        await loadHistory(currentSessionId);
-        setTimeout(() => chatInput.focus(), 120);
-      }
+      openChat();
+      try { fetch(SERVER_URL + "/health").catch(()=>{}); } catch {}
+      await loadSessionsList();
+      await loadHistory(currentSessionId);
+      setTimeout(() => chatInput.focus(), 120);
     };
+
+    chatCloseBtn.onclick = () => closeChat();
 
     sendButton.onclick = () => sendMessage();
 
@@ -729,7 +835,7 @@
     historyClose.onclick = () => historyDrawer.classList.remove("open");
     newChatBtn.onclick = async () => { await newConversation(); };
 
-    // ✅ Al cargar la página, prepara botones del menú
+    // Arranque
     renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
   </script>
 </body>
