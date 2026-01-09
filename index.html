@@ -6,6 +6,7 @@
   <title>Chatbot Lyro - Fundación Capacítamente</title>
 
   <style>
+    * { box-sizing: border-box; }
     body { margin:0; padding:0; }
 
     /* Botón Abrir/Cerrar */
@@ -29,6 +30,11 @@
       transition: transform .1s, filter .2s;
     }
     #whatsapp-toggle:hover{ filter:brightness(.97); transform: translateY(-2px); }
+
+    /* Responsive: evitar que choque en pantallas pequeñas */
+    @media (max-width:520px){
+      #whatsapp-toggle{ right:90px; }
+    }
 
     .wa-icon{
       width:28px; height:28px;
@@ -90,6 +96,16 @@
     }
     #history-drawer.open{ transform: translateX(0); }
 
+    /* ✅ Overlay para cerrar drawer */
+    #history-overlay{
+      position:absolute;
+      inset:0;
+      background: rgba(0,0,0,0.35);
+      z-index:10001;
+      display:none;
+    }
+    #history-overlay.open{ display:block; }
+
     #history-top{
       padding:12px;
       display:flex;
@@ -137,6 +153,7 @@
       font-size:.78em; opacity:.85;
       display:flex; gap:8px; align-items:center;
       margin-bottom:6px;
+      flex-wrap: wrap;
     }
     .pin-badge{
       font-size:.78em;
@@ -243,7 +260,7 @@
       flex-direction:column;
     }
 
-    /* ✅ Botones: GRID + scroll + “ruedita” */
+    /* Botones: GRID + scroll */
     #suggestion-buttons{
       padding:10px;
       background:#F4F7F9;
@@ -276,14 +293,13 @@
       text-align:left;
     }
 
-    /* ✅ “ruedita” (circulito) */
+    /* “ruedita” */
     .suggestion::before{
       content:"";
       width:10px; height:10px;
       border-radius:50%;
       border:2px solid #1E90FF;
       flex:0 0 auto;
-      box-sizing:border-box;
     }
 
     .suggestion:hover{
@@ -322,6 +338,9 @@
 
   <div id="chat-container">
 
+    <!-- ✅ Overlay -->
+    <div id="history-overlay"></div>
+
     <div id="history-drawer">
       <div id="history-top">
         <b>📚 Historial</b>
@@ -356,11 +375,30 @@
   <script>
     const SERVER_URL = "https://lyro-chatbot-capacitamente.onrender.com";
 
+    // ✅ Escape HTML seguro para previews (historial)
+    function escapeHtml(str){
+      return String(str ?? "")
+        .replace(/&/g,"&amp;")
+        .replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;")
+        .replace(/'/g,"&#039;");
+    }
+
     // Identidad estable del usuario
     const CLIENT_ID_KEY = "lyroClientId";
     let clientId = localStorage.getItem(CLIENT_ID_KEY);
+
+    function createClientId(){
+      try{
+        const c = window.crypto;
+        if (c && typeof c.randomUUID === "function") return c.randomUUID();
+      }catch{}
+      return ("cid-" + Date.now() + "-" + Math.random().toString(36).slice(2));
+    }
+
     if (!clientId) {
-      clientId = (crypto.randomUUID ? crypto.randomUUID() : ("cid-" + Date.now() + "-" + Math.random().toString(36).slice(2)));
+      clientId = createClientId();
       localStorage.setItem(CLIENT_ID_KEY, clientId);
     }
 
@@ -378,12 +416,14 @@
     const historyDrawer = document.getElementById("history-drawer");
     const historyOpen = document.getElementById("history-open");
     const historyClose = document.getElementById("history-close");
+    const historyOverlay = document.getElementById("history-overlay");
     const historyList = document.getElementById("history-list");
     const newChatBtn = document.getElementById("new-chat");
 
+    // ✅ Alineado al server
     const DEFAULT_MENU_SUGGESTIONS = [
       { text: "1", label: "1) Cursos gratis" },
-      { text: "2", label: "2) Cursos con certificados" },
+      { text: "2", label: "2) Cursos con certificados y precios" },
       { text: "3", label: "3) Contacto" },
       { text: "4", label: "4) Donar" },
       { text: "5", label: "5) Estado de certificado" },
@@ -393,16 +433,16 @@
     function menuWelcomeText() {
       return `👋 Hola, soy LYRO-CAPACÍTAMENTE 🤖
 
-📌 MENÚ PRINCIPAL (elige una opción)
+📌 ESTÁS EN EL MENÚ PRINCIPAL (elige una opción)
 
 1) Cursos gratis
-2) Cursos con certificados
+2) Cursos con certificados y precios
 3) Contacto
 4) Donar
 5) Estado de certificado
 6) Horarios
 
-(Responde con 1-6 o escribe tu pregunta)`;
+Responde con 1-6 o escribe tu pregunta.`;
     }
 
     function fmtDate(d) {
@@ -536,10 +576,10 @@
               <div class="meta">
                 🕒 ${fmtTime(stamp)}
                 <span style="opacity:.7;">•</span>
-                <span style="opacity:.95;">${label}</span>
+                <span style="opacity:.95;">${escapeHtml(label)}</span>
                 ${pinBadge}
               </div>
-              <div class="preview">${(s.last_message_preview || "Conversación nueva").replace(/</g,"&lt;")}</div>
+              <div class="preview">${escapeHtml(s.last_message_preview || "Conversación nueva")}</div>
             </div>
 
             <button class="history-more" type="button" title="Opciones">⋯</button>
@@ -621,7 +661,7 @@
         localStorage.setItem(SESSION_KEY, currentSessionId);
         await loadHistory(currentSessionId);
         await loadSessionsList();
-        historyDrawer.classList.remove("open");
+        closeHistoryDrawer();
       }
     });
 
@@ -705,6 +745,16 @@
       }
     }
 
+    function openHistoryDrawer(){
+      historyDrawer.classList.add("open");
+      historyOverlay.classList.add("open");
+    }
+    function closeHistoryDrawer(){
+      historyDrawer.classList.remove("open");
+      historyOverlay.classList.remove("open");
+      document.querySelectorAll(".history-menu").forEach(m => m.style.display = "none");
+    }
+
     toggleButton.onclick = async () => {
       const isVisible = chatContainer.style.display === "flex";
       chatContainer.style.display = isVisible ? "none" : "flex";
@@ -715,6 +765,8 @@
         await loadSessionsList();
         await loadHistory(currentSessionId);
         setTimeout(() => chatInput.focus(), 120);
+      } else {
+        closeHistoryDrawer();
       }
     };
 
@@ -727,8 +779,9 @@
       }
     });
 
-    historyOpen.onclick = () => historyDrawer.classList.add("open");
-    historyClose.onclick = () => historyDrawer.classList.remove("open");
+    historyOpen.onclick = () => openHistoryDrawer();
+    historyClose.onclick = () => closeHistoryDrawer();
+    historyOverlay.onclick = () => closeHistoryDrawer();
     newChatBtn.onclick = async () => { await newConversation(); };
 
     renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
