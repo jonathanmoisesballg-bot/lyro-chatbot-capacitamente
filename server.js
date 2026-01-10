@@ -9,7 +9,6 @@ const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
 app.set("trust proxy", 1);
-app.disable("x-powered-by");
 const port = process.env.PORT || 10000;
 
 // ============================
@@ -67,6 +66,7 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
 
 // ============================
 // System instruction (IA)
+// (La Fundación se responde SIN IA por reglas abajo)
 // ============================
 const systemInstruction = `
 Eres Lyro-Capacítamente, un asistente virtual amable y servicial.
@@ -142,7 +142,7 @@ function isRetryableGeminiError(status, msg) {
   return false;
 }
 
-// Fallback neutro (NUNCA dice “IA no pudo responder”)
+// ✅ Fallback neutro (NUNCA dice “IA no pudo responder”)
 function aiFallbackMenuText() {
   return `En este momento no puedo responder esa consulta.
 
@@ -558,17 +558,14 @@ function isFoundationQuery(t) {
 // ============================
 // Flujos
 // ============================
-const certFlow = new Map();         // sessionId -> { step: "need_cedula"|"need_course", cedula: "" }
-const advisorFlow = new Map();      // sessionId -> { step, persona, interes, tiempo }
-const leadFlow = new Map();         // sessionId -> { step, data: {...} }
-const scheduleFlow = new Map();     // sessionId -> { step, data: { franja, dias } }
-const certificarmeFlow = new Map(); // sessionId -> { step }
+const certFlow = new Map();
+const advisorFlow = new Map();
+const leadFlow = new Map();
+const scheduleFlow = new Map();
+const certificarmeFlow = new Map();
 
-// recordar el último horario guardado por sesión para enlazar inscripción
-const lastSchedulePrefId = new Map(); // sessionId -> id
-
-// recordar desde qué menú viene (gratis / cert)
-const courseContext = new Map(); // sessionId -> "free" | "cert" | null
+const lastSchedulePrefId = new Map();
+const courseContext = new Map();
 
 function resetFlows(sessionId) {
   certFlow.delete(sessionId);
@@ -576,7 +573,6 @@ function resetFlows(sessionId) {
   leadFlow.delete(sessionId);
   scheduleFlow.delete(sessionId);
   certificarmeFlow.delete(sessionId);
-  // NO borramos lastSchedulePrefId ni courseContext aquí
 }
 
 // ============================
@@ -646,7 +642,6 @@ async function ensureSession(sessionId, userKey) {
 
     await insertSessionRow(row);
 
-    // saludo en historial
     await insertChatMessage(sessionId, userKey, "bot", menuOpcionesTexto());
     await touchSessionLastMessage(sessionId, userKey, "Conversación nueva");
     return;
@@ -752,8 +747,7 @@ function extractCourse(text, cedula) {
 function certAskText() {
   return `📄 ESTADO DE CERTIFICADO
 
-1) Escribe tu CÉDULA (10 dígitos)
-2) Luego escribe el NOMBRE DEL CURSO
+Escribe tu CÉDULA (10 dígitos) y el NOMBRE DEL CURSO.
 
 Ejemplo:
 0923456789 - Inteligencia Emocional
@@ -991,8 +985,7 @@ const MAX_DAILY_AI_CALLS = Number(process.env.MAX_DAILY_AI_CALLS || 50);
 let aiCallsToday = 0;
 let aiCallsDayKey = getDayKeyEC();
 
-// cooldown real por sesión
-const aiLastCallAt = new Map(); // sessionId -> timestamp
+const aiLastCallAt = new Map();
 
 function getDayKeyEC() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -1061,7 +1054,6 @@ async function geminiSendWithRetry(sessionObj, userMessage) {
 // ============================
 // Routes
 // ============================
-app.get("/", (req, res) => res.status(200).send("Lyro server ok"));
 app.get("/health", (req, res) => res.status(200).send("ok"));
 
 // Lista sesiones (con PIN si existe)
@@ -1247,10 +1239,8 @@ app.post("/chat", async (req, res) => {
 
     const userKey = getUserKey(req);
 
-    // Asegurar sesión
     if (supabase) await ensureSession(sessionId, userKey);
 
-    // Guardar msg usuario
     if (supabase) {
       await insertChatMessage(sessionId, userKey, "user", userMessage);
       await touchSessionLastMessage(sessionId, userKey, userMessage);
@@ -1258,7 +1248,6 @@ app.post("/chat", async (req, res) => {
 
     const t = normalizeText(userMessage);
 
-    // ====== comandos globales (SIN IA) ======
     if (isGreeting(t) || isMenuCommand(t)) {
       resetFlows(sessionId);
       const reply = menuOpcionesTexto();
@@ -1279,7 +1268,6 @@ app.post("/chat", async (req, res) => {
       return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
-    // ====== FUNDACIÓN: info directa (SIN IA) ======
     if (isBenefitsQuery(userMessage)) {
       resetFlows(sessionId);
       const reply = beneficiosTexto();
@@ -1350,7 +1338,6 @@ app.post("/chat", async (req, res) => {
       return sendJson(res, { reply, sessionId, suggestions: suggestionsFundacionInfo() }, 200);
     }
 
-    // ====== FUNDACIÓN: certificarme (SIN IA) ======
     if (isCertificarmeQuery(userMessage)) {
       resetFlows(sessionId);
       certificarmeFlow.set(sessionId, { step: "choose_course" });
@@ -1363,7 +1350,6 @@ app.post("/chat", async (req, res) => {
       return sendJson(res, { reply, sessionId, suggestions: suggestionsCertificarmeCursos() }, 200);
     }
 
-    // ====== números del menú (SIN IA) ======
     if (/^[1-6]$/.test(t)) {
       resetFlows(sessionId);
 
@@ -1405,9 +1391,8 @@ app.post("/chat", async (req, res) => {
         return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
       }
 
-      // ✅ FIX: Estado de certificado con memoria de cédula
       if (t === "5") {
-        certFlow.set(sessionId, { step: "need_cedula", cedula: "" });
+        certFlow.set(sessionId, { step: "need_data" });
         const reply = certAskText();
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -1427,7 +1412,6 @@ app.post("/chat", async (req, res) => {
       }
     }
 
-    // ====== disparadores por palabra (SIN IA) ======
     if (t.includes("asesor") || t.includes("recomendar") || t.includes("recomendacion") || t.includes("recomendación")) {
       resetFlows(sessionId);
       advisorFlow.set(sessionId, { step: "persona", persona: "", interes: "", tiempo: "" });
@@ -1446,11 +1430,9 @@ app.post("/chat", async (req, res) => {
       return sendJson(res, { reply, sessionId, suggestions: suggestionsAdvisorStart() }, 200);
     }
 
-    // Si el usuario menciona gratis o precios, guardamos contexto
     if (t.includes("gratis") || t.includes("gratuito")) courseContext.set(sessionId, "free");
     if (t.includes("precio") || t.includes("costo") || t.includes("con certificado")) courseContext.set(sessionId, "cert");
 
-    // INSCRIPCIÓN
     if (t.includes("inscrib") || t.includes("inscripcion") || t.includes("inscripción")) {
       resetFlows(sessionId);
 
@@ -1554,12 +1536,13 @@ Para ayudarte mejor, dime tu NOMBRE (solo nombre y apellido).`;
       return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
     }
 
-    // ====== FLUJO CERTIFICARME ======
+    // ====== FLUJO CERTIFICARME (SIN IA) ======
     if (certificarmeFlow.has(sessionId)) {
       const st = certificarmeFlow.get(sessionId);
 
       if (st.step === "choose_course") {
         const cursoElegido = userMessage.trim();
+
         const opciones = ["Formador de Formadores", "Inteligencia Emocional", "Tecnología para Padres"];
         const norm = normalizeText(cursoElegido);
 
@@ -1601,60 +1584,23 @@ Dime tu NOMBRE (solo nombre y apellido).`;
       }
     }
 
-    // ====== ✅ FLUJO CERTIFICADO (estado) FIXED ======
+    // ====== FLUJO CERTIFICADO (estado) ======
     if (certFlow.has(sessionId)) {
-      const st = certFlow.get(sessionId);
+      const cedula = extractCedula(userMessage);
+      const curso = extractCourse(userMessage, cedula);
 
-      // Paso 1: cédula
-      if (st.step === "need_cedula") {
-        const cedula = extractCedula(userMessage);
-        if (!cedula) {
-          const reply = `Por favor escribe tu CÉDULA (10 dígitos).
+      if (!cedula) {
+        const reply = `Por favor escribe tu CÉDULA (10 dígitos).
 Ejemplo: 0923456789
 (Para salir: MENU)`;
-          if (supabase) {
-            await insertChatMessage(sessionId, userKey, "bot", reply);
-            await touchSessionLastMessage(sessionId, userKey, reply);
-          }
-          return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
         }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
+      }
 
-        // Si escribió cédula + curso en un solo mensaje, resolvemos de una
-        const cursoMaybe = extractCourse(userMessage, cedula);
-        if (cursoMaybe && cursoMaybe.length >= 3) {
-          let reply;
-          try {
-            const row = await getCertificateStatus(cedula, cursoMaybe);
-            if (!row) {
-              reply = `No encuentro un registro para:
-• Cédula: ${cedula}
-• Curso: ${cursoMaybe}
-
-Si crees que es un error, contáctanos:
-📱 0983222358
-☎️ 046026948
-✉️ info@fundacioncapacitamente.com`;
-            } else {
-              reply = certificateReplyFromRow(row);
-            }
-          } catch {
-            reply = `Lo siento, no pude consultar el estado en este momento.
-Intenta más tarde.`;
-          }
-
-          certFlow.delete(sessionId);
-          if (supabase) {
-            await insertChatMessage(sessionId, userKey, "bot", reply);
-            await touchSessionLastMessage(sessionId, userKey, reply);
-          }
-          return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
-        }
-
-        // Guardamos cedula y pedimos curso
-        st.cedula = cedula;
-        st.step = "need_course";
-        certFlow.set(sessionId, st);
-
+      if (!curso || curso.length < 3) {
         const reply = `✅ Cédula recibida (${cedula})
 
 Ahora escribe el NOMBRE DEL CURSO.
@@ -1667,37 +1613,11 @@ Ejemplo: Inteligencia Emocional
         return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
       }
 
-      // Paso 2: curso
-      if (st.step === "need_course") {
-        const cedula = st.cedula || "";
-        const curso = String(userMessage || "").trim();
-
-        if (!cedula) {
-          certFlow.delete(sessionId);
-          const reply = certAskText();
-          if (supabase) {
-            await insertChatMessage(sessionId, userKey, "bot", reply);
-            await touchSessionLastMessage(sessionId, userKey, reply);
-          }
-          return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
-        }
-
-        if (!curso || curso.length < 3) {
-          const reply = `Por favor escribe el NOMBRE DEL CURSO.
-Ejemplo: Inteligencia Emocional
-(Para salir: MENU)`;
-          if (supabase) {
-            await insertChatMessage(sessionId, userKey, "bot", reply);
-            await touchSessionLastMessage(sessionId, userKey, reply);
-          }
-          return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
-        }
-
-        let reply;
-        try {
-          const row = await getCertificateStatus(cedula, curso);
-          if (!row) {
-            reply = `No encuentro un registro para:
+      let reply;
+      try {
+        const row = await getCertificateStatus(cedula, curso);
+        if (!row) {
+          reply = `No encuentro un registro para:
 • Cédula: ${cedula}
 • Curso: ${curso}
 
@@ -1705,24 +1625,26 @@ Si crees que es un error, contáctanos:
 📱 0983222358
 ☎️ 046026948
 ✉️ info@fundacioncapacitamente.com`;
-          } else {
-            reply = certificateReplyFromRow(row);
-          }
-        } catch {
-          reply = `Lo siento, no pude consultar el estado en este momento.
+        } else {
+          reply = certificateReplyFromRow(row);
+        }
+      } catch {
+        reply = `Lo siento, no pude consultar el estado en este momento.
 Intenta más tarde.`;
-        }
-
-        certFlow.delete(sessionId);
-        if (supabase) {
-          await insertChatMessage(sessionId, userKey, "bot", reply);
-          await touchSessionLastMessage(sessionId, userKey, reply);
-        }
-        return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
       }
+
+      certFlow.delete(sessionId);
+
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+
+      // ✅ AQUÍ: solo botón Menú al finalizar estado certificado
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
     }
 
-    // ====== FLUJO ASESOR ======
+    // ====== FLUJO ASESOR (SIN IA) ======
     if (advisorFlow.has(sessionId)) {
       const st = advisorFlow.get(sessionId);
 
@@ -1783,7 +1705,7 @@ Escribe: INSCRIBIRME`;
       }
     }
 
-    // ====== FLUJO INSCRIPCIÓN ======
+    // ====== FLUJO INSCRIPCIÓN (con cursos + horarios) ======
     if (leadFlow.has(sessionId)) {
       const st = leadFlow.get(sessionId);
 
@@ -1806,6 +1728,7 @@ Escribe: INSCRIBIRME`;
         }
 
         st.data.curso = match.name;
+
         st.step = "franja";
         leadFlow.set(sessionId, st);
 
@@ -1853,7 +1776,7 @@ Escribe: INSCRIBIRME`;
 
       if (st.step === "dias") {
         const d = normalizeText(userMessage);
-        const ok = ["lun-vie", "sabado", "domingo"].includes(d);
+        const ok = ["lun-vie", "sabado", "sábado", "domingo"].includes(d);
         if (!ok) {
           const reply = `Selecciona una opción:
 • Lun-Vie
@@ -1942,11 +1865,8 @@ Escríbelo así: +593991112233 o 0991112233`;
           return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
         }
 
-        try {
-          await saveLead(userKey, sessionId, st.data);
-        } catch (e) {
-          console.warn("⚠️ No se pudo guardar lead:", extractMessage(e));
-        }
+        try { await saveLead(userKey, sessionId, st.data); }
+        catch (e) { console.warn("⚠️ No se pudo guardar lead:", extractMessage(e)); }
 
         leadFlow.delete(sessionId);
 
@@ -1965,7 +1885,8 @@ Si quieres ver opciones: escribe MENU`;
           await touchSessionLastMessage(sessionId, userKey, reply);
         }
 
-        return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
+        // ✅ AQUÍ: solo botón Menú al finalizar inscripción
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
       }
 
       if (st.step === "curso") {
@@ -1973,11 +1894,8 @@ Si quieres ver opciones: escribe MENU`;
         st.data.schedule_pref_id =
           st.data.schedule_pref_id ?? (lastSchedulePrefId.get(sessionId) || null);
 
-        try {
-          await saveLead(userKey, sessionId, st.data);
-        } catch (e) {
-          console.warn("⚠️ No se pudo guardar lead:", extractMessage(e));
-        }
+        try { await saveLead(userKey, sessionId, st.data); }
+        catch (e) { console.warn("⚠️ No se pudo guardar lead:", extractMessage(e)); }
 
         leadFlow.delete(sessionId);
 
@@ -1995,11 +1913,13 @@ Si quieres ver opciones: escribe MENU`;
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
         }
-        return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
+
+        // ✅ AQUÍ TAMBIÉN: solo botón Menú
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
       }
     }
 
-    // ====== FLUJO HORARIO (opción 6) ✅ validación de días agregada ======
+    // ====== FLUJO HORARIO (opción 6) ======
     if (scheduleFlow.has(sessionId)) {
       const st = scheduleFlow.get(sessionId);
 
@@ -2037,30 +1957,12 @@ Si quieres ver opciones: escribe MENU`;
       }
 
       if (st.step === "dias") {
-        const d = normalizeText(userMessage);
-        const ok = ["lun-vie", "sabado", "domingo"].includes(d);
-
-        if (!ok) {
-          const reply = `Selecciona una opción:
-• Lun-Vie
-• Sábado
-• Domingo
-(Para salir: MENU)`;
-          if (supabase) {
-            await insertChatMessage(sessionId, userKey, "bot", reply);
-            await touchSessionLastMessage(sessionId, userKey, reply);
-          }
-          return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowStep2() }, 200);
-        }
-
-        st.data.dias = d;
+        st.data.dias = normalizeText(userMessage).trim();
 
         let saved = true;
-        let schedId = null;
-
         try {
           const out = await saveSchedule(userKey, sessionId, st.data);
-          schedId = out?.id ?? null;
+          const schedId = out?.id ?? null;
           if (schedId) lastSchedulePrefId.set(sessionId, schedId);
         } catch (e) {
           saved = false;
@@ -2101,7 +2003,6 @@ Revisa que en Render estén SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY.`;
       }
     }
 
-    // Si es tema Fundación y no cayó en una ruta específica -> NO usamos IA
     if (isFoundationQuery(userMessage)) {
       const reply = `Puedo ayudarte con información de la Fundación Capacítamente.
 
@@ -2125,7 +2026,7 @@ Escribe:
     }
 
     // ============================
-    // Si no cayó en Fundación/FAQ/Flujos -> IA
+    // IA
     // ============================
     if (!ai) {
       const msg =
@@ -2146,7 +2047,6 @@ Escribe:
       return sendJson(res, { reply: msg, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
-    // Cooldown por sesión
     if (AI_COOLDOWN_MS > 0) {
       const last = aiLastCallAt.get(sessionId) || 0;
       const now = Date.now();
@@ -2161,7 +2061,6 @@ Escribe:
       aiLastCallAt.set(sessionId, now);
     }
 
-    // Crear / recuperar sesión IA
     let sessionObj = sessions.get(sessionId);
     if (!sessionObj) {
       const chat = ai.chats.create({

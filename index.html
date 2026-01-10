@@ -6,35 +6,55 @@
   <title>Chatbot Lyro - Fundación Capacítamente</title>
 
   <style>
-    * { box-sizing: border-box; }
     body { margin:0; padding:0; }
 
-    /* Botón Abrir/Cerrar */
+    /* =========================
+       ✅ CONTENEDOR DE BOTONES (NO SE ENCIMAN EN MÓVIL)
+       ========================= */
+    #floating-actions{
+      position:fixed;
+      right:20px;
+      bottom:calc(20px + env(safe-area-inset-bottom, 0px));
+      display:flex;
+      align-items:center;
+      gap:12px;
+      z-index:10001;
+      pointer-events:auto;
+    }
+
+    /* Botón Abrir/Cerrar (ahora vive dentro de #floating-actions) */
     #chat-toggle{
-      position:fixed; bottom:20px; right:20px; padding:15px 20px;
+      position:relative !important;
+      bottom:auto !important;
+      right:auto !important;
+
+      padding:15px 20px;
       background:#1E90FF; color:#fff; border:none; border-radius:30px;
-      cursor:pointer; z-index:10001; box-shadow:0 4px 12px rgba(0,0,0,.25);
+      cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,.25);
       font-weight:bold; transition: transform .1s, filter .2s;
+      white-space:nowrap;
+      max-width:min(240px, 70vw);
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
     #chat-toggle:hover{ filter:brightness(.97); transform: translateY(-2px); }
 
-    /* WhatsApp solo ícono */
+    /* WhatsApp ícono (ahora vive dentro de #floating-actions) */
     #whatsapp-toggle{
-      position:fixed; bottom:20px; right:200px;
+      position:relative !important;
+      bottom:auto !important;
+      right:auto !important;
+
       width:56px; height:56px;
       background:#25D366; border-radius:50%;
-      cursor:pointer; z-index:10001;
+      cursor:pointer;
       box-shadow:0 4px 12px rgba(0,0,0,.25);
       text-decoration:none;
       display:inline-flex; align-items:center; justify-content:center;
       transition: transform .1s, filter .2s;
+      flex:0 0 auto;
     }
     #whatsapp-toggle:hover{ filter:brightness(.97); transform: translateY(-2px); }
-
-    /* Responsive: evitar que choque en pantallas pequeñas */
-    @media (max-width:520px){
-      #whatsapp-toggle{ right:90px; }
-    }
 
     .wa-icon{
       width:28px; height:28px;
@@ -44,15 +64,34 @@
       background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23fff' d='M19.11 17.53c-.27-.13-1.6-.79-1.85-.88-.25-.09-.43-.13-.61.13-.18.27-.7.88-.86 1.06-.16.18-.32.2-.59.07-.27-.13-1.14-.42-2.17-1.34-.8-.71-1.34-1.59-1.5-1.86-.16-.27-.02-.41.12-.55.12-.12.27-.32.41-.48.14-.16.18-.27.27-.45.09-.18.04-.34-.02-.48-.07-.13-.61-1.47-.84-2.01-.22-.53-.45-.46-.61-.47h-.52c-.18 0-.48.07-.73.34-.25.27-.95.93-.95 2.28 0 1.35.98 2.65 1.11 2.83.13.18 1.93 2.95 4.68 4.13.65.28 1.16.45 1.56.57.65.21 1.24.18 1.71.11.52-.08 1.6-.65 1.82-1.28.23-.63.23-1.17.16-1.28-.07-.11-.25-.18-.52-.32z'/%3E%3Cpath fill='%23fff' d='M26.66 5.34A14.9 14.9 0 0016.04.99C7.86.99 1.2 7.64 1.2 15.82c0 2.62.69 5.18 2 7.44L1.08 31l7.9-2.07a14.8 14.8 0 007.06 1.8h.01c8.18 0 14.84-6.65 14.84-14.83 0-3.96-1.55-7.69-4.23-10.56zM16.04 28.2h-.01a12.3 12.3 0 01-6.28-1.72l-.45-.27-4.69 1.23 1.25-4.57-.29-.47a12.3 12.3 0 01-1.89-6.58c0-6.79 5.52-12.31 12.32-12.31a12.24 12.24 0 018.72 3.62 12.25 12.25 0 013.6 8.69c0 6.79-5.52 12.31-12.28 12.38z'/%3E%3C/svg%3E");
     }
 
-    /* Chat */
+    /* =========================
+       Chat
+       ========================= */
     #chat-container{
-      position:fixed; bottom:80px; right:20px;
+      position:fixed;
+      right:20px;
+      bottom:calc(92px + env(safe-area-inset-bottom, 0px)); /* ✅ deja espacio a los botones */
       width:360px; height:640px;
       max-width:92vw; max-height:88vh;
       background:#fff; border-radius:12px;
       box-shadow:0 8px 30px rgba(0,0,0,.3);
       z-index:10000; display:none; flex-direction:column; overflow:hidden;
       font-family:Arial, sans-serif;
+    }
+
+    /* En pantallas pequeñas, ajusta un poquito */
+    @media (max-width:420px){
+      #chat-toggle{
+        padding:12px 16px;
+        max-width:68vw;
+        font-size:0.95em;
+      }
+      #whatsapp-toggle{ width:52px; height:52px; }
+      #chat-container{
+        right:12px;
+        bottom:calc(88px + env(safe-area-inset-bottom, 0px));
+      }
+      #floating-actions{ right:12px; }
     }
 
     #chat-header{
@@ -95,16 +134,6 @@
       border-right:1px solid rgba(255,255,255,.08);
     }
     #history-drawer.open{ transform: translateX(0); }
-
-    /* ✅ Overlay para cerrar drawer */
-    #history-overlay{
-      position:absolute;
-      inset:0;
-      background: rgba(0,0,0,0.35);
-      z-index:10001;
-      display:none;
-    }
-    #history-overlay.open{ display:block; }
 
     #history-top{
       padding:12px;
@@ -153,7 +182,6 @@
       font-size:.78em; opacity:.85;
       display:flex; gap:8px; align-items:center;
       margin-bottom:6px;
-      flex-wrap: wrap;
     }
     .pin-badge{
       font-size:.78em;
@@ -260,7 +288,7 @@
       flex-direction:column;
     }
 
-    /* Botones: GRID + scroll */
+    /* Botones sugeridos */
     #suggestion-buttons{
       padding:10px;
       background:#F4F7F9;
@@ -286,20 +314,24 @@
     .suggestion{
       width:100%;
       background:#fff; color:#1E90FF; border:1px solid #1E90FF;
-      padding:10px 12px; border-radius:16px;
-      cursor:pointer; font-size:.88em;
+      padding:12px 12px;
+      border-radius:16px;
+      cursor:pointer;
+      font-size:.92em;
       transition: background-color .2s, color .2s, transform .08s;
       display:flex; align-items:center; justify-content:flex-start; gap:10px;
       text-align:left;
+      min-height:48px; /* ✅ parejitos */
+      box-sizing:border-box;
     }
 
-    /* “ruedita” */
     .suggestion::before{
       content:"";
       width:10px; height:10px;
       border-radius:50%;
       border:2px solid #1E90FF;
       flex:0 0 auto;
+      box-sizing:border-box;
     }
 
     .suggestion:hover{
@@ -330,16 +362,16 @@
 
 <body>
 
-  <button id="chat-toggle">🤖 Chatea con Lyro</button>
+  <!-- ✅ BOTONES FLOTANTES JUNTOS (no se enciman) -->
+  <div id="floating-actions">
+    <a id="whatsapp-toggle" href="https://wa.me/593983222358" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
+      <span class="wa-icon" aria-hidden="true"></span>
+    </a>
 
-  <a id="whatsapp-toggle" href="https://wa.me/593983222358" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
-    <span class="wa-icon" aria-hidden="true"></span>
-  </a>
+    <button id="chat-toggle">🤖 Chatea con Lyro</button>
+  </div>
 
   <div id="chat-container">
-
-    <!-- ✅ Overlay -->
-    <div id="history-overlay"></div>
 
     <div id="history-drawer">
       <div id="history-top">
@@ -375,30 +407,11 @@
   <script>
     const SERVER_URL = "https://lyro-chatbot-capacitamente.onrender.com";
 
-    // ✅ Escape HTML seguro para previews (historial)
-    function escapeHtml(str){
-      return String(str ?? "")
-        .replace(/&/g,"&amp;")
-        .replace(/</g,"&lt;")
-        .replace(/>/g,"&gt;")
-        .replace(/"/g,"&quot;")
-        .replace(/'/g,"&#039;");
-    }
-
     // Identidad estable del usuario
     const CLIENT_ID_KEY = "lyroClientId";
     let clientId = localStorage.getItem(CLIENT_ID_KEY);
-
-    function createClientId(){
-      try{
-        const c = window.crypto;
-        if (c && typeof c.randomUUID === "function") return c.randomUUID();
-      }catch{}
-      return ("cid-" + Date.now() + "-" + Math.random().toString(36).slice(2));
-    }
-
     if (!clientId) {
-      clientId = createClientId();
+      clientId = (crypto.randomUUID ? crypto.randomUUID() : ("cid-" + Date.now() + "-" + Math.random().toString(36).slice(2)));
       localStorage.setItem(CLIENT_ID_KEY, clientId);
     }
 
@@ -416,14 +429,12 @@
     const historyDrawer = document.getElementById("history-drawer");
     const historyOpen = document.getElementById("history-open");
     const historyClose = document.getElementById("history-close");
-    const historyOverlay = document.getElementById("history-overlay");
     const historyList = document.getElementById("history-list");
     const newChatBtn = document.getElementById("new-chat");
 
-    // ✅ Alineado al server
     const DEFAULT_MENU_SUGGESTIONS = [
       { text: "1", label: "1) Cursos gratis" },
-      { text: "2", label: "2) Cursos con certificados y precios" },
+      { text: "2", label: "2) Cursos con certificados" },
       { text: "3", label: "3) Contacto" },
       { text: "4", label: "4) Donar" },
       { text: "5", label: "5) Estado de certificado" },
@@ -433,16 +444,16 @@
     function menuWelcomeText() {
       return `👋 Hola, soy LYRO-CAPACÍTAMENTE 🤖
 
-📌 ESTÁS EN EL MENÚ PRINCIPAL (elige una opción)
+📌 MENÚ PRINCIPAL (elige una opción)
 
 1) Cursos gratis
-2) Cursos con certificados y precios
+2) Cursos con certificados
 3) Contacto
 4) Donar
 5) Estado de certificado
 6) Horarios
 
-Responde con 1-6 o escribe tu pregunta.`;
+(Responde con 1-6 o escribe tu pregunta)`;
     }
 
     function fmtDate(d) {
@@ -576,10 +587,10 @@ Responde con 1-6 o escribe tu pregunta.`;
               <div class="meta">
                 🕒 ${fmtTime(stamp)}
                 <span style="opacity:.7;">•</span>
-                <span style="opacity:.95;">${escapeHtml(label)}</span>
+                <span style="opacity:.95;">${label}</span>
                 ${pinBadge}
               </div>
-              <div class="preview">${escapeHtml(s.last_message_preview || "Conversación nueva")}</div>
+              <div class="preview">${(s.last_message_preview || "Conversación nueva").replace(/</g,"&lt;")}</div>
             </div>
 
             <button class="history-more" type="button" title="Opciones">⋯</button>
@@ -661,7 +672,7 @@ Responde con 1-6 o escribe tu pregunta.`;
         localStorage.setItem(SESSION_KEY, currentSessionId);
         await loadHistory(currentSessionId);
         await loadSessionsList();
-        closeHistoryDrawer();
+        historyDrawer.classList.remove("open");
       }
     });
 
@@ -745,16 +756,6 @@ Responde con 1-6 o escribe tu pregunta.`;
       }
     }
 
-    function openHistoryDrawer(){
-      historyDrawer.classList.add("open");
-      historyOverlay.classList.add("open");
-    }
-    function closeHistoryDrawer(){
-      historyDrawer.classList.remove("open");
-      historyOverlay.classList.remove("open");
-      document.querySelectorAll(".history-menu").forEach(m => m.style.display = "none");
-    }
-
     toggleButton.onclick = async () => {
       const isVisible = chatContainer.style.display === "flex";
       chatContainer.style.display = isVisible ? "none" : "flex";
@@ -765,8 +766,6 @@ Responde con 1-6 o escribe tu pregunta.`;
         await loadSessionsList();
         await loadHistory(currentSessionId);
         setTimeout(() => chatInput.focus(), 120);
-      } else {
-        closeHistoryDrawer();
       }
     };
 
@@ -779,9 +778,8 @@ Responde con 1-6 o escribe tu pregunta.`;
       }
     });
 
-    historyOpen.onclick = () => openHistoryDrawer();
-    historyClose.onclick = () => closeHistoryDrawer();
-    historyOverlay.onclick = () => closeHistoryDrawer();
+    historyOpen.onclick = () => historyDrawer.classList.add("open");
+    historyClose.onclick = () => historyDrawer.classList.remove("open");
     newChatBtn.onclick = async () => { await newConversation(); };
 
     renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
