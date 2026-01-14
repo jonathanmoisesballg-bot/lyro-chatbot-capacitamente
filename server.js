@@ -118,15 +118,13 @@ Responde de forma clara, completa y concisa. Si algo es ambiguo, pide un dato pu
 // Helpers base
 // ============================
 function normalizeText(s) {
-  // 1) lower + trim
-  // 2) quita tildes
-  // 3) quita signos/puntuación para que "hola!" == "hola"
+  // ✅ Importante: permite el signo "+" para que "5+" no se vuelva "5"
   return String(s || "")
     .trim()
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9\s-]/g, "") // quita puntuación
+    .replace(/[^a-z0-9\s\-+]/g, "") // ✅ permite "+"
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -402,6 +400,7 @@ function suggestionsAfterInfo() {
     { text: "menu", label: "📌 Menú" },
     { text: "asesor", label: "✨ Asesor de cursos" },
     { text: "inscribirme", label: "📝 Inscribirme" },
+    { text: "ya estoy inscrito", label: "✅ ¿Ya estoy inscrito?" },
     { text: "3", label: "📞 Contacto" },
   ];
 }
@@ -495,8 +494,15 @@ function suggestionsCertificarmeCursos() {
   ];
 }
 
+// ✅ Soporta: "free" | "cert" | "all"
 function suggestionsChooseCourses(type) {
-  const list = type === "free" ? FREE_COURSES : CERT_COURSES;
+  const list =
+    type === "free"
+      ? FREE_COURSES
+      : type === "cert"
+      ? CERT_COURSES
+      : [...FREE_COURSES, ...CERT_COURSES];
+
   const out = list.map((c) => ({ text: c.name, label: c.label }));
   out.push({ text: "menu", label: "📌 Menú" });
   out.push({ text: "cancelar", label: "✖ Cancelar" });
@@ -508,7 +514,6 @@ function suggestionsChooseCourses(type) {
 // ============================
 function isGreeting(t) {
   const s = normalizeText(t);
-  // ya sin signos: "hola!" => "hola"
   return ["hola", "buenas", "buenos dias", "buenas tardes", "buenas noches", "hello", "hi"].includes(s);
 }
 
@@ -519,17 +524,46 @@ function isMenuCommand(t) {
 
 function isBenefitsQuery(t) {
   const s = normalizeText(t);
-  return s.includes("beneficio") || s.includes("beneficios") || s.includes("ventaja") || s.includes("que ofrece") || s.includes("que me da") || s.includes("beneficia");
+  return (
+    s.includes("beneficio") ||
+    s.includes("beneficios") ||
+    s.includes("ventaja") ||
+    s.includes("que ofrece") ||
+    s.includes("que me da") ||
+    s.includes("beneficia")
+  );
 }
 
 function isWorkWithUsQuery(t) {
   const s = normalizeText(t);
-  return s.includes("trabaja con nosotros") || s.includes("trabajar con ustedes") || s.includes("quiero trabajar") || s.includes("empleo") || s.includes("vacante") || s.includes("voluntario") || s.includes("colaborar") || s.includes("alianza");
+  return (
+    s.includes("trabaja con nosotros") ||
+    s.includes("trabajar con ustedes") ||
+    s.includes("quiero trabajar") ||
+    s.includes("empleo") ||
+    s.includes("vacante") ||
+    s.includes("voluntario") ||
+    s.includes("colaborar") ||
+    s.includes("alianza")
+  );
 }
 
 function isCertificarmeQuery(t) {
   const s = normalizeText(t);
   return s.includes("certificarme") || s.includes("como certificarme") || s.includes("certificacion") || s.includes("certificar");
+}
+
+function isEnrollmentStatusQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("ya estoy inscr") ||
+    s.includes("ya me inscrib") ||
+    s.includes("estoy inscrito") ||
+    s.includes("verificar inscrip") ||
+    s.includes("estado de inscrip") ||
+    s.includes("como se si ya estoy inscr") ||
+    s.includes("como se que ya estoy inscr")
+  );
 }
 
 function isMissionQuery(t) {
@@ -560,18 +594,50 @@ function isAboutUsQuery(t) {
 function isFoundationQuery(t) {
   const s = normalizeText(t);
   const keys = [
-    "fundacion","capacitamente",
-    "curso","cursos","certificado","certificacion","certificar","certificarme",
-    "donar","donacion","donaciones","paypal","transferencia",
-    "whatsapp","correo","contacto","guayaquil",
-    "tatiana","yadira",
-    "formador de formadores","inteligencia emocional","tecnologia para padres",
+    "fundacion",
+    "capacitamente",
+    "curso",
+    "cursos",
+    "certificado",
+    "certificacion",
+    "certificar",
+    "certificarme",
+    "donar",
+    "donacion",
+    "donaciones",
+    "paypal",
+    "transferencia",
+    "whatsapp",
+    "correo",
+    "contacto",
+    "guayaquil",
+    "tatiana",
+    "yadira",
+    "formador de formadores",
+    "inteligencia emocional",
+    "tecnologia para padres",
     "tecnologia para educadores",
-    "horario","horarios","inscribirme","inscripcion",
-    "beneficio","beneficios","ventajas",
-    "mision","vision","valores","pilares",
-    "quienes somos","acerca de","nosotros",
-    "trabaja con nosotros","trabajar","vacante","empleo","voluntario","colaborar","alianza"
+    "horario",
+    "horarios",
+    "inscribirme",
+    "inscripcion",
+    "beneficio",
+    "beneficios",
+    "ventajas",
+    "mision",
+    "vision",
+    "valores",
+    "pilares",
+    "quienes somos",
+    "acerca de",
+    "nosotros",
+    "trabaja con nosotros",
+    "trabajar",
+    "vacante",
+    "empleo",
+    "voluntario",
+    "colaborar",
+    "alianza",
   ];
   return keys.some((k) => s.includes(normalizeText(k)));
 }
@@ -584,6 +650,7 @@ const advisorFlow = new Map();
 const leadFlow = new Map();
 const scheduleFlow = new Map();
 const certificarmeFlow = new Map();
+const enrollCheckFlow = new Map(); // ✅ nuevo
 
 const lastSchedulePrefId = new Map();
 const courseContext = new Map();
@@ -594,6 +661,7 @@ function resetFlows(sessionId) {
   leadFlow.delete(sessionId);
   scheduleFlow.delete(sessionId);
   certificarmeFlow.delete(sessionId);
+  enrollCheckFlow.delete(sessionId); // ✅ nuevo
 }
 
 // ============================
@@ -1021,6 +1089,114 @@ async function geminiSendWithRetry(sessionObj, userMessage) {
 }
 
 // ============================
+// ✅ VERIFICAR INSCRIPCIÓN (leads)
+// ============================
+function buildPhoneVariants(phone) {
+  const raw = String(phone || "").trim().replace(/\s+/g, "");
+  const digits = raw.replace(/\D/g, "");
+  const rawNoPlus = raw.replace(/^\+/, "");
+  const variants = new Set();
+
+  if (raw) variants.add(raw);
+  if (rawNoPlus) variants.add(rawNoPlus);
+
+  if (rawNoPlus && !rawNoPlus.startsWith("0") && !raw.startsWith("+")) {
+    variants.add(`+${rawNoPlus}`);
+  }
+
+  return {
+    variants: [...variants].filter(Boolean),
+    lastDigits: digits.length >= 7 ? digits.slice(-9) : digits,
+  };
+}
+
+async function getEnrollmentsByName(nombre) {
+  if (!supabase) return [];
+
+  const q = String(nombre || "").trim();
+  if (!q) return [];
+
+  const { data, error } = await supabase
+    .from("leads")
+    .select("nombre, curso, created_at")
+    .ilike("nombre", `%${q}%`)
+    .order("created_at", { ascending: false })
+    .limit(25);
+
+  if (error) throw error;
+  return data || [];
+}
+
+async function queryLeadsByPhoneColumn(col, phone, nombreLike) {
+  const { variants, lastDigits } = buildPhoneVariants(phone);
+
+  try {
+    let q1 = supabase.from("leads").select("nombre, curso, created_at");
+
+    if (variants.length) q1 = q1.in(col, variants);
+    else q1 = q1.eq(col, String(phone || "").trim());
+
+    if (nombreLike) q1 = q1.ilike("nombre", `%${String(nombreLike).trim()}%`);
+
+    q1 = q1.order("created_at", { ascending: false }).limit(25);
+
+    const r1 = await q1;
+    if (r1.error) throw r1.error;
+    if (r1.data && r1.data.length) return r1.data;
+
+    if (lastDigits && lastDigits.length >= 7) {
+      let q2 = supabase.from("leads").select("nombre, curso, created_at");
+      q2 = q2.ilike(col, `%${lastDigits}%`);
+      if (nombreLike) q2 = q2.ilike("nombre", `%${String(nombreLike).trim()}%`);
+      q2 = q2.order("created_at", { ascending: false }).limit(25);
+
+      const r2 = await q2;
+      if (r2.error) throw r2.error;
+      return r2.data || [];
+    }
+
+    return [];
+  } catch (e) {
+    const msg = String(e?.message || "").toLowerCase();
+    if (msg.includes("column") && msg.includes(col.toLowerCase())) return null;
+    throw e;
+  }
+}
+
+async function getEnrollmentsByWhatsAppAndName(whatsapp, nombreLike) {
+  if (!supabase) return [];
+
+  const r1 = await queryLeadsByPhoneColumn("whatsapp", whatsapp, nombreLike);
+  if (r1 === null) {
+    const r2 = await queryLeadsByPhoneColumn("WhatsApp", whatsapp, nombreLike);
+    return r2 === null ? [] : r2;
+  }
+
+  if (r1.length) return r1;
+
+  const r2 = await queryLeadsByPhoneColumn("WhatsApp", whatsapp, nombreLike);
+  return r2 === null ? [] : r2;
+}
+
+function formatEnrollmentsReply(nombre, rows) {
+  const cursos = [...new Set((rows || []).map((r) => r.curso).filter(Boolean))];
+
+  if (cursos.length === 0) {
+    return `Encontré registros a nombre de: ${nombre}, pero no veo el curso guardado.
+
+Si deseas inscribirte ahora escribe: INSCRIBIRME`;
+  }
+
+  return `✅ Sí, encontré inscripción a tu nombre.
+
+Nombre: ${rows[0]?.nombre || nombre}
+Cursos registrados:
+${cursos.map((c) => `• ${c}`).join("\n")}
+
+Si deseas inscribirte a otro curso escribe: INSCRIBIRME`;
+}
+
+// ============================
 // Routes
 // ============================
 app.get("/health", (req, res) => res.status(200).send("ok"));
@@ -1123,11 +1299,7 @@ app.post("/session/:sessionId/pin", async (req, res) => {
     } catch (e) {
       const msg = String(e?.message || "").toLowerCase();
       if (msg.includes("pinned")) {
-        return sendJson(
-          res,
-          { error: "Tu tabla chat_sessions no tiene columnas de PIN.", hint: "Agrega columnas pinned y pinned_at." },
-          400
-        );
+        return sendJson(res, { error: "Tu tabla chat_sessions no tiene columnas de PIN.", hint: "Agrega columnas pinned y pinned_at." }, 400);
       }
       throw e;
     }
@@ -1216,7 +1388,11 @@ app.post("/chat", async (req, res) => {
     if (!rl.ok) {
       return sendJson(
         res,
-        { reply: "Estás enviando mensajes muy rápido. Intenta en unos segundos.", sessionId: String(req.body?.sessionId || ""), suggestions: suggestionsMenu() },
+        {
+          reply: "Estás enviando mensajes muy rápido. Intenta en unos segundos.",
+          sessionId: String(req.body?.sessionId || ""),
+          suggestions: suggestionsMenu(),
+        },
         429
       );
     }
@@ -1257,6 +1433,129 @@ app.post("/chat", async (req, res) => {
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
       return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
+    }
+
+    // ====== FLUJO: verificar si ya está inscrito ======
+    if (enrollCheckFlow.has(sessionId)) {
+      const st = enrollCheckFlow.get(sessionId);
+
+      if (st.step === "nombre") {
+        const nombre = userMessage.trim();
+        if (!nombre || nombre.length < 3) {
+          const reply = "Escribe tu NOMBRE y APELLIDO (mínimo 3 caracteres).";
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+        }
+
+        let rows = [];
+        try {
+          rows = (await getEnrollmentsByName(nombre)) || [];
+        } catch {
+          const reply = "Lo siento, no pude consultar tu inscripción en este momento. Intenta más tarde.";
+          enrollCheckFlow.delete(sessionId);
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
+        }
+
+        if (!rows.length) {
+          const reply = `No encuentro una inscripción con el nombre: ${nombre}.
+
+Si quieres inscribirte ahora escribe: INSCRIBIRME`;
+          enrollCheckFlow.delete(sessionId);
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+        }
+
+        // muchas coincidencias -> pedir whatsapp
+        if (rows.length > 1) {
+          enrollCheckFlow.set(sessionId, { step: "whatsapp", nombre });
+          const reply = `Encontré varias coincidencias con ese nombre.
+
+Para confirmar, escribe tu número de WhatsApp (ej: +593991112233 o 0991112233).`;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+        }
+
+        const reply = formatEnrollmentsReply(nombre, rows);
+        enrollCheckFlow.delete(sessionId);
+
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+      }
+
+      if (st.step === "whatsapp") {
+        const w = extractWhatsapp(userMessage);
+        if (!w) {
+          const reply = "No pude leer el número 😅 Escríbelo así: +593991112233 o 0991112233";
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+        }
+
+        let rows = [];
+        try {
+          rows = (await getEnrollmentsByWhatsAppAndName(w, st.nombre)) || [];
+        } catch {
+          const reply = "Lo siento, no pude consultar tu inscripción en este momento. Intenta más tarde.";
+          enrollCheckFlow.delete(sessionId);
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
+        }
+
+        if (!rows.length) {
+          const reply = `No encontré una inscripción que coincida con ese WhatsApp.
+
+Si deseas inscribirte ahora escribe: INSCRIBIRME`;
+          enrollCheckFlow.delete(sessionId);
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+        }
+
+        const reply = formatEnrollmentsReply(st.nombre, rows);
+        enrollCheckFlow.delete(sessionId);
+
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+      }
+    }
+
+    // ====== disparador: “ya estoy inscrito” ======
+    if (isEnrollmentStatusQuery(userMessage)) {
+      resetFlows(sessionId);
+      enrollCheckFlow.set(sessionId, { step: "nombre" });
+
+      const reply = "✅ Claro. Para verificarlo, dime tu NOMBRE y APELLIDO (tal como lo registraste).";
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
     }
 
     // ====== info fundación ======
@@ -1428,55 +1727,47 @@ app.post("/chat", async (req, res) => {
     if (t.includes("gratis") || t.includes("gratuito")) courseContext.set(sessionId, "free");
     if (t.includes("precio") || t.includes("costo") || t.includes("con certificado")) courseContext.set(sessionId, "cert");
 
-    // ====== inscripción ======
+    // ====== inscripción (✅ si no hay contexto: muestra TODOS) ======
     if (t.includes("inscrib") || t.includes("inscripcion") || t.includes("inscripción")) {
       resetFlows(sessionId);
 
       const ctx = courseContext.get(sessionId) || null;
       const schedIdPrev = lastSchedulePrefId.get(sessionId) || null;
 
-      if (ctx === "free" || ctx === "cert") {
-        leadFlow.set(sessionId, {
-          step: "choose_course",
-          data: {
-            nombre: "",
-            whatsapp: "",
-            curso: "",
-            schedule_pref_id: schedIdPrev,
-            course_type: ctx,
-            franja: "",
-            dias: "",
-          },
-        });
+      const type = ctx === "free" || ctx === "cert" ? ctx : "all";
 
-        const reply = ctx === "free"
+      leadFlow.set(sessionId, {
+        step: "choose_course",
+        data: {
+          nombre: "",
+          whatsapp: "",
+          curso: "",
+          schedule_pref_id: schedIdPrev,
+          course_type: type,
+          franja: "",
+          dias: "",
+        },
+      });
+
+      const reply =
+        type === "free"
           ? `📝 INSCRIPCIÓN (CURSOS GRATIS)
 
 1/4) Selecciona el curso gratis disponible:`
-          : `📝 INSCRIPCIÓN (CURSOS CON CERTIFICADO)
+          : type === "cert"
+          ? `📝 INSCRIPCIÓN (CURSOS CON CERTIFICADO)
 
-1/4) Selecciona el curso con certificado:`;
+1/4) Selecciona el curso con certificado:`
+          : `📝 INSCRIPCIÓN (CURSOS DISPONIBLES)
 
-        if (supabase) {
-          await insertChatMessage(sessionId, userKey, "bot", reply);
-          await touchSessionLastMessage(sessionId, userKey, reply);
-        }
-
-        return sendJson(res, { reply, sessionId, suggestions: suggestionsChooseCourses(ctx) }, 200);
-      }
-
-      leadFlow.set(sessionId, { step: "nombre", data: { nombre: "", whatsapp: "", curso: "", schedule_pref_id: schedIdPrev } });
-
-      const extra = schedIdPrev ? "\n✅ Ya tengo tu horario guardado y lo vincularé a tu inscripción." : "";
-      const reply = `📝 INSCRIPCIÓN RÁPIDA${extra}
-
-Para ayudarte mejor, dime tu NOMBRE (solo nombre y apellido).`;
+✅ Elige el curso que deseas (gratis o con certificado):`;
 
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsChooseCourses(type) }, 200);
     }
 
     // ====== accesos directos ======
@@ -1705,7 +1996,7 @@ Intenta más tarde.`;
 
       if (st.step === "tiempo") {
         const tt = normalizeText(userMessage);
-        const ok = ["1-2", "3-5", "5+"].includes(tt);
+        const ok = ["1-2", "3-5", "5+"].includes(tt); // ✅ ahora sí funciona "5+"
         if (!ok) {
           const reply = `Elige una opción válida:
 • 1-2
@@ -1746,7 +2037,13 @@ Escribe: INSCRIBIRME`;
 
       if (st.step === "choose_course") {
         const type = st.data.course_type;
-        const list = type === "free" ? FREE_COURSES : CERT_COURSES;
+
+        const list =
+          type === "free"
+            ? FREE_COURSES
+            : type === "cert"
+            ? CERT_COURSES
+            : [...FREE_COURSES, ...CERT_COURSES]; // ✅ all
 
         const input = normalizeText(userMessage);
         const match = list.find((c) => normalizeText(c.name) === input) || list.find((c) => input.includes(normalizeText(c.name)));
@@ -1897,8 +2194,11 @@ Escríbelo así: +593991112233 o 0991112233`;
           return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
         }
 
-        try { await saveLead(userKey, sessionId, st.data); }
-        catch (e) { console.warn("⚠️ No se pudo guardar lead:", extractMessage(e)); }
+        try {
+          await saveLead(userKey, sessionId, st.data);
+        } catch (e) {
+          console.warn("⚠️ No se pudo guardar lead:", extractMessage(e));
+        }
 
         leadFlow.delete(sessionId);
 
@@ -1923,8 +2223,11 @@ Si quieres ver opciones: escribe MENU`;
         st.data.curso = userMessage.trim();
         st.data.schedule_pref_id = st.data.schedule_pref_id ?? (lastSchedulePrefId.get(sessionId) || null);
 
-        try { await saveLead(userKey, sessionId, st.data); }
-        catch (e) { console.warn("⚠️ No se pudo guardar lead:", extractMessage(e)); }
+        try {
+          await saveLead(userKey, sessionId, st.data);
+        } catch (e) {
+          console.warn("⚠️ No se pudo guardar lead:", extractMessage(e));
+        }
 
         leadFlow.delete(sessionId);
 
@@ -2050,7 +2353,8 @@ Escribe:
 • PILARES
 • BENEFICIOS
 • CERTIFICARME
-• TRABAJA CON NOSOTROS`;
+• TRABAJA CON NOSOTROS
+• YA ESTOY INSCRITO`;
 
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
