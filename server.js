@@ -1417,6 +1417,11 @@ app.post("/chat", async (req, res) => {
     // ====== comandos globales ======
     if (isGreeting(t) || isMenuCommand(t)) {
       resetFlows(sessionId);
+
+      // ✅ FIX: al volver al MENÚ limpiamos el contexto de cursos (free/cert),
+      // para que "inscribirme a algún curso" muestre TODOS.
+      courseContext.delete(sessionId);
+
       const reply = menuOpcionesTexto();
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -1758,9 +1763,9 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
           ? `📝 INSCRIPCIÓN (CURSOS CON CERTIFICADO)
 
 1/4) Selecciona el curso con certificado:`
-          : `📝 INSCRIPCIÓN (CURSOS DISPONIBLES)
+          : `📝 INSCRIPCIÓN (TODOS LOS CURSOS)
 
-✅ Elige el curso que deseas (gratis o con certificado):`;
+1/4) ¿A qué curso deseas inscribirte? (gratis o con certificado)`;
 
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
