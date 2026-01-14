@@ -9,10 +9,11 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@google/genai": "^1.33.0",
-    "@supabase/supabase-js": "^2.89.0",
+    "@google/genai": "^1.35.0",
+    "@supabase/supabase-js": "^2.90.1",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2"
+    "dotenv": "^16.6.1",
+    "express": "^4.22.1",
+    "nodemailer": "^7.0.12"
   }
 }

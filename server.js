@@ -12,16 +12,65 @@ app.set("trust proxy", 1);
 const port = process.env.PORT || 10000;
 
 // ============================
+// Seguridad / límites simples
+// ============================
+const MAX_MESSAGE_CHARS = Math.max(100, Number(process.env.MAX_MESSAGE_CHARS || 1200));
+
+// Rate limit (opcional, sin librerías)
+const RATE_LIMIT_MAX = Math.max(0, Number(process.env.RATE_LIMIT_MAX || 60)); // req por ventana
+const RATE_LIMIT_WINDOW_MS = Math.max(1000, Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000));
+const rateBuckets = new Map();
+
+function rateKey(req) {
+  // usa clientId si existe, si no IP|UA (como tu userKey)
+  return getUserKey(req);
+}
+
+function checkRateLimit(req) {
+  if (RATE_LIMIT_MAX <= 0) return { ok: true };
+
+  const key = rateKey(req);
+  const now = Date.now();
+  const bucket = rateBuckets.get(key) || { start: now, count: 0 };
+
+  if (now - bucket.start >= RATE_LIMIT_WINDOW_MS) {
+    bucket.start = now;
+    bucket.count = 0;
+  }
+
+  bucket.count += 1;
+  rateBuckets.set(key, bucket);
+
+  if (bucket.count > RATE_LIMIT_MAX) {
+    const retryAfterMs = RATE_LIMIT_WINDOW_MS - (now - bucket.start);
+    return { ok: false, retryAfterMs };
+  }
+
+  return { ok: true };
+}
+
+// Headers básicos
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
+  next();
+});
+
+// ============================
 // CORS (IMPORTANTE: x-client-id)
 // ============================
-app.use(
-  cors({
-    origin: "*",
-    methods: ["GET", "POST", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "x-client-id"],
-  })
-);
-app.options("*", cors());
+// Si quieres restringir: CORS_ORIGIN=https://tudominio.com (o lista separada por coma)
+const CORS_ORIGIN = (process.env.CORS_ORIGIN || "*").trim();
+const corsOptions = {
+  origin: CORS_ORIGIN === "*" ? "*" : CORS_ORIGIN.split(",").map((s) => s.trim()).filter(Boolean),
+  methods: ["GET", "POST", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "x-client-id"],
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use(express.json({ strict: false, limit: "1mb" }));
 
 // ============================
@@ -29,9 +78,7 @@ app.use(express.json({ strict: false, limit: "1mb" }));
 // ============================
 const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 if (!apiKey) {
-  console.warn(
-    "⚠️ Falta GEMINI_API_KEY (o GOOGLE_API_KEY). El bot funcionará en modo Fundación/FAQ sin IA."
-  );
+  console.warn("⚠️ Falta GEMINI_API_KEY (o GOOGLE_API_KEY). El bot funcionará en modo Fundación/FAQ sin IA.");
 }
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
@@ -43,10 +90,7 @@ const AI_COOLDOWN_MS = Number(process.env.AI_COOLDOWN_MS || 0);
 
 // Reintentos contra "modelo ocupado"
 const GEMINI_RETRIES = Math.max(0, Number(process.env.GEMINI_RETRIES || 2));
-const GEMINI_RETRY_BASE_MS = Math.max(
-  100,
-  Number(process.env.GEMINI_RETRY_BASE_MS || 700)
-);
+const GEMINI_RETRY_BASE_MS = Math.max(100, Number(process.env.GEMINI_RETRY_BASE_MS || 700));
 
 // ============================
 // Supabase
@@ -59,14 +103,11 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
   supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   console.log("✅ Supabase configurada: verdadero");
 } else {
-  console.warn(
-    "⚠️ Supabase NO configurada. Falta SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY."
-  );
+  console.warn("⚠️ Supabase NO configurada. Falta SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY.");
 }
 
 // ============================
 // System instruction (IA)
-// (La Fundación se responde SIN IA por reglas abajo)
 // ============================
 const systemInstruction = `
 Eres Lyro-Capacítamente, un asistente virtual amable y servicial.
@@ -77,11 +118,23 @@ Responde de forma clara, completa y concisa. Si algo es ambiguo, pide un dato pu
 // Helpers base
 // ============================
 function normalizeText(s) {
+  // 1) lower + trim
+  // 2) quita tildes
+  // 3) quita signos/puntuación para que "hola!" == "hola"
   return String(s || "")
     .trim()
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s-]/g, "") // quita puntuación
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function clampMessage(s) {
+  const msg = String(s || "").trim();
+  if (msg.length <= MAX_MESSAGE_CHARS) return msg;
+  return msg.slice(0, MAX_MESSAGE_CHARS);
 }
 
 function getClientId(req) {
@@ -105,13 +158,7 @@ function newSessionId() {
 }
 
 function extractStatus(err) {
-  return (
-    err?.status ||
-    err?.code ||
-    err?.error?.code ||
-    err?.response?.status ||
-    null
-  );
+  return err?.status || err?.code || err?.error?.code || err?.response?.status || null;
 }
 
 function extractMessage(err) {
@@ -136,8 +183,7 @@ function isRetryableGeminiError(status, msg) {
   const m = String(msg || "");
   if (status === 503) return true;
   if (status === 429) return true;
-  if (/overloaded|temporarily|unavailable|try again|timeout/i.test(m))
-    return true;
+  if (/overloaded|temporarily|unavailable|try again|timeout/i.test(m)) return true;
   if (/NO DISPONIBLE/i.test(m)) return true;
   return false;
 }
@@ -305,13 +351,17 @@ Para colaborar, ser voluntario/a, proponer alianzas o participar como facilitado
 📍 Guayaquil - Ecuador`;
 }
 
-// Certificarme (sin IA)
+// Certificarme (sin IA) -> ahora con lista
 function certificarmeIntroTexto() {
   return `📜 CERTIFICACIÓN
 
-Para certificarte, primero elige el CURSO que deseas certificar.
+Para certificarte, elige el CURSO:
 
-Selecciona una opción:`;
+• Formador de Formadores
+• Inteligencia Emocional
+• Tecnología para Padres
+
+(Escribe el nombre del curso tal cual o tócala en los botones)`;
 }
 
 // ============================
@@ -458,59 +508,38 @@ function suggestionsChooseCourses(type) {
 // ============================
 function isGreeting(t) {
   const s = normalizeText(t);
+  // ya sin signos: "hola!" => "hola"
   return ["hola", "buenas", "buenos dias", "buenas tardes", "buenas noches", "hello", "hi"].includes(s);
 }
 
 function isMenuCommand(t) {
   const s = normalizeText(t);
-  return ["menu", "menú", "opciones", "inicio", "start", "0"].includes(s);
+  return ["menu", "opciones", "inicio", "start", "0"].includes(s);
 }
 
 function isBenefitsQuery(t) {
   const s = normalizeText(t);
-  return (
-    s.includes("beneficio") ||
-    s.includes("beneficios") ||
-    s.includes("ventaja") ||
-    s.includes("que ofrece") ||
-    s.includes("que me da") ||
-    s.includes("beneficia")
-  );
+  return s.includes("beneficio") || s.includes("beneficios") || s.includes("ventaja") || s.includes("que ofrece") || s.includes("que me da") || s.includes("beneficia");
 }
 
 function isWorkWithUsQuery(t) {
   const s = normalizeText(t);
-  return (
-    s.includes("trabaja con nosotros") ||
-    s.includes("trabajar con ustedes") ||
-    s.includes("quiero trabajar") ||
-    s.includes("empleo") ||
-    s.includes("vacante") ||
-    s.includes("voluntario") ||
-    s.includes("colaborar") ||
-    s.includes("alianza")
-  );
+  return s.includes("trabaja con nosotros") || s.includes("trabajar con ustedes") || s.includes("quiero trabajar") || s.includes("empleo") || s.includes("vacante") || s.includes("voluntario") || s.includes("colaborar") || s.includes("alianza");
 }
 
 function isCertificarmeQuery(t) {
   const s = normalizeText(t);
-  return (
-    s.includes("certificarme") ||
-    s.includes("como certificarme") ||
-    s.includes("certificacion") ||
-    s.includes("certificación") ||
-    s.includes("certificar")
-  );
+  return s.includes("certificarme") || s.includes("como certificarme") || s.includes("certificacion") || s.includes("certificar");
 }
 
 function isMissionQuery(t) {
   const s = normalizeText(t);
-  return s === "mision" || s === "misión" || s.includes("mision") || s.includes("misión");
+  return s === "mision" || s.includes("mision");
 }
 
 function isVisionQuery(t) {
   const s = normalizeText(t);
-  return s === "vision" || s === "visión" || s.includes("vision") || s.includes("visión");
+  return s === "vision" || s.includes("vision");
 }
 
 function isValuesQuery(t) {
@@ -525,31 +554,23 @@ function isPillarsQuery(t) {
 
 function isAboutUsQuery(t) {
   const s = normalizeText(t);
-  return (
-    s.includes("quienes son") ||
-    s.includes("quienes somos") ||
-    s.includes("quiénes son") ||
-    s.includes("quiénes somos") ||
-    s.includes("historia") ||
-    s.includes("acerca de") ||
-    s.includes("nosotros")
-  );
+  return s.includes("quienes son") || s.includes("quienes somos") || s.includes("historia") || s.includes("acerca de") || s.includes("nosotros");
 }
 
 function isFoundationQuery(t) {
   const s = normalizeText(t);
   const keys = [
-    "fundacion","fundación","capacitamente","capacítamente",
-    "curso","cursos","certificado","certificacion","certificación","certificar","certificarme",
-    "donar","donacion","donación","donaciones","paypal","transferencia",
+    "fundacion","capacitamente",
+    "curso","cursos","certificado","certificacion","certificar","certificarme",
+    "donar","donacion","donaciones","paypal","transferencia",
     "whatsapp","correo","contacto","guayaquil",
     "tatiana","yadira",
-    "formador de formadores","inteligencia emocional","tecnologia para padres","tecnología para padres",
-    "tecnologia para educadores","tecnología para educadores",
-    "horario","horarios","inscribirme","inscripcion","inscripción",
+    "formador de formadores","inteligencia emocional","tecnologia para padres",
+    "tecnologia para educadores",
+    "horario","horarios","inscribirme","inscripcion",
     "beneficio","beneficios","ventajas",
-    "mision","misión","vision","visión","valores","pilares",
-    "quienes somos","quiénes somos","acerca de","nosotros",
+    "mision","vision","valores","pilares",
+    "quienes somos","acerca de","nosotros",
     "trabaja con nosotros","trabajar","vacante","empleo","voluntario","colaborar","alianza"
   ];
   return keys.some((k) => s.includes(normalizeText(k)));
@@ -599,10 +620,7 @@ async function getNextConversationNumber(userKey) {
       .limit(1)
       .maybeSingle();
     if (error) throw error;
-    const last =
-      data && typeof data.conversation_number === "number"
-        ? data.conversation_number
-        : 0;
+    const last = data && typeof data.conversation_number === "number" ? data.conversation_number : 0;
     return last + 1;
   } catch {
     return null;
@@ -624,27 +642,19 @@ async function insertSessionRow(row) {
   throw error;
 }
 
+// 🔧 CAMBIO CLAVE: ensureSession ya NO inserta el menú automáticamente (evita duplicados)
 async function ensureSession(sessionId, userKey) {
-  if (!supabase) return;
+  if (!supabase) return { created: false };
 
   const now = new Date().toISOString();
   const existing = await getSession(sessionId);
 
   if (!existing) {
     const nextNum = await getNextConversationNumber(userKey);
-
-    const row = {
-      session_id: sessionId,
-      user_key: userKey,
-      last_seen: now,
-    };
+    const row = { session_id: sessionId, user_key: userKey, last_seen: now };
     if (typeof nextNum === "number") row.conversation_number = nextNum;
-
     await insertSessionRow(row);
-
-    await insertChatMessage(sessionId, userKey, "bot", menuOpcionesTexto());
-    await touchSessionLastMessage(sessionId, userKey, "Conversación nueva");
-    return;
+    return { created: true };
   }
 
   if (existing.user_key !== userKey) {
@@ -653,12 +663,10 @@ async function ensureSession(sessionId, userKey) {
     throw e;
   }
 
-  const { error: upErr } = await supabase
-    .from("chat_sessions")
-    .update({ last_seen: now })
-    .eq("session_id", sessionId);
-
+  const { error: upErr } = await supabase.from("chat_sessions").update({ last_seen: now }).eq("session_id", sessionId);
   if (upErr) throw upErr;
+
+  return { created: false };
 }
 
 async function touchSessionLastMessage(sessionId, userKey, previewText) {
@@ -676,11 +684,7 @@ async function touchSessionLastMessage(sessionId, userKey, previewText) {
 
   const { error: upErr } = await supabase
     .from("chat_sessions")
-    .update({
-      last_seen: now,
-      last_message_at: now,
-      last_message_preview: preview,
-    })
+    .update({ last_seen: now, last_message_at: now, last_message_preview: preview })
     .eq("session_id", sessionId);
 
   if (upErr) throw upErr;
@@ -696,11 +700,15 @@ async function insertChatMessage(sessionId, userKey, role, content) {
     throw e;
   }
 
-  const { error } = await supabase
-    .from("chat_messages")
-    .insert([{ session_id: sessionId, role, content }]);
-
+  const { error } = await supabase.from("chat_messages").insert([{ session_id: sessionId, role, content }]);
   if (error) throw error;
+}
+
+// ✅ Nuevo: insertar menú SOLO cuando se crea desde /sessions
+async function insertWelcomeMenu(sessionId, userKey) {
+  const reply = menuOpcionesTexto();
+  await insertChatMessage(sessionId, userKey, "bot", reply);
+  await touchSessionLastMessage(sessionId, userKey, reply);
 }
 
 // ============================
@@ -717,15 +725,9 @@ async function setPinned(sessionId, userKey, pinned) {
   }
 
   const now = new Date().toISOString();
-  const payload = pinned
-    ? { pinned: true, pinned_at: now }
-    : { pinned: false, pinned_at: null };
+  const payload = pinned ? { pinned: true, pinned_at: now } : { pinned: false, pinned_at: null };
 
-  const { error } = await supabase
-    .from("chat_sessions")
-    .update(payload)
-    .eq("session_id", sessionId);
-
+  const { error } = await supabase.from("chat_sessions").update(payload).eq("session_id", sessionId);
   if (error) throw error;
 }
 
@@ -795,7 +797,7 @@ Si aún no lo recibiste, escríbenos:
 ✉️ info@fundacioncapacitamente.com`;
   }
 
-  if (estado === "en_proceso") {
+  if (estado === "en proceso" || estado === "en_proceso") {
     return `⏳ CERTIFICADO EN PROCESO
 
 Curso: ${row.curso}
@@ -804,7 +806,7 @@ Actualizado: ${updated}
 Sugerencia: vuelve a consultar más tarde.`;
   }
 
-  if (estado === "no_listo") {
+  if (estado === "no listo" || estado === "no_listo") {
     return `⚠️ CERTIFICADO AÚN NO LISTO
 
 Curso: ${row.curso}
@@ -873,14 +875,7 @@ async function saveSchedule(userKey, sessionId, data) {
 
   const try1 = await supabase
     .from("schedule_preferences")
-    .insert([
-      {
-        user_key: userKey,
-        session_id: sessionId,
-        franja: data.franja,
-        dias: data.dias,
-      },
-    ])
+    .insert([{ user_key: userKey, session_id: sessionId, franja: data.franja, dias: data.dias }])
     .select("*");
 
   if (!try1.error) {
@@ -894,13 +889,7 @@ async function saveSchedule(userKey, sessionId, data) {
     const pref = JSON.stringify({ franja: data.franja, dias: data.dias });
     const try2 = await supabase
       .from("schedule_preferences")
-      .insert([
-        {
-          user_key: userKey,
-          session_id: sessionId,
-          preferencia: pref,
-        },
-      ])
+      .insert([{ user_key: userKey, session_id: sessionId, preferencia: pref }])
       .select("*");
 
     if (try2.error) throw try2.error;
@@ -920,58 +909,34 @@ function recommendCourse({ persona, interes, tiempo }) {
   const i = normalizeText(interes);
   const t = normalizeText(tiempo);
 
-  if (p.includes("padre")) {
-    return {
-      curso: "Tecnología para Padres ($15)",
-      motivo: "ideal si quieres acompañar y guiar mejor el uso de tecnología en casa.",
-    };
+  if (p.includes("padre") || p.includes("madre")) {
+    return { curso: "Tecnología para Padres ($15)", motivo: "ideal si quieres acompañar y guiar mejor el uso de tecnología en casa." };
   }
 
   if (p.includes("docente")) {
     if (i.includes("tecnolog")) {
-      return {
-        curso: "Tecnología para Educadores (Gratis)",
-        motivo: "enfocado a herramientas y recursos útiles para docentes.",
-      };
+      return { curso: "Tecnología para Educadores (Gratis)", motivo: "enfocado a herramientas y recursos útiles para docentes." };
     }
-    return {
-      curso: "Formador de Formadores ($120)",
-      motivo: "perfecto para fortalecer habilidades de enseñanza y facilitación.",
-    };
+    return { curso: "Formador de Formadores ($120)", motivo: "perfecto para fortalecer habilidades de enseñanza y facilitación." };
   }
 
   if (i.includes("habilidades") || i.includes("blandas")) {
-    return {
-      curso: "Inteligencia Emocional ($15)",
-      motivo: "fortalece comunicación, manejo de emociones y relaciones.",
-    };
+    return { curso: "Inteligencia Emocional ($15)", motivo: "fortalece comunicación, manejo de emociones y relaciones." };
   }
 
   if (i.includes("educa")) {
-    return {
-      curso: "Formador de Formadores ($120)",
-      motivo: "te ayuda a estructurar sesiones y enseñar con mejor metodología.",
-    };
+    return { curso: "Formador de Formadores ($120)", motivo: "te ayuda a estructurar sesiones y enseñar con mejor metodología." };
   }
 
   if (i.includes("tecnolog")) {
-    return {
-      curso: "Tecnología para Educadores (Gratis)",
-      motivo: "una base útil para avanzar rápido sin costo.",
-    };
+    return { curso: "Tecnología para Educadores (Gratis)", motivo: "una base útil para avanzar rápido sin costo." };
   }
 
   if (t === "1-2") {
-    return {
-      curso: "Inteligencia Emocional ($15)",
-      motivo: "es una opción ligera y muy aplicable día a día.",
-    };
+    return { curso: "Inteligencia Emocional ($15)", motivo: "es una opción ligera y muy aplicable día a día." };
   }
 
-  return {
-    curso: "Formador de Formadores ($120)",
-    motivo: "muy completo si quieres una formación sólida.",
-  };
+  return { curso: "Formador de Formadores ($120)", motivo: "muy completo si quieres una formación sólida." };
 }
 
 // ============================
@@ -1020,11 +985,15 @@ setInterval(() => {
     if (now - s.lastAccess > SESSION_TTL_MS) sessions.delete(sid);
   }
   if (sessions.size > MAX_SESSIONS) {
-    const ordered = [...sessions.entries()].sort(
-      (a, b) => a[1].lastAccess - b[1].lastAccess
-    );
+    const ordered = [...sessions.entries()].sort((a, b) => a[1].lastAccess - b[1].lastAccess);
     const extra = sessions.size - MAX_SESSIONS;
     for (let i = 0; i < extra; i++) sessions.delete(ordered[i][0]);
+  }
+
+  // limpia rateBuckets viejos
+  const cutoff = now - RATE_LIMIT_WINDOW_MS * 3;
+  for (const [k, b] of rateBuckets.entries()) {
+    if (b.start < cutoff) rateBuckets.delete(k);
   }
 }, 60 * 1000);
 
@@ -1058,6 +1027,9 @@ app.get("/health", (req, res) => res.status(200).send("ok"));
 
 // Lista sesiones (con PIN si existe)
 app.get("/sessions", async (req, res) => {
+  const rl = checkRateLimit(req);
+  if (!rl.ok) return sendJson(res, { error: "Demasiadas solicitudes. Intenta en unos segundos." }, 429);
+
   try {
     if (!supabase) return sendJson(res, { error: "Supabase no configurado." }, 500);
 
@@ -1078,10 +1050,7 @@ app.get("/sessions", async (req, res) => {
         .filter(Boolean)
         .join(", ");
 
-      let q = supabase
-        .from("chat_sessions")
-        .select(fields)
-        .eq("user_key", userKey);
+      let q = supabase.from("chat_sessions").select(fields).eq("user_key", userKey);
 
       if (includePinned) {
         q = q
@@ -1118,6 +1087,9 @@ app.get("/sessions", async (req, res) => {
 
 // Crear nueva conversación
 app.post("/sessions", async (req, res) => {
+  const rl = checkRateLimit(req);
+  if (!rl.ok) return sendJson(res, { error: "Demasiadas solicitudes. Intenta en unos segundos." }, 429);
+
   try {
     if (!supabase) return sendJson(res, { error: "Supabase no configurado." }, 500);
 
@@ -1125,6 +1097,9 @@ app.post("/sessions", async (req, res) => {
     const sessionId = newSessionId();
 
     await ensureSession(sessionId, userKey);
+    // ✅ aquí sí insertamos el menú como primer mensaje (solo al crear con botón "Nueva")
+    await insertWelcomeMenu(sessionId, userKey);
+
     return sendJson(res, { sessionId }, 200);
   } catch (e) {
     return sendJson(res, { error: "Error creando sesión", details: String(e?.message || e) }, 500);
@@ -1133,6 +1108,9 @@ app.post("/sessions", async (req, res) => {
 
 // PIN / UNPIN
 app.post("/session/:sessionId/pin", async (req, res) => {
+  const rl = checkRateLimit(req);
+  if (!rl.ok) return sendJson(res, { error: "Demasiadas solicitudes. Intenta en unos segundos." }, 429);
+
   try {
     if (!supabase) return sendJson(res, { error: "Supabase no configurado." }, 500);
 
@@ -1147,10 +1125,7 @@ app.post("/session/:sessionId/pin", async (req, res) => {
       if (msg.includes("pinned")) {
         return sendJson(
           res,
-          {
-            error: "Tu tabla chat_sessions no tiene columnas de PIN.",
-            hint: "Agrega columnas pinned y pinned_at.",
-          },
+          { error: "Tu tabla chat_sessions no tiene columnas de PIN.", hint: "Agrega columnas pinned y pinned_at." },
           400
         );
       }
@@ -1166,6 +1141,9 @@ app.post("/session/:sessionId/pin", async (req, res) => {
 
 // Eliminar conversación
 app.delete("/session/:sessionId", async (req, res) => {
+  const rl = checkRateLimit(req);
+  if (!rl.ok) return sendJson(res, { error: "Demasiadas solicitudes. Intenta en unos segundos." }, 429);
+
   try {
     if (!supabase) return sendJson(res, { error: "Supabase no configurado." }, 500);
 
@@ -1176,8 +1154,7 @@ app.delete("/session/:sessionId", async (req, res) => {
 
     const s = await getSession(sessionId);
     if (!s) return sendJson(res, { error: "Sesión no encontrada." }, 404);
-    if (s.user_key !== userKey)
-      return sendJson(res, { error: "No autorizado para borrar esta sesión." }, 403);
+    if (s.user_key !== userKey) return sendJson(res, { error: "No autorizado para borrar esta sesión." }, 403);
 
     const { error: mErr } = await supabase.from("chat_messages").delete().eq("session_id", sessionId);
     if (mErr) return sendJson(res, { error: "Error borrando mensajes", details: mErr.message }, 500);
@@ -1200,6 +1177,9 @@ app.delete("/session/:sessionId", async (req, res) => {
 
 // Historial
 app.get("/history/:sessionId", async (req, res) => {
+  const rl = checkRateLimit(req);
+  if (!rl.ok) return sendJson(res, { error: "Demasiadas solicitudes. Intenta en unos segundos." }, 429);
+
   try {
     if (!supabase) return sendJson(res, { error: "Supabase no configurado." }, 500);
 
@@ -1208,8 +1188,7 @@ app.get("/history/:sessionId", async (req, res) => {
     const limit = Math.min(Number(req.query.limit || 200), 500);
 
     const s = await getSession(sessionId);
-    if (!s || s.user_key !== userKey)
-      return sendJson(res, { error: "Sesión no encontrada." }, 404);
+    if (!s || s.user_key !== userKey) return sendJson(res, { error: "Sesión no encontrada." }, 404);
 
     const { data, error } = await supabase
       .from("chat_messages")
@@ -1230,9 +1209,20 @@ app.get("/history/:sessionId", async (req, res) => {
 // Chat principal
 // ============================
 app.post("/chat", async (req, res) => {
+  // 🔧 para que el catch NO pierda el sessionId
+  let sessionId = "";
   try {
-    const userMessage = String(req.body?.message || "").trim();
-    let sessionId = String(req.body?.sessionId || "").trim();
+    const rl = checkRateLimit(req);
+    if (!rl.ok) {
+      return sendJson(
+        res,
+        { reply: "Estás enviando mensajes muy rápido. Intenta en unos segundos.", sessionId: String(req.body?.sessionId || ""), suggestions: suggestionsMenu() },
+        429
+      );
+    }
+
+    const userMessage = clampMessage(req.body?.message);
+    sessionId = String(req.body?.sessionId || "").trim();
 
     if (!userMessage) return sendJson(res, { reply: "Mensaje no proporcionado." }, 400);
     if (!sessionId) sessionId = newSessionId();
@@ -1248,6 +1238,7 @@ app.post("/chat", async (req, res) => {
 
     const t = normalizeText(userMessage);
 
+    // ====== comandos globales ======
     if (isGreeting(t) || isMenuCommand(t)) {
       resetFlows(sessionId);
       const reply = menuOpcionesTexto();
@@ -1268,6 +1259,7 @@ app.post("/chat", async (req, res) => {
       return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
+    // ====== info fundación ======
     if (isBenefitsQuery(userMessage)) {
       resetFlows(sessionId);
       const reply = beneficiosTexto();
@@ -1350,6 +1342,7 @@ app.post("/chat", async (req, res) => {
       return sendJson(res, { reply, sessionId, suggestions: suggestionsCertificarmeCursos() }, 200);
     }
 
+    // ====== menú numérico ======
     if (/^[1-6]$/.test(t)) {
       resetFlows(sessionId);
 
@@ -1412,6 +1405,7 @@ app.post("/chat", async (req, res) => {
       }
     }
 
+    // ====== asesor ======
     if (t.includes("asesor") || t.includes("recomendar") || t.includes("recomendacion") || t.includes("recomendación")) {
       resetFlows(sessionId);
       advisorFlow.set(sessionId, { step: "persona", persona: "", interes: "", tiempo: "" });
@@ -1430,9 +1424,11 @@ app.post("/chat", async (req, res) => {
       return sendJson(res, { reply, sessionId, suggestions: suggestionsAdvisorStart() }, 200);
     }
 
+    // contexto por palabras
     if (t.includes("gratis") || t.includes("gratuito")) courseContext.set(sessionId, "free");
     if (t.includes("precio") || t.includes("costo") || t.includes("con certificado")) courseContext.set(sessionId, "cert");
 
+    // ====== inscripción ======
     if (t.includes("inscrib") || t.includes("inscripcion") || t.includes("inscripción")) {
       resetFlows(sessionId);
 
@@ -1453,12 +1449,11 @@ app.post("/chat", async (req, res) => {
           },
         });
 
-        const reply =
-          ctx === "free"
-            ? `📝 INSCRIPCIÓN (CURSOS GRATIS)
+        const reply = ctx === "free"
+          ? `📝 INSCRIPCIÓN (CURSOS GRATIS)
 
 1/4) Selecciona el curso gratis disponible:`
-            : `📝 INSCRIPCIÓN (CURSOS CON CERTIFICADO)
+          : `📝 INSCRIPCIÓN (CURSOS CON CERTIFICADO)
 
 1/4) Selecciona el curso con certificado:`;
 
@@ -1470,10 +1465,7 @@ app.post("/chat", async (req, res) => {
         return sendJson(res, { reply, sessionId, suggestions: suggestionsChooseCourses(ctx) }, 200);
       }
 
-      leadFlow.set(sessionId, {
-        step: "nombre",
-        data: { nombre: "", whatsapp: "", curso: "", schedule_pref_id: schedIdPrev },
-      });
+      leadFlow.set(sessionId, { step: "nombre", data: { nombre: "", whatsapp: "", curso: "", schedule_pref_id: schedIdPrev } });
 
       const extra = schedIdPrev ? "\n✅ Ya tengo tu horario guardado y lo vincularé a tu inscripción." : "";
       const reply = `📝 INSCRIPCIÓN RÁPIDA${extra}
@@ -1487,6 +1479,7 @@ Para ayudarte mejor, dime tu NOMBRE (solo nombre y apellido).`;
       return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
     }
 
+    // ====== accesos directos ======
     if (t.includes("horario")) {
       resetFlows(sessionId);
       scheduleFlow.set(sessionId, { step: "franja", data: {} });
@@ -1640,15 +1633,29 @@ Intenta más tarde.`;
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
 
-      // ✅ AQUÍ: solo botón Menú al finalizar estado certificado
       return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
     }
 
-    // ====== FLUJO ASESOR (SIN IA) ======
+    // ====== FLUJO ASESOR (SIN IA) con validación ======
     if (advisorFlow.has(sessionId)) {
       const st = advisorFlow.get(sessionId);
 
       if (st.step === "persona") {
+        const p = normalizeText(userMessage);
+        const ok = ["docente", "padre", "madre", "estudiante", "profesional"].some((x) => p.includes(x));
+        if (!ok) {
+          const reply = `Elige una opción válida:
+• Docente
+• Padre/Madre
+• Estudiante
+• Profesional`;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsAdvisorStart() }, 200);
+        }
+
         st.persona = userMessage.trim();
         st.step = "interes";
         advisorFlow.set(sessionId, st);
@@ -1666,6 +1673,20 @@ Intenta más tarde.`;
       }
 
       if (st.step === "interes") {
+        const i = normalizeText(userMessage);
+        const ok = i.includes("habilidades") || i.includes("blandas") || i.includes("tecnolog") || i.includes("educa");
+        if (!ok) {
+          const reply = `Elige una opción válida:
+• Habilidades blandas
+• Tecnología
+• Educación`;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsAdvisorInterest() }, 200);
+        }
+
         st.interes = userMessage.trim();
         st.step = "tiempo";
         advisorFlow.set(sessionId, st);
@@ -1683,6 +1704,20 @@ Intenta más tarde.`;
       }
 
       if (st.step === "tiempo") {
+        const tt = normalizeText(userMessage);
+        const ok = ["1-2", "3-5", "5+"].includes(tt);
+        if (!ok) {
+          const reply = `Elige una opción válida:
+• 1-2
+• 3-5
+• 5+`;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsAdvisorTime() }, 200);
+        }
+
         st.tiempo = userMessage.trim();
         advisorFlow.delete(sessionId);
 
@@ -1714,9 +1749,7 @@ Escribe: INSCRIBIRME`;
         const list = type === "free" ? FREE_COURSES : CERT_COURSES;
 
         const input = normalizeText(userMessage);
-        const match =
-          list.find((c) => normalizeText(c.name) === input) ||
-          list.find((c) => input.includes(normalizeText(c.name)));
+        const match = list.find((c) => normalizeText(c.name) === input) || list.find((c) => input.includes(normalizeText(c.name)));
 
         if (!match) {
           const reply = "Por favor selecciona un curso de la lista para continuar.";
@@ -1728,7 +1761,6 @@ Escribe: INSCRIBIRME`;
         }
 
         st.data.curso = match.name;
-
         st.step = "franja";
         leadFlow.set(sessionId, st);
 
@@ -1776,7 +1808,7 @@ Escribe: INSCRIBIRME`;
 
       if (st.step === "dias") {
         const d = normalizeText(userMessage);
-        const ok = ["lun-vie", "sabado", "sábado", "domingo"].includes(d);
+        const ok = ["lun-vie", "sabado", "domingo"].includes(d);
         if (!ok) {
           const reply = `Selecciona una opción:
 • Lun-Vie
@@ -1884,15 +1916,12 @@ Si quieres ver opciones: escribe MENU`;
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
         }
-
-        // ✅ AQUÍ: solo botón Menú al finalizar inscripción
         return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
       }
 
       if (st.step === "curso") {
         st.data.curso = userMessage.trim();
-        st.data.schedule_pref_id =
-          st.data.schedule_pref_id ?? (lastSchedulePrefId.get(sessionId) || null);
+        st.data.schedule_pref_id = st.data.schedule_pref_id ?? (lastSchedulePrefId.get(sessionId) || null);
 
         try { await saveLead(userKey, sessionId, st.data); }
         catch (e) { console.warn("⚠️ No se pudo guardar lead:", extractMessage(e)); }
@@ -1913,13 +1942,11 @@ Si quieres ver opciones: escribe MENU`;
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
         }
-
-        // ✅ AQUÍ TAMBIÉN: solo botón Menú
         return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
       }
     }
 
-    // ====== FLUJO HORARIO (opción 6) ======
+    // ====== FLUJO HORARIO (opción 6) con validación de días ======
     if (scheduleFlow.has(sessionId)) {
       const st = scheduleFlow.get(sessionId);
 
@@ -1957,7 +1984,22 @@ Si quieres ver opciones: escribe MENU`;
       }
 
       if (st.step === "dias") {
-        st.data.dias = normalizeText(userMessage).trim();
+        const d = normalizeText(userMessage);
+        const ok = ["lun-vie", "sabado", "domingo"].includes(d);
+        if (!ok) {
+          const reply = `Selecciona una opción:
+• Lun-Vie
+• Sábado
+• Domingo
+(Para salir: MENU)`;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowStep2() }, 200);
+        }
+
+        st.data.dias = d;
 
         let saved = true;
         try {
@@ -1991,18 +2033,11 @@ Revisa que en Render estén SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY.`;
           await touchSessionLastMessage(sessionId, userKey, reply);
         }
 
-        return sendJson(
-          res,
-          {
-            reply,
-            sessionId,
-            suggestions: saved ? suggestionsAfterScheduleSaved() : suggestionsMenu(),
-          },
-          200
-        );
+        return sendJson(res, { reply, sessionId, suggestions: saved ? suggestionsAfterScheduleSaved() : suggestionsMenu() }, 200);
       }
     }
 
+    // ====== si es tema fundación, guiamos ======
     if (isFoundationQuery(userMessage)) {
       const reply = `Puedo ayudarte con información de la Fundación Capacítamente.
 
@@ -2029,8 +2064,7 @@ Escribe:
     // IA
     // ============================
     if (!ai) {
-      const msg =
-        "Ahora mismo solo puedo ayudarte con el menú e información de la Fundación. Escribe MENU para ver opciones.";
+      const msg = "Ahora mismo solo puedo ayudarte con el menú e información de la Fundación. Escribe MENU para ver opciones.";
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", msg);
         await touchSessionLastMessage(sessionId, userKey, msg);
@@ -2106,41 +2140,38 @@ Escribe:
     console.error("❌ Error /chat:", msg);
 
     if (status === 403) {
-      return sendJson(
-        res,
-        { reply: "Esta conversación no te pertenece. Crea una nueva (botón Nueva).", sessionId: "" },
-        403
-      );
+      return sendJson(res, { reply: "Esta conversación no te pertenece. Crea una nueva (botón Nueva).", sessionId: "" }, 403);
     }
 
-    if (
-      status === 429 ||
-      status === 503 ||
-      /RESOURCE_EXHAUSTED|quota|rate limit|429|overloaded|NO DISPONIBLE/i.test(msg)
-    ) {
+    if (status === 429 || status === 503 || /RESOURCE_EXHAUSTED|quota|rate limit|429|overloaded|NO DISPONIBLE/i.test(msg)) {
       const reply = aiFallbackMenuText();
-      return sendJson(
-        res,
-        { reply, sessionId: String(req.body?.sessionId || ""), suggestions: suggestionsMenu() },
-        200
-      );
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
     const reply = aiFallbackMenuText();
-    return sendJson(
-      res,
-      { reply, sessionId: String(req.body?.sessionId || ""), suggestions: suggestionsMenu() },
-      200
-    );
+    return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
   }
+});
+
+// ============================
+// Errores globales
+// ============================
+process.on("unhandledRejection", (reason) => {
+  console.error("❌ unhandledRejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("❌ uncaughtException:", err);
+});
+
+// Render envía SIGTERM cuando reinicia
+process.on("SIGTERM", () => {
+  console.log("🛑 SIGTERM recibido. Cerrando servidor...");
+  process.exit(0);
 });
 
 app.listen(port, "0.0.0.0", () => {
   console.log(`✅ Servidor escuchando en puerto ${port}`);
-  console.log(
-    `🤖 Gemini: modelo=${GEMINI_MODEL} tokens=${GEMINI_MAX_TOKENS} temperatura=${GEMINI_TEMPERATURE}`
-  );
-  console.log(
-    `⏱️ Cooldown(ms)=${AI_COOLDOWN_MS} | max diarios IA=${MAX_DAILY_AI_CALLS} | retries=${GEMINI_RETRIES}`
-  );
+  console.log(`🤖 Gemini: modelo=${GEMINI_MODEL} tokens=${GEMINI_MAX_TOKENS} temperatura=${GEMINI_TEMPERATURE}`);
+  console.log(`⏱️ Cooldown(ms)=${AI_COOLDOWN_MS} | max diarios IA=${MAX_DAILY_AI_CALLS} | retries=${GEMINI_RETRIES}`);
+  console.log(`🧯 RateLimit: max=${RATE_LIMIT_MAX}/ventana(${RATE_LIMIT_WINDOW_MS}ms) | maxMsg=${MAX_MESSAGE_CHARS} chars`);
 });

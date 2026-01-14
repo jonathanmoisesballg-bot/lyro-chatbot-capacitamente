@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-lyro-server="https://lyro-chatbot-capacitamente.onrender.com">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,9 +8,6 @@
   <style>
     body { margin:0; padding:0; }
 
-    /* =========================
-       ✅ CONTENEDOR DE BOTONES (NO SE ENCIMAN EN MÓVIL)
-       ========================= */
     #floating-actions{
       position:fixed;
       right:20px;
@@ -22,12 +19,10 @@
       pointer-events:auto;
     }
 
-    /* Botón Abrir/Cerrar (ahora vive dentro de #floating-actions) */
     #chat-toggle{
       position:relative !important;
       bottom:auto !important;
       right:auto !important;
-
       padding:15px 20px;
       background:#1E90FF; color:#fff; border:none; border-radius:30px;
       cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,.25);
@@ -39,12 +34,10 @@
     }
     #chat-toggle:hover{ filter:brightness(.97); transform: translateY(-2px); }
 
-    /* WhatsApp ícono (ahora vive dentro de #floating-actions) */
     #whatsapp-toggle{
       position:relative !important;
       bottom:auto !important;
       right:auto !important;
-
       width:56px; height:56px;
       background:#25D366; border-radius:50%;
       cursor:pointer;
@@ -64,13 +57,10 @@
       background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23fff' d='M19.11 17.53c-.27-.13-1.6-.79-1.85-.88-.25-.09-.43-.13-.61.13-.18.27-.7.88-.86 1.06-.16.18-.32.2-.59.07-.27-.13-1.14-.42-2.17-1.34-.8-.71-1.34-1.59-1.5-1.86-.16-.27-.02-.41.12-.55.12-.12.27-.32.41-.48.14-.16.18-.27.27-.45.09-.18.04-.34-.02-.48-.07-.13-.61-1.47-.84-2.01-.22-.53-.45-.46-.61-.47h-.52c-.18 0-.48.07-.73.34-.25.27-.95.93-.95 2.28 0 1.35.98 2.65 1.11 2.83.13.18 1.93 2.95 4.68 4.13.65.28 1.16.45 1.56.57.65.21 1.24.18 1.71.11.52-.08 1.6-.65 1.82-1.28.23-.63.23-1.17.16-1.28-.07-.11-.25-.18-.52-.32z'/%3E%3Cpath fill='%23fff' d='M26.66 5.34A14.9 14.9 0 0016.04.99C7.86.99 1.2 7.64 1.2 15.82c0 2.62.69 5.18 2 7.44L1.08 31l7.9-2.07a14.8 14.8 0 007.06 1.8h.01c8.18 0 14.84-6.65 14.84-14.83 0-3.96-1.55-7.69-4.23-10.56zM16.04 28.2h-.01a12.3 12.3 0 01-6.28-1.72l-.45-.27-4.69 1.23 1.25-4.57-.29-.47a12.3 12.3 0 01-1.89-6.58c0-6.79 5.52-12.31 12.32-12.31a12.24 12.24 0 018.72 3.62 12.25 12.25 0 013.6 8.69c0 6.79-5.52 12.31-12.28 12.38z'/%3E%3C/svg%3E");
     }
 
-    /* =========================
-       Chat
-       ========================= */
     #chat-container{
       position:fixed;
       right:20px;
-      bottom:calc(92px + env(safe-area-inset-bottom, 0px)); /* ✅ deja espacio a los botones */
+      bottom:calc(92px + env(safe-area-inset-bottom, 0px));
       width:360px; height:640px;
       max-width:92vw; max-height:88vh;
       background:#fff; border-radius:12px;
@@ -79,18 +69,10 @@
       font-family:Arial, sans-serif;
     }
 
-    /* En pantallas pequeñas, ajusta un poquito */
     @media (max-width:420px){
-      #chat-toggle{
-        padding:12px 16px;
-        max-width:68vw;
-        font-size:0.95em;
-      }
+      #chat-toggle{ padding:12px 16px; max-width:68vw; font-size:0.95em; }
       #whatsapp-toggle{ width:52px; height:52px; }
-      #chat-container{
-        right:12px;
-        bottom:calc(88px + env(safe-area-inset-bottom, 0px));
-      }
+      #chat-container{ right:12px; bottom:calc(88px + env(safe-area-inset-bottom, 0px)); }
       #floating-actions{ right:12px; }
     }
 
@@ -100,10 +82,7 @@
       display:flex; align-items:center; justify-content:space-between;
       gap:10px;
     }
-
-    #chat-header .left, #chat-header .right{
-      display:flex; align-items:center; gap:8px;
-    }
+    #chat-header .left, #chat-header .right{ display:flex; align-items:center; gap:8px; }
 
     .header-btn{
       border:none; cursor:pointer;
@@ -120,7 +99,6 @@
       max-width:210px;
     }
 
-    /* Drawer Historial */
     #history-drawer{
       position:absolute;
       top:0; left:0; bottom:0;
@@ -153,11 +131,7 @@
       gap:8px;
     }
 
-    .day-sep{
-      margin:10px 0 2px;
-      font-size:.82em;
-      opacity:.8;
-    }
+    .day-sep{ margin:10px 0 2px; font-size:.82em; opacity:.8; }
 
     .session-item {
       position: relative;
@@ -182,6 +156,7 @@
       font-size:.78em; opacity:.85;
       display:flex; gap:8px; align-items:center;
       margin-bottom:6px;
+      flex-wrap: wrap;
     }
     .pin-badge{
       font-size:.78em;
@@ -214,10 +189,7 @@
       justify-content: center;
       z-index: 20;
     }
-    .history-more:hover {
-      background: rgba(255,255,255,0.15);
-      color: #fff;
-    }
+    .history-more:hover { background: rgba(255,255,255,0.15); color: #fff; }
 
     .history-menu {
       display: none;
@@ -246,14 +218,10 @@
       align-items: center;
       gap: 6px;
     }
-    .history-menu button:hover {
-      background: #334155;
-      color: #fff;
-    }
+    .history-menu button:hover { background: #334155; color: #fff; }
     .history-menu .danger { color: #f87171; }
     .history-menu .danger:hover { background: rgba(248, 113, 113, 0.15); }
 
-    /* Mensajes */
     #chat-messages{
       flex:1 1 auto;
       padding:10px;
@@ -279,7 +247,6 @@
       margin-top:4px;
     }
 
-    /* Footer */
     #chat-footer{
       background:#fff;
       border-top:1px solid #eee;
@@ -288,7 +255,6 @@
       flex-direction:column;
     }
 
-    /* Botones sugeridos */
     #suggestion-buttons{
       padding:10px;
       background:#F4F7F9;
@@ -321,7 +287,7 @@
       transition: background-color .2s, color .2s, transform .08s;
       display:flex; align-items:center; justify-content:flex-start; gap:10px;
       text-align:left;
-      min-height:48px; /* ✅ parejitos */
+      min-height:48px;
       box-sizing:border-box;
     }
 
@@ -361,8 +327,6 @@
 </head>
 
 <body>
-
-  <!-- ✅ BOTONES FLOTANTES JUNTOS (no se enciman) -->
   <div id="floating-actions">
     <a id="whatsapp-toggle" href="https://wa.me/593983222358" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
       <span class="wa-icon" aria-hidden="true"></span>
@@ -372,7 +336,6 @@
   </div>
 
   <div id="chat-container">
-
     <div id="history-drawer">
       <div id="history-top">
         <b>📚 Historial</b>
@@ -401,17 +364,26 @@
         <button id="send-button">Enviar</button>
       </div>
     </div>
-
   </div>
 
   <script>
-    const SERVER_URL = "https://lyro-chatbot-capacitamente.onrender.com";
+    // ✅ SERVER configurable desde <html data-lyro-server="...">
+    const SERVER_URL = (document.documentElement.getAttribute("data-lyro-server") || "https://lyro-chatbot-capacitamente.onrender.com")
+      .replace(/\/+$/,"");
+
+    // ✅ FIX crypto is not defined
+    const webCrypto = (typeof window !== "undefined" && window.crypto) ? window.crypto : null;
 
     // Identidad estable del usuario
     const CLIENT_ID_KEY = "lyroClientId";
     let clientId = localStorage.getItem(CLIENT_ID_KEY);
+
     if (!clientId) {
-      clientId = (crypto.randomUUID ? crypto.randomUUID() : ("cid-" + Date.now() + "-" + Math.random().toString(36).slice(2)));
+      if (webCrypto && typeof webCrypto.randomUUID === "function") {
+        clientId = webCrypto.randomUUID();
+      } else {
+        clientId = "cid-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+      }
       localStorage.setItem(CLIENT_ID_KEY, clientId);
     }
 
@@ -456,11 +428,20 @@
 (Responde con 1-6 o escribe tu pregunta)`;
     }
 
+    function pad2(n){ return String(n).padStart(2,"0"); }
+
     function fmtDate(d) {
-      return new Date(d).toLocaleDateString("es-EC", { year:"numeric", month:"2-digit", day:"2-digit" });
+      const dt = new Date(d);
+      return dt.toLocaleDateString("es-EC", { year:"numeric", month:"2-digit", day:"2-digit" });
     }
     function fmtTime(d) {
-      return new Date(d).toLocaleTimeString("es-EC", { hour:"2-digit", minute:"2-digit" });
+      const dt = new Date(d);
+      return dt.toLocaleTimeString("es-EC", { hour:"2-digit", minute:"2-digit" });
+    }
+
+    function dayKey(d){
+      const dt = new Date(d);
+      return dt.getFullYear() + "-" + pad2(dt.getMonth()+1) + "-" + pad2(dt.getDate());
     }
 
     function clearMessages() { chatMessages.innerHTML = ""; }
@@ -481,6 +462,16 @@
 
       chatMessages.appendChild(msg);
       chatMessages.scrollTop = chatMessages.scrollHeight;
+      return msg;
+    }
+
+    function addTyping() {
+      const el = addMessage("⏳ Lyro está escribiendo...", "bot", new Date().toISOString());
+      el.dataset.typing = "1";
+      return el;
+    }
+    function removeTyping(el){
+      if (el && el.parentNode) el.parentNode.removeChild(el);
     }
 
     function roleToSender(role) {
@@ -549,24 +540,20 @@
       const groups = {};
       for (const s of sessions) {
         const stamp = s.last_message_at || s.created_at || Date.now();
-        const day = fmtDate(stamp);
-        if (!groups[day]) groups[day] = [];
-        groups[day].push(s);
+        const k = dayKey(stamp);
+        if (!groups[k]) groups[k] = [];
+        groups[k].push(s);
       }
 
-      const orderedDays = Object.keys(groups).sort((a,b) => {
-        const pa = a.split("/").reverse().join("-");
-        const pb = b.split("/").reverse().join("-");
-        return pb.localeCompare(pa);
-      });
+      const orderedDays = Object.keys(groups).sort((a,b)=> b.localeCompare(a));
 
-      orderedDays.forEach(day => {
+      orderedDays.forEach(k => {
         const sep = document.createElement("div");
         sep.className = "day-sep";
-        sep.textContent = "📅 " + day;
+        sep.textContent = "📅 " + fmtDate(k);
         historyList.appendChild(sep);
 
-        groups[day].forEach(s => {
+        groups[k].forEach(s => {
           const stamp = s.last_message_at || s.created_at || Date.now();
           const convNum = (typeof s.conversation_number === "number")
             ? s.conversation_number
@@ -651,7 +638,6 @@
 
         try {
           await apiFetch(`/session/${encodeURIComponent(sid)}`, { method: "DELETE" });
-          item.remove();
 
           if (sid === currentSessionId) {
             currentSessionId = "";
@@ -729,6 +715,8 @@
       sendButton.disabled = true;
       sendButton.textContent = "Cargando...";
 
+      const typingEl = addTyping();
+
       try {
         const data = await apiFetch("/chat", {
           method: "POST",
@@ -740,12 +728,15 @@
           localStorage.setItem(SESSION_KEY, currentSessionId);
         }
 
+        removeTyping(typingEl);
+
         addMessage(data.reply || "Sin respuesta.", "bot", new Date().toISOString());
         renderSuggestions(data.suggestions || DEFAULT_MENU_SUGGESTIONS);
 
         await loadSessionsList();
       } catch (err) {
         console.error("Error:", err);
+        removeTyping(typingEl);
         addMessage("Lo siento, estoy teniendo problemas de conexión. Intenta más tarde.", "bot", new Date().toISOString());
         renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
       } finally {
@@ -766,6 +757,9 @@
         await loadSessionsList();
         await loadHistory(currentSessionId);
         setTimeout(() => chatInput.focus(), 120);
+      } else {
+        document.querySelectorAll(".history-menu").forEach(m => m.style.display = "none");
+        historyDrawer.classList.remove("open");
       }
     };
 
@@ -781,6 +775,15 @@
     historyOpen.onclick = () => historyDrawer.classList.add("open");
     historyClose.onclick = () => historyDrawer.classList.remove("open");
     newChatBtn.onclick = async () => { await newConversation(); };
+
+    // ESC cierra drawer / chat
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        historyDrawer.classList.remove("open");
+        document.querySelectorAll(".history-menu").forEach(m => m.style.display = "none");
+        if (chatContainer.style.display === "flex") chatContainer.style.display = "none";
+      }
+    });
 
     renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
   </script>
