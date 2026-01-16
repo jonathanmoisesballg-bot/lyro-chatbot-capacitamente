@@ -12,6 +12,14 @@ app.set("trust proxy", 1);
 const port = process.env.PORT || 10000;
 
 // ============================
+// Contacto (centralizado)
+// ============================
+const CONTACT_PHONE_1 = process.env.CONTACT_PHONE_1 || "0983222358";
+const CONTACT_PHONE_2 = process.env.CONTACT_PHONE_2 || "046026948";
+const CONTACT_EMAIL = process.env.CONTACT_EMAIL || "jonathan.moises.ball.g@gmail.com";
+const CONTACT_CITY = process.env.CONTACT_CITY || "Guayaquil - Ecuador";
+
+// ============================
 // Seguridad / límites simples
 // ============================
 const MAX_MESSAGE_CHARS = Math.max(100, Number(process.env.MAX_MESSAGE_CHARS || 1200));
@@ -194,9 +202,124 @@ function aiFallbackMenuText() {
 1) Escribir: MENU (para ver opciones)
 2) Elegir una opción del menú (1-6)
 3) O contactarnos:
-📱 0983222358
-☎️ 046026948
-✉️ info@fundacioncapacitamente.com`;
+📱 ${CONTACT_PHONE_1}
+☎️ ${CONTACT_PHONE_2}
+✉️ ${CONTACT_EMAIL}`;
+}
+
+// ============================
+// Cursos (INFO + INSCRIPCIÓN)
+// ============================
+// NOTA:
+// - Para el MENÚ (1 y 2) se listan TODOS (incluye Próx.) en orden A-Z.
+// - Para INSCRIBIRME solo se muestran los DISPONIBLES (available: true).
+
+const FREE_COURSES = [
+  {
+    name: "Tecnología para Educadores",
+    label: "🎓 Tecnología para Educadores – Tatiana Arias (Gratis)",
+    available: true,
+  },
+  {
+    name: "Metodología de la Pregunta",
+    label: "🎓 Metodología de la Pregunta – Tatiana Arias (Próx.)",
+    available: false,
+  },
+  {
+    name: "Neuroeducación… También en casa",
+    label: "🎓 Neuroeducación… También en casa – Prosandoval (Próx.)",
+    available: false,
+  },
+];
+
+const CERT_COURSES = [
+  {
+    name: "Formador de Formadores",
+    label: "🎓 Formador de Formadores ($120) – Tatiana Arias",
+    available: true,
+  },
+  {
+    name: "Inteligencia Emocional",
+    label: "🎓 Inteligencia Emocional ($15) – Tatiana Arias",
+    available: true,
+  },
+  {
+    name: "Tecnología para Padres",
+    label: "🎓 Tecnología para Padres ($15) – Yadira Suárez",
+    available: true,
+  },
+
+  // Próximamente
+  {
+    name: "Contabilidad para no contadores",
+    label: "🎓 Contabilidad para no contadores ($20) (Próx.)",
+    available: false,
+  },
+  {
+    name: "Docencia Virtual",
+    label: "🎓 Docencia Virtual ($20) (Próx.)",
+    available: false,
+  },
+  {
+    name: "Habilidades Cognitivas y Emocionales (Aprender a Pensar)",
+    label: "🎓 Habilidades Cognitivas y Emocionales (Aprender a Pensar) ($20) (Próx.)",
+    available: false,
+  },
+];
+
+// ============================
+// Enumeración alfabética A,B,C...
+// ============================
+const ALPHA = "abcdefghijklmnopqrstuvwxyz".split("");
+
+function alphaKey(i) {
+  return ALPHA[i] || String(i + 1);
+}
+
+function alphaLabel(i) {
+  return alphaKey(i).toUpperCase();
+}
+
+function sortCoursesByName(list) {
+  return [...list].sort((a, b) => normalizeText(a.name).localeCompare(normalizeText(b.name)));
+}
+
+// Detecta si el usuario escribió "A", "a)", "a." etc.
+function extractAlphaChoice(text) {
+  const raw = String(text || "").trim();
+  const m = raw.match(/^([a-zA-Z])(?:[\)\.\-:\s]|$)/);
+  return m ? m[1].toLowerCase() : "";
+}
+
+// Construye opciones: texto enumerado + botones enumerados + mapa letra->curso
+function buildCoursePicker(type, { availableOnly } = { availableOnly: true }) {
+  const base =
+    type === "free"
+      ? FREE_COURSES
+      : type === "cert"
+      ? CERT_COURSES
+      : [...FREE_COURSES, ...CERT_COURSES];
+
+  const list = sortCoursesByName(availableOnly ? base.filter((c) => c.available) : base);
+
+  const map = {}; // { a: "Tecnología para Educadores", b: "..." }
+  const lines = []; // ["A) ...", "B) ..."]
+  const suggestions = []; // [{text:"a", label:"A) ..."}]
+
+  list.forEach((c, idx) => {
+    const k = alphaKey(idx);
+    const L = alphaLabel(idx);
+
+    map[k] = c.name;
+
+    lines.push(`${L}) ${c.label}`);
+    suggestions.push({ text: k, label: `${L}) ${c.label}` });
+  });
+
+  suggestions.push({ text: "menu", label: "📌 Menú" });
+  suggestions.push({ text: "cancelar", label: "✖ Cancelar" });
+
+  return { list, map, lines, suggestions };
 }
 
 // ============================
@@ -217,30 +340,25 @@ function menuOpcionesTexto() {
 Responde con el número (1-6) o escribe tu pregunta.`;
 }
 
+// ✅ (A-Z) para menú opción 1
 function cursosGratisTexto() {
-  return `🎓 CURSOS GRATUITOS
+  const pick = buildCoursePicker("free", { availableOnly: false });
 
-• Tecnología para Educadores – Tatiana Arias
+  return `🎓 CURSOS GRATUITOS (A-Z)
 
-📌 Próximamente:
-• Metodología de la Pregunta – Tatiana Arias
-• Neuroeducación… También en casa – Prosandoval
+${pick.lines.join("\n")}
 
 Si quieres recomendación personalizada, escribe: ASESOR
 Si quieres inscribirte, escribe: INSCRIBIRME`;
 }
 
+// ✅ (A-Z) para menú opción 2
 function cursosCertTexto() {
-  return `🎓 CURSOS CON CERTIFICADO (precios)
+  const pick = buildCoursePicker("cert", { availableOnly: false });
 
-• Formador de Formadores ($120) – Tatiana Arias
-• Inteligencia Emocional ($15) – Tatiana Arias
-• Tecnología para Padres ($15) – Yadira Suárez
+  return `🎓 CURSOS CON CERTIFICADO (A-Z)
 
-📌 Próximamente:
-• Contabilidad para no contadores ($20)
-• Docencia Virtual ($20)
-• Habilidades Cognitivas y Emocionales (Aprender a Pensar) ($20)
+${pick.lines.join("\n")}
 
 Si quieres recomendación personalizada, escribe: ASESOR
 Si quieres inscribirte, escribe: INSCRIBIRME`;
@@ -249,10 +367,10 @@ Si quieres inscribirte, escribe: INSCRIBIRME`;
 function contactoTexto() {
   return `📞 CONTACTO FUNDACIÓN CAPACÍTAMENTE
 
-📱 0983222358
-☎️ 046026948
-✉️ info@fundacioncapacitamente.com
-📍 Guayaquil - Ecuador`;
+📱 ${CONTACT_PHONE_1}
+☎️ ${CONTACT_PHONE_2}
+✉️ ${CONTACT_EMAIL}
+📍 ${CONTACT_CITY}`;
 }
 
 function donarTexto() {
@@ -343,13 +461,13 @@ function trabajarConNosotrosTexto() {
 
 Para colaborar, ser voluntario/a, proponer alianzas o participar como facilitador/a, contáctanos:
 
-📱 WhatsApp: 0983222358
-☎️ 046026948
-✉️ info@fundacioncapacitamente.com
-📍 Guayaquil - Ecuador`;
+📱 WhatsApp: ${CONTACT_PHONE_1}
+☎️ ${CONTACT_PHONE_2}
+✉️ ${CONTACT_EMAIL}
+📍 ${CONTACT_CITY}`;
 }
 
-// Certificarme (sin IA) -> ahora con lista
+// Certificarme (sin IA) -> lista
 function certificarmeIntroTexto() {
   return `📜 CERTIFICACIÓN
 
@@ -359,23 +477,8 @@ Para certificarte, elige el CURSO:
 • Inteligencia Emocional
 • Tecnología para Padres
 
-(Escribe el nombre del curso tal cual o tócala en los botones)`;
+(Escribe el nombre del curso tal cual o tócalo en los botones)`;
 }
-
-// ============================
-// Cursos para inscripción guiada
-// ============================
-const FREE_COURSES = [
-  { name: "Tecnología para Educadores", label: "🎓 Tecnología para Educadores (Gratis)" },
-  { name: "Metodología de la Pregunta", label: "🎓 Metodología de la Pregunta (Próx.)" },
-  { name: "Neuroeducación… También en casa", label: "🎓 Neuroeducación… También en casa (Próx.)" },
-];
-
-const CERT_COURSES = [
-  { name: "Formador de Formadores", label: "🎓 Formador de Formadores ($120)" },
-  { name: "Inteligencia Emocional", label: "🎓 Inteligencia Emocional ($15)" },
-  { name: "Tecnología para Padres", label: "🎓 Tecnología para Padres ($15)" },
-];
 
 // ============================
 // Sugerencias (botones)
@@ -495,18 +598,10 @@ function suggestionsCertificarmeCursos() {
 }
 
 // ✅ Soporta: "free" | "cert" | "all"
+// ✅ Ahora devuelve BOTONES con letras A,B,C... (solo DISPONIBLES)
 function suggestionsChooseCourses(type) {
-  const list =
-    type === "free"
-      ? FREE_COURSES
-      : type === "cert"
-      ? CERT_COURSES
-      : [...FREE_COURSES, ...CERT_COURSES];
-
-  const out = list.map((c) => ({ text: c.name, label: c.label }));
-  out.push({ text: "menu", label: "📌 Menú" });
-  out.push({ text: "cancelar", label: "✖ Cancelar" });
-  return out;
+  const pick = buildCoursePicker(type, { availableOnly: true });
+  return pick.suggestions;
 }
 
 // ============================
@@ -860,9 +955,9 @@ Curso: ${row.curso}
 Actualizado: ${updated}
 
 Si aún no lo recibiste, escríbenos:
-📱 0983222358
-☎️ 046026948
-✉️ info@fundacioncapacitamente.com`;
+📱 ${CONTACT_PHONE_1}
+☎️ ${CONTACT_PHONE_2}
+✉️ ${CONTACT_EMAIL}`;
   }
 
   if (estado === "en proceso" || estado === "en_proceso") {
@@ -881,9 +976,9 @@ Curso: ${row.curso}
 Actualizado: ${updated}
 
 Si necesitas ayuda, contáctanos:
-📱 0983222358
-☎️ 046026948
-✉️ info@fundacioncapacitamente.com`;
+📱 ${CONTACT_PHONE_1}
+☎️ ${CONTACT_PHONE_2}
+✉️ ${CONTACT_EMAIL}`;
   }
 
   return `📄 ESTADO DE CERTIFICADO
@@ -1417,9 +1512,6 @@ app.post("/chat", async (req, res) => {
     // ====== comandos globales ======
     if (isGreeting(t) || isMenuCommand(t)) {
       resetFlows(sessionId);
-
-      // ✅ FIX: al volver al MENÚ limpiamos el contexto de cursos (free/cert),
-      // para que "inscribirme a algún curso" muestre TODOS.
       courseContext.delete(sessionId);
 
       const reply = menuOpcionesTexto();
@@ -1730,16 +1822,21 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
 
     // contexto por palabras
     if (t.includes("gratis") || t.includes("gratuito")) courseContext.set(sessionId, "free");
-    if (t.includes("precio") || t.includes("costo") || t.includes("con certificado")) courseContext.set(sessionId, "cert");
+    if (t.includes("precio") || t.includes("costo") || t.includes("con certificado") || t.includes("pago")) courseContext.set(sessionId, "cert");
 
-    // ====== inscripción (✅ si no hay contexto: muestra TODOS) ======
+    // ====== inscripción (A-Z + letras, sin bug) ======
     if (t.includes("inscrib") || t.includes("inscripcion") || t.includes("inscripción")) {
       resetFlows(sessionId);
 
-      const ctx = courseContext.get(sessionId) || null;
+      // ✅ CLAVE: si es "inscribirme" general, IGNORA courseContext
+      const wantsFree = t.includes("gratis") || t.includes("gratuito");
+      const wantsCert = t.includes("cert") || t.includes("precio") || t.includes("costo") || t.includes("pago") || t.includes("con certificado");
+
+      const type = wantsFree ? "free" : wantsCert ? "cert" : "all";
       const schedIdPrev = lastSchedulePrefId.get(sessionId) || null;
 
-      const type = ctx === "free" || ctx === "cert" ? ctx : "all";
+      // picker de cursos DISPONIBLES (available:true)
+      const pick = buildCoursePicker(type, { availableOnly: true });
 
       leadFlow.set(sessionId, {
         step: "choose_course",
@@ -1751,28 +1848,29 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
           course_type: type,
           franja: "",
           dias: "",
+          course_map: pick.map, // ✅ mapa letra -> nombre curso
         },
       });
 
-      const reply =
+      const title =
         type === "free"
-          ? `📝 INSCRIPCIÓN (CURSOS GRATIS)
-
-1/4) Selecciona el curso gratis disponible:`
+          ? "📝 INSCRIPCIÓN (CURSOS GRATIS DISPONIBLES)"
           : type === "cert"
-          ? `📝 INSCRIPCIÓN (CURSOS CON CERTIFICADO)
+          ? "📝 INSCRIPCIÓN (CURSOS CON CERTIFICADO DISPONIBLES)"
+          : "📝 INSCRIPCIÓN (CURSOS DISPONIBLES)";
 
-1/4) Selecciona el curso con certificado:`
-          : `📝 INSCRIPCIÓN (TODOS LOS CURSOS)
+      const reply = `${title}
 
-1/4) ¿A qué curso deseas inscribirte? (gratis o con certificado)`;
+1/4) Elige el curso (responde con la letra):
+
+${pick.lines.join("\n")}`;
 
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
 
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsChooseCourses(type) }, 200);
+      return sendJson(res, { reply, sessionId, suggestions: pick.suggestions }, 200);
     }
 
     // ====== accesos directos ======
@@ -1911,9 +2009,9 @@ Ejemplo: Inteligencia Emocional
 • Curso: ${curso}
 
 Si crees que es un error, contáctanos:
-📱 0983222358
-☎️ 046026948
-✉️ info@fundacioncapacitamente.com`;
+📱 ${CONTACT_PHONE_1}
+☎️ ${CONTACT_PHONE_2}
+✉️ ${CONTACT_EMAIL}`;
         } else {
           reply = certificateReplyFromRow(row);
         }
@@ -2043,26 +2141,32 @@ Escribe: INSCRIBIRME`;
       if (st.step === "choose_course") {
         const type = st.data.course_type;
 
-        const list =
-          type === "free"
-            ? FREE_COURSES
-            : type === "cert"
-            ? CERT_COURSES
-            : [...FREE_COURSES, ...CERT_COURSES]; // ✅ all
+        const pick = buildCoursePicker(type, { availableOnly: true });
 
+        // 1) Elección por letra (A,B,C...)
+        const key = extractAlphaChoice(userMessage);
+        const byLetter = key ? st.data.course_map?.[key] || pick.map?.[key] || "" : "";
+
+        // 2) Elección por nombre
         const input = normalizeText(userMessage);
-        const match = list.find((c) => normalizeText(c.name) === input) || list.find((c) => input.includes(normalizeText(c.name)));
+        const byName =
+          pick.list.find((c) => normalizeText(c.name) === input) ||
+          pick.list.find((c) => input.includes(normalizeText(c.name)));
 
-        if (!match) {
-          const reply = "Por favor selecciona un curso de la lista para continuar.";
+        const finalCourse = byLetter || (byName ? byName.name : "");
+
+        if (!finalCourse) {
+          const reply = `Por favor selecciona un curso válido (letra o nombre):
+
+${pick.lines.join("\n")}`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
             await touchSessionLastMessage(sessionId, userKey, reply);
           }
-          return sendJson(res, { reply, sessionId, suggestions: suggestionsChooseCourses(type) }, 200);
+          return sendJson(res, { reply, sessionId, suggestions: pick.suggestions }, 200);
         }
 
-        st.data.curso = match.name;
+        st.data.curso = finalCourse;
         st.step = "franja";
         leadFlow.set(sessionId, st);
 
@@ -2183,50 +2287,6 @@ Escríbelo así: +593991112233 o 0991112233`;
         }
 
         st.data.whatsapp = w;
-
-        if (!st.data.curso || String(st.data.curso).trim().length < 2) {
-          st.step = "curso";
-          leadFlow.set(sessionId, st);
-
-          const reply = `Perfecto ✅
-
-¿En qué CURSO te gustaría inscribirte?
-(Ej: Inteligencia Emocional / Formador de Formadores / Tecnología para Padres)`;
-          if (supabase) {
-            await insertChatMessage(sessionId, userKey, "bot", reply);
-            await touchSessionLastMessage(sessionId, userKey, reply);
-          }
-          return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
-        }
-
-        try {
-          await saveLead(userKey, sessionId, st.data);
-        } catch (e) {
-          console.warn("⚠️ No se pudo guardar lead:", extractMessage(e));
-        }
-
-        leadFlow.delete(sessionId);
-
-        const extra = st.data.schedule_pref_id ? `\nHorario vinculado (ID): ${st.data.schedule_pref_id}` : "";
-        const reply = `✅ ¡Listo! Recibimos tus datos.
-
-Nombre: ${st.data.nombre}
-WhatsApp: ${st.data.whatsapp}
-Curso: ${st.data.curso}${extra}
-
-En breve te contactaremos por WhatsApp.
-Si quieres ver opciones: escribe MENU`;
-
-        if (supabase) {
-          await insertChatMessage(sessionId, userKey, "bot", reply);
-          await touchSessionLastMessage(sessionId, userKey, reply);
-        }
-        return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
-      }
-
-      if (st.step === "curso") {
-        st.data.curso = userMessage.trim();
-        st.data.schedule_pref_id = st.data.schedule_pref_id ?? (lastSchedulePrefId.get(sessionId) || null);
 
         try {
           await saveLead(userKey, sessionId, st.data);
