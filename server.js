@@ -1828,15 +1828,16 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
     if (t.includes("inscrib") || t.includes("inscripcion") || t.includes("inscripción")) {
       resetFlows(sessionId);
 
-      // ✅ CLAVE: si es "inscribirme" general, IGNORA courseContext
+      // ✅ CLAVE: si es "inscribirme" general, usa courseContext si existe
       const wantsFree = t.includes("gratis") || t.includes("gratuito");
       const wantsCert = t.includes("cert") || t.includes("precio") || t.includes("costo") || t.includes("pago") || t.includes("con certificado");
 
-      const type = wantsFree ? "free" : wantsCert ? "cert" : "all";
+      const ctxType = courseContext.get(sessionId);
+      const type = wantsFree ? "free" : wantsCert ? "cert" : ctxType === "free" || ctxType === "cert" ? ctxType : "all";
       const schedIdPrev = lastSchedulePrefId.get(sessionId) || null;
 
-      // picker de cursos DISPONIBLES (available:true)
-      const pick = buildCoursePicker(type, { availableOnly: true });
+      // picker de cursos (incluye Próx.)
+      const pick = buildCoursePicker(type, { availableOnly: false });
 
       leadFlow.set(sessionId, {
         step: "choose_course",
@@ -1854,10 +1855,10 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
 
       const title =
         type === "free"
-          ? "📝 INSCRIPCIÓN (CURSOS GRATIS DISPONIBLES)"
+          ? "📝 INSCRIPCIÓN (CURSOS GRATIS A-Z)"
           : type === "cert"
-          ? "📝 INSCRIPCIÓN (CURSOS CON CERTIFICADO DISPONIBLES)"
-          : "📝 INSCRIPCIÓN (CURSOS DISPONIBLES)";
+          ? "📝 INSCRIPCIÓN (CURSOS CON CERTIFICADO A-Z)"
+          : "📝 INSCRIPCIÓN (CURSOS A-Z)";
 
       const reply = `${title}
 
@@ -2141,7 +2142,7 @@ Escribe: INSCRIBIRME`;
       if (st.step === "choose_course") {
         const type = st.data.course_type;
 
-        const pick = buildCoursePicker(type, { availableOnly: true });
+        const pick = buildCoursePicker(type, { availableOnly: false });
 
         // 1) Elección por letra (A,B,C...)
         const key = extractAlphaChoice(userMessage);
