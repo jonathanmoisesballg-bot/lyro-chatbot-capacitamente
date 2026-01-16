@@ -1832,9 +1832,10 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
       const wantsFree = t.includes("gratis") || t.includes("gratuito");
       const wantsCert = t.includes("cert") || t.includes("precio") || t.includes("costo") || t.includes("pago") || t.includes("con certificado");
 
-      const ctxType = courseContext.get(sessionId);
-      const type = wantsFree ? "free" : wantsCert ? "cert" : ctxType === "free" || ctxType === "cert" ? ctxType : "all";
       const schedIdPrev = lastSchedulePrefId.get(sessionId) || null;
+      const ctxType = courseContext.get(sessionId);
+      const type =
+        wantsFree ? "free" : wantsCert ? "cert" : schedIdPrev ? "all" : ctxType === "free" || ctxType === "cert" ? ctxType : "all";
 
       // picker de cursos (incluye Próx.)
       const pick = buildCoursePicker(type, { availableOnly: false });
@@ -1850,6 +1851,7 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
           franja: "",
           dias: "",
           course_map: pick.map, // ✅ mapa letra -> nombre curso
+          skip_schedule: !!schedIdPrev,
         },
       });
 
@@ -2115,6 +2117,7 @@ Intenta más tarde.`;
 
         st.tiempo = userMessage.trim();
         advisorFlow.delete(sessionId);
+        courseContext.delete(sessionId);
 
         const rec = recommendCourse(st);
 
@@ -2168,6 +2171,23 @@ ${pick.lines.join("\n")}`;
         }
 
         st.data.curso = finalCourse;
+
+        if (st.data.skip_schedule) {
+          st.step = "nombre";
+          leadFlow.set(sessionId, st);
+
+          const reply = `✅ Perfecto. Ya tengo tu horario guardado.
+
+Curso: ${st.data.curso}
+
+Ahora dime tu NOMBRE (nombre y apellido).`;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+        }
+
         st.step = "franja";
         leadFlow.set(sessionId, st);
 
@@ -2381,6 +2401,7 @@ Si quieres ver opciones: escribe MENU`;
         }
 
         scheduleFlow.delete(sessionId);
+        courseContext.delete(sessionId);
 
         const reply = saved
           ? `✅ ¡Gracias! Guardé tu preferencia de horario.
