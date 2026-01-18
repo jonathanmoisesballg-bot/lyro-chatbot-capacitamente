@@ -364,7 +364,7 @@ function cursosGratisTexto() {
 
 ${pick.lines.join("\n")}
 
-Si quieres recomendación personalizada, escribe: ASESOR
+Si quieres recomendación personalizada, Escribe: TEST DE AYUDA
 Si quieres inscribirte, escribe: INSCRIBIRME`;
 }
 
@@ -376,7 +376,7 @@ function cursosCertTexto() {
 
 ${pick.lines.join("\n")}
 
-Si quieres recomendación personalizada, escribe: ASESOR
+Si quieres recomendación personalizada, Escribe: TEST DE AYUDA
 Si quieres inscribirte, escribe: INSCRIBIRME`;
 }
 
@@ -405,25 +405,25 @@ function horariosTexto() {
 Los horarios son FLEXIBLES: se ajustan a tu disponibilidad porque las clases son 100% online.
 
 📌 Dime tu preferencia:
-• Mañana
-• Tarde
-• Noche`;
+- Mañana
+- Tarde
+- Noche`;
 }
 
 function beneficiosTexto() {
   return `✅ BENEFICIOS EN FUNDACIÓN CAPACÍTAMENTE
 
-• Formación online accesible y de excelencia.
-• Metodología innovadora basada en: tecnología, constructivismo, neurociencia e inteligencia emocional.
-• Enfoque social: orientado especialmente a población vulnerable, con compromiso en progreso social, económico y en valores.
-• Cursos gratuitos y cursos con certificación a bajo costo.
-• Modalidad virtual y flexible.
-• Acompañamiento y asesoría para elegir el curso ideal.
+- Formación online accesible y de excelencia.
+- Metodología innovadora basada en: tecnología, constructivismo, neurociencia e inteligencia emocional.
+- Enfoque social: orientado especialmente a población vulnerable, con compromiso en progreso social, económico y en valores.
+- Cursos gratuitos y cursos con certificación a bajo costo.
+- Modalidad virtual y flexible.
+- Acompañamiento y asesoría para elegir el curso ideal.
 
 Para ver cursos escribe:
-• 1 (Cursos gratis)
-• 2 (Cursos con certificados y precios)
-O escribe: ASESOR`;
+- 1 (Cursos gratis)
+- 2 (Cursos con certificados y precios)
+O Escribe: TEST DE AYUDA`;
 }
 
 function misionTexto() {
@@ -437,31 +437,31 @@ function visionTexto() {
 
 Ser reconocida nacional e internacionalmente como un referente de educación con enfoque social, dirigida para todo aquel que desee adquirir conocimientos significativos.
 
-• Implementar las mejores e innovadoras estrategias pedagógicas y tecnológicas en sus cursos para lograr mayor integración laboral.
-• Consolidarse como el mejor centro de capacitación online y presencial del Ecuador y Latinoamérica.
-• Transferir metodologías constructivistas, inteligencia emocional y neurociencia a nivel nacional e internacional.`;
+- Implementar las mejores e innovadoras estrategias pedagógicas y tecnológicas en sus cursos para lograr mayor integración laboral.
+- Consolidarse como el mejor centro de capacitación online y presencial del Ecuador y Latinoamérica.
+- Transferir metodologías constructivistas, inteligencia emocional y neurociencia a nivel nacional e internacional.`;
 }
 
 function valoresTexto() {
   return `🧭 VALORES
 
-• Disciplina
-• Compromiso social
-• Liderazgo
-• Aprendizaje continuo
-• Integridad
-• Inclusión
-• Empatía`;
+- Disciplina
+- Compromiso social
+- Liderazgo
+- Aprendizaje continuo
+- Integridad
+- Inclusión
+- Empatía`;
 }
 
 function pilaresTexto() {
   return `🏛️ NUESTRA DIFERENCIA: PILARES FUNDAMENTALES
 
 Contamos con 4 pilares sobre los cuales se soportan nuestros cursos:
-• Tecnología
-• Constructivismo
-• Inteligencia Emocional
-• Neurociencia`;
+- Tecnología
+- Constructivismo
+- Inteligencia Emocional
+- Neurociencia`;
 }
 
 function quienesSomosTexto() {
@@ -489,9 +489,9 @@ function certificarmeIntroTexto() {
 
 Para certificarte, elige el CURSO:
 
-• Formador de Formadores
-• Inteligencia Emocional
-• Tecnología para Padres
+- Formador de Formadores
+- Inteligencia Emocional
+- Tecnología para Padres
 
 (Escribe el nombre del curso tal cual o tócalo en los botones)`;
 }
@@ -517,7 +517,7 @@ function suggestionsOnlyMenu() {
 function suggestionsAfterInfo() {
   return [
     { text: "menu", label: "📌 Menú" },
-    { text: "asesor", label: "🧪 Test de ayuda" },
+    { text: "test de ayuda", label: "🧪 Test de ayuda" },
     { text: "inscribirme", label: "📝 Inscribirme" },
     { text: "ya estoy inscrito", label: "✅ ¿Ya estoy inscrito?" },
     { text: "3", label: "📞 Contacto" },
@@ -562,7 +562,7 @@ function suggestionsScheduleFlowStep2() {
 function suggestionsAfterScheduleSaved() {
   return [
     { text: "inscribirme", label: "📝 Inscribirme" },
-    { text: "asesor", label: "🧪 Test de ayuda" },
+    { text: "test de ayuda", label: "🧪 Test de ayuda" },
     { text: "menu", label: "📌 Menú" },
   ];
 }
@@ -1318,7 +1318,7 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
 
 Nombre: ${rows[0]?.nombre || nombre}
 Cursos registrados:
-${cursos.map((c) => `• ${c}`).join("\n")}
+${cursos.map((c) => `- ${c}`).join("\n")}
 
 Si deseas inscribirte a otro curso escribe: INSCRIBIRME`;
 }
@@ -1833,6 +1833,26 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
       }
     }
 
+    // ====== test de ayuda (3 preguntas) ======
+    if (t.includes("test de ayuda") || t.includes("test ayuda")) {
+      resetFlows(sessionId);
+      advisorFlow.set(sessionId, { step: "persona", persona: "", interes: "", tiempo: "" });
+
+      const reply = `TEST DE AYUDA (3 preguntas)
+
+1/3) Cual te describe mejor?
+- Docente
+- Padre/Madre
+- Estudiante
+- Profesional`;
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsAdvisorStart() }, 200);
+    }
+
+
     // ====== asesor humano (WhatsApp directo) ======
     if (isHumanAdvisorRequest(userMessage) || t.includes("asesor")) {
       resetFlows(sessionId);
@@ -1857,13 +1877,7 @@ Escribenos al ${CONTACT_PHONE_1}.`;
       resetFlows(sessionId);
       advisorFlow.set(sessionId, { step: "persona", persona: "", interes: "", tiempo: "" });
 
-      const reply = `✨ ASESOR DE CURSOS (3 preguntas)
-
-1/3) ¿Cuál te describe mejor?
-• Docente
-• Padre/Madre
-• Estudiante
-• Profesional`;
+      const reply = `TEST DE AYUDA (3 preguntas)\n\n1/3) Cual te describe mejor?\n- Docente\n- Padre/Madre\n- Estudiante\n- Profesional`;
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2093,10 +2107,10 @@ Intenta más tarde.`;
         const ok = ["docente", "padre", "madre", "estudiante", "profesional"].some((x) => p.includes(x));
         if (!ok) {
           const reply = `Elige una opción válida:
-• Docente
-• Padre/Madre
-• Estudiante
-• Profesional`;
+- Docente
+- Padre/Madre
+- Estudiante
+- Profesional`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
             await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2110,9 +2124,9 @@ Intenta más tarde.`;
 
         const reply = `2/3) ¿Qué buscas principalmente?
 
-• Habilidades blandas
-• Tecnología
-• Educación`;
+- Habilidades blandas
+- Tecnología
+- Educación`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2125,9 +2139,9 @@ Intenta más tarde.`;
         const ok = i.includes("habilidades") || i.includes("blandas") || i.includes("tecnolog") || i.includes("educa");
         if (!ok) {
           const reply = `Elige una opción válida:
-• Habilidades blandas
-• Tecnología
-• Educación`;
+- Habilidades blandas
+- Tecnología
+- Educación`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
             await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2141,9 +2155,9 @@ Intenta más tarde.`;
 
         const reply = `3/3) ¿Cuánto tiempo tienes a la semana?
 
-• 1-2
-• 3-5
-• 5+`;
+- 1-2
+- 3-5
+- 5+`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2156,9 +2170,9 @@ Intenta más tarde.`;
         const ok = ["1-2", "3-5", "5+"].includes(tt); // ✅ ahora sí funciona "5+"
         if (!ok) {
           const reply = `Elige una opción válida:
-• 1-2
-• 3-5
-• 5+`;
+- 1-2
+- 3-5
+- 5+`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
             await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2243,9 +2257,9 @@ Ahora dime tu NOMBRE (nombre y apellido).`;
         leadFlow.set(sessionId, st);
 
         const reply = `2/4) 🕒 Elige tu preferencia de horario:
-• Mañana
-• Tarde
-• Noche`;
+- Mañana
+- Tarde
+- Noche`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2258,9 +2272,9 @@ Ahora dime tu NOMBRE (nombre y apellido).`;
         const ok = ["manana", "tarde", "noche"].includes(v);
         if (!ok) {
           const reply = `Dime tu preferencia escribiendo:
-• Mañana
-• Tarde
-• Noche
+- Mañana
+- Tarde
+- Noche
 (Para salir: MENU)`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -2274,8 +2288,8 @@ Ahora dime tu NOMBRE (nombre y apellido).`;
         leadFlow.set(sessionId, st);
 
         const reply = `3/4) 📅 ¿En qué días se te facilita más?
-• Lun-Vie
-• Sábado y Domingo`;
+- Lun-Vie
+- Sábado y Domingo`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2288,8 +2302,8 @@ Ahora dime tu NOMBRE (nombre y apellido).`;
         const ok = d === "lun-vie" || (d.includes("sabado") && d.includes("domingo"));
         if (!ok) {
           const reply = `Selecciona una opción:
-• Lun-Vie
-• Sábado y Domingo
+- Lun-Vie
+- Sábado y Domingo
 (Para salir: MENU)`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -2393,9 +2407,9 @@ Si quieres ver opciones: escribe MENU`;
         const ok = ["manana", "tarde", "noche"].includes(v);
         if (!ok) {
           const reply = `Dime tu preferencia escribiendo:
-• Mañana
-• Tarde
-• Noche
+- Mañana
+- Tarde
+- Noche
 (Para salir: MENU)`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -2411,8 +2425,8 @@ Si quieres ver opciones: escribe MENU`;
         const reply = `✅ Anotado: ${v.toUpperCase()}.
 
 ¿En qué días se te facilita más?
-• Lun-Vie
-• Sábado y Domingo`;
+- Lun-Vie
+- Sábado y Domingo`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2425,8 +2439,8 @@ Si quieres ver opciones: escribe MENU`;
         const ok = d === "lun-vie" || (d.includes("sabado") && d.includes("domingo"));
         if (!ok) {
           const reply = `Selecciona una opción:
-• Lun-Vie
-• Sábado y Domingo
+- Lun-Vie
+- Sábado y Domingo
 (Para salir: MENU)`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -2479,16 +2493,16 @@ Revisa que en Render estén SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY.`;
       const reply = `Puedo ayudarte con información de la Fundación Capacítamente.
 
 Escribe:
-• MENU (ver opciones)
-• QUIENES SOMOS
-• MISION
-• VISION
-• VALORES
-• PILARES
-• BENEFICIOS
-• CERTIFICARME
-• TRABAJA CON NOSOTROS
-• YA ESTOY INSCRITO`;
+- MENU (ver opciones)
+- QUIENES SOMOS
+- MISION
+- VISION
+- VALORES
+- PILARES
+- BENEFICIOS
+- CERTIFICARME
+- TRABAJA CON NOSOTROS
+- YA ESTOY INSCRITO`;
 
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -2613,6 +2627,15 @@ app.listen(port, "0.0.0.0", () => {
   console.log(`⏱️ Cooldown(ms)=${AI_COOLDOWN_MS} | max diarios IA=${MAX_DAILY_AI_CALLS} | retries=${GEMINI_RETRIES}`);
   console.log(`🧯 RateLimit: max=${RATE_LIMIT_MAX}/ventana(${RATE_LIMIT_WINDOW_MS}ms) | maxMsg=${MAX_MESSAGE_CHARS} chars`);
 });
+
+
+
+
+
+
+
+
+
 
 
 
