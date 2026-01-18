@@ -1974,64 +1974,64 @@ Dime tu NOMBRE (solo nombre y apellido).`;
       }
     }
 
-    // ====== FLUJO CERTIFICADO (estado) ======
-    if (certFlow.has(sessionId)) {
-      const cedula = extractCedula(userMessage);
-      const curso = extractCourse(userMessage, cedula);
+   // ====== FLUJO CERTIFICADO (estado) por pedido 4 dígitos + curso ======
+if (certFlow.has(sessionId)) {
+  const pedido = extractNumeroPedido(userMessage);
+  const curso = extractCourse(userMessage, pedido);
 
-      if (!cedula) {
-        const reply = `Por favor escribe tu CÉDULA (10 dígitos).
-Ejemplo: 0923456789
+  if (!pedido) {
+    const reply = `Por favor escribe tu NÚMERO DE PEDIDO (4 dígitos).
+Ejemplo: 9039
 (Para salir: MENU)`;
-        if (supabase) {
-          await insertChatMessage(sessionId, userKey, "bot", reply);
-          await touchSessionLastMessage(sessionId, userKey, reply);
-        }
-        return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
-      }
+    if (supabase) {
+      await insertChatMessage(sessionId, userKey, "bot", reply);
+      await touchSessionLastMessage(sessionId, userKey, reply);
+    }
+    return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
+  }
 
-      if (!curso || curso.length < 3) {
-        const reply = `✅ Cédula recibida (${cedula})
+  if (!curso || curso.length < 3) {
+    const reply = `✅ Número de pedido recibido (${pedido})
 
 Ahora escribe el NOMBRE DEL CURSO.
 Ejemplo: Inteligencia Emocional
 (Para salir: MENU)`;
-        if (supabase) {
-          await insertChatMessage(sessionId, userKey, "bot", reply);
-          await touchSessionLastMessage(sessionId, userKey, reply);
-        }
-        return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
-      }
+    if (supabase) {
+      await insertChatMessage(sessionId, userKey, "bot", reply);
+      await touchSessionLastMessage(sessionId, userKey, reply);
+    }
+    return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
+  }
 
-      let reply;
-      try {
-        const row = await getCertificateStatus(cedula, curso);
-        if (!row) {
-          reply = `No encuentro un registro para:
-• Cédula: ${cedula}
+  let reply;
+  try {
+    const row = await getCertificateStatus(pedido, curso);
+    if (!row) {
+      reply = `No encuentro un registro para:
+• Pedido: ${pedido}
 • Curso: ${curso}
 
 Si crees que es un error, contáctanos:
 📱 ${CONTACT_PHONE_1}
 ☎️ ${CONTACT_PHONE_2}
 ✉️ ${CONTACT_EMAIL}`;
-        } else {
-          reply = certificateReplyFromRow(row);
-        }
-      } catch {
-        reply = `Lo siento, no pude consultar el estado en este momento.
-Intenta más tarde.`;
-      }
-
-      certFlow.delete(sessionId);
-
-      if (supabase) {
-        await insertChatMessage(sessionId, userKey, "bot", reply);
-        await touchSessionLastMessage(sessionId, userKey, reply);
-      }
-
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
+    } else {
+      reply = certificateReplyFromRow(row);
     }
+  } catch {
+    reply = `Lo siento, no pude consultar el estado en este momento.
+Intenta más tarde.`;
+  }
+
+  certFlow.delete(sessionId);
+
+  if (supabase) {
+    await insertChatMessage(sessionId, userKey, "bot", reply);
+    await touchSessionLastMessage(sessionId, userKey, reply);
+  }
+
+  return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
+}
 
     // ====== FLUJO ASESOR (SIN IA) con validación ======
     if (advisorFlow.has(sessionId)) {
