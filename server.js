@@ -1,4 +1,4 @@
-// server.js
+﻿?// server.js
 require("dotenv").config();
 
 const express = require("express");
@@ -929,36 +929,36 @@ async function setPinned(sessionId, userKey, pinned) {
 // ============================
 // Certificado (mejorado)
 // ============================
-function extractCedula(text) {
-  const m = String(text || "").match(/\b\d{10}\b/);
+function extractOrderNumber(text) {
+  const m = String(text || "").match(/\b\d{4}\b/);
   return m ? m[0] : "";
 }
 
-function extractCourse(text, cedula) {
+function extractCourse(text, orderNumber) {
   let s = String(text || "");
-  if (cedula) s = s.replace(cedula, "");
+  if (orderNumber) s = s.replace(orderNumber, "");
   s = s.replace(/[-,:]/g, " ").replace(/\s+/g, " ").trim();
   return s;
 }
 
 function certAskText() {
-  return `📄 ESTADO DE CERTIFICADO
+  return `ESTADO DE CERTIFICADO
 
-Escribe tu CÉDULA (10 dígitos) y el NOMBRE DEL CURSO.
+Escribe el NUMERO DE PEDIDO (4 digitos) y el NOMBRE DEL CURSO.
 
 Ejemplo:
-0923456789 - Inteligencia Emocional
+9039 - Inteligencia Emocional
 
 (Para salir escribe: MENU)`;
 }
 
-async function getCertificateStatus(cedula, curso) {
+async function getCertificateStatus(orderNumber, curso) {
   if (!supabase) return null;
 
   const { data, error } = await supabase
     .from("certificate_status")
     .select("estado, updated_at, curso")
-    .eq("cedula", cedula)
+    .eq("numero_de_pedido", orderNumber)
     .ilike("curso", `%${curso}%`)
     .order("updated_at", { ascending: false })
     .limit(1);
@@ -1834,17 +1834,17 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
     }
 
     // ====== asesor humano (WhatsApp directo) ======
-    if (isHumanAdvisorRequest(userMessage)) {
+    if (isHumanAdvisorRequest(userMessage) || t.includes("asesor")) {
       resetFlows(sessionId);
       const waLink = getWhatsAppLink();
       const reply = waLink
-        ? `Está bien, te voy a enviar un asesor por vía WhatsApp.
+        ? `Esta bien, te voy a enviar un asesor por via WhatsApp.
 
 Toca este enlace para abrir WhatsApp:
 ${waLink}`
-        : `Está bien, te voy a enviar un asesor por vía WhatsApp.
+        : `Esta bien, te voy a enviar un asesor por via WhatsApp.
 
-Escríbenos al ${CONTACT_PHONE_1}.`;
+Escribenos al ${CONTACT_PHONE_1}.`;
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1853,7 +1853,7 @@ Escríbenos al ${CONTACT_PHONE_1}.`;
     }
 
     // ====== asesor ======
-    if (t.includes("asesor") || t.includes("recomendar") || t.includes("recomendacion") || t.includes("recomendación")) {
+    if (t.includes("recomendar") || t.includes("recomendacion") || t.includes("recomendaci��n")) {
       resetFlows(sessionId);
       advisorFlow.set(sessionId, { step: "persona", persona: "", interes: "", tiempo: "" });
 
@@ -2027,12 +2027,12 @@ Dime tu NOMBRE (solo nombre y apellido).`;
 
     // ====== FLUJO CERTIFICADO (estado) ======
     if (certFlow.has(sessionId)) {
-      const cedula = extractCedula(userMessage);
-      const curso = extractCourse(userMessage, cedula);
+      const orderNumber = extractOrderNumber(userMessage);
+      const curso = extractCourse(userMessage, orderNumber);
 
-      if (!cedula) {
-        const reply = `Por favor escribe tu CÉDULA (10 dígitos).
-Ejemplo: 0923456789
+      if (!orderNumber) {
+        const reply = `Por favor escribe el NUMERO DE PEDIDO (4 digitos).
+Ejemplo: 9039
 (Para salir: MENU)`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -2042,7 +2042,7 @@ Ejemplo: 0923456789
       }
 
       if (!curso || curso.length < 3) {
-        const reply = `✅ Cédula recibida (${cedula})
+        const reply = `Numero de pedido recibido (${orderNumber})
 
 Ahora escribe el NOMBRE DEL CURSO.
 Ejemplo: Inteligencia Emocional
@@ -2056,16 +2056,16 @@ Ejemplo: Inteligencia Emocional
 
       let reply;
       try {
-        const row = await getCertificateStatus(cedula, curso);
+        const row = await getCertificateStatus(orderNumber, curso);
         if (!row) {
           reply = `No encuentro un registro para:
-• Cédula: ${cedula}
-• Curso: ${curso}
+- Numero de pedido: ${orderNumber}
+- Curso: ${curso}
 
-Si crees que es un error, contáctanos:
-📱 ${CONTACT_PHONE_1}
-☎️ ${CONTACT_PHONE_2}
-✉️ ${CONTACT_EMAIL}`;
+Si crees que es un error, contactanos:
+${CONTACT_PHONE_1}
+${CONTACT_PHONE_2}
+${CONTACT_EMAIL}`;
         } else {
           reply = certificateReplyFromRow(row);
         }
@@ -2613,3 +2613,15 @@ app.listen(port, "0.0.0.0", () => {
   console.log(`⏱️ Cooldown(ms)=${AI_COOLDOWN_MS} | max diarios IA=${MAX_DAILY_AI_CALLS} | retries=${GEMINI_RETRIES}`);
   console.log(`🧯 RateLimit: max=${RATE_LIMIT_MAX}/ventana(${RATE_LIMIT_WINDOW_MS}ms) | maxMsg=${MAX_MESSAGE_CHARS} chars`);
 });
+
+
+
+
+
+
+
+
+
+
+
+
