@@ -16,8 +16,10 @@ const port = process.env.PORT || 10000;
 // ============================
 const CONTACT_PHONE_1 = process.env.CONTACT_PHONE_1 || "0983222358";
 const CONTACT_PHONE_2 = process.env.CONTACT_PHONE_2 || "046026948";
-const CONTACT_EMAIL = process.env.CONTACT_EMAIL || "jonathan.moises.ball.g@gmail.com";
+const CONTACT_EMAIL = process.env.CONTACT_EMAIL || "cursos@fundacioncapacitamente.com";
 const CONTACT_CITY = process.env.CONTACT_CITY || "Guayaquil - Ecuador";
+const WHATSAPP_COUNTRY_CODE = process.env.WHATSAPP_COUNTRY_CODE || "593";
+const CONTACT_WHATSAPP = process.env.CONTACT_WHATSAPP || CONTACT_PHONE_1;
 
 // ============================
 // Seguridad / límites simples
@@ -135,6 +137,20 @@ function normalizeText(s) {
     .replace(/[^a-z0-9\s\-+]/g, "") // ✅ permite "+"
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function formatWhatsAppNumber(raw) {
+  let digits = String(raw || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("0") && digits.length >= 9) {
+    digits = `${WHATSAPP_COUNTRY_CODE}${digits.slice(1)}`;
+  }
+  return digits;
+}
+
+function getWhatsAppLink() {
+  const digits = formatWhatsAppNumber(CONTACT_WHATSAPP);
+  return digits ? `https://wa.me/${digits}` : "";
 }
 
 function clampMessage(s) {
@@ -501,7 +517,7 @@ function suggestionsOnlyMenu() {
 function suggestionsAfterInfo() {
   return [
     { text: "menu", label: "📌 Menú" },
-    { text: "asesor", label: "✨ Asesor de cursos" },
+    { text: "asesor", label: "🧪 Test de ayuda" },
     { text: "inscribirme", label: "📝 Inscribirme" },
     { text: "ya estoy inscrito", label: "✅ ¿Ya estoy inscrito?" },
     { text: "3", label: "📞 Contacto" },
@@ -538,8 +554,7 @@ function suggestionsScheduleFlowStep1() {
 function suggestionsScheduleFlowStep2() {
   return [
     { text: "lun-vie", label: "📅 Lun-Vie" },
-    { text: "sabado", label: "📅 Sábado" },
-    { text: "domingo", label: "📅 Domingo" },
+    { text: "sabado y domingo", label: "📅 Sábado y Domingo" },
     { text: "menu", label: "📌 Menú" },
   ];
 }
@@ -547,7 +562,7 @@ function suggestionsScheduleFlowStep2() {
 function suggestionsAfterScheduleSaved() {
   return [
     { text: "inscribirme", label: "📝 Inscribirme" },
-    { text: "asesor", label: "✨ Asesor de cursos" },
+    { text: "asesor", label: "🧪 Test de ayuda" },
     { text: "menu", label: "📌 Menú" },
   ];
 }
@@ -615,6 +630,23 @@ function isGreeting(t) {
 function isMenuCommand(t) {
   const s = normalizeText(t);
   return ["menu", "opciones", "inicio", "start", "0"].includes(s);
+}
+
+function isHumanAdvisorRequest(t) {
+  const s = normalizeText(t);
+  if (s.includes("asesor humano")) return true;
+
+  const wantsContact =
+    s.includes("contactarme") ||
+    s.includes("contactar") ||
+    s.includes("comunicarme") ||
+    s.includes("hablar con") ||
+    s.includes("quiero hablar") ||
+    s.includes("quiero contact");
+  const mentionsAdvisor = s.includes("asesor") || s.includes("agente");
+  const mentionsHuman = s.includes("humano") || s.includes("persona") || s.includes("agente");
+
+  return (wantsContact && mentionsAdvisor) || (mentionsHuman && mentionsAdvisor);
 }
 
 function isBenefitsQuery(t) {
@@ -688,6 +720,7 @@ function isAboutUsQuery(t) {
 
 function isFoundationQuery(t) {
   const s = normalizeText(t);
+  if (s.includes("universidad") || s.includes("ciudad")) return false;
   const keys = [
     "fundacion",
     "capacitamente",
@@ -705,7 +738,6 @@ function isFoundationQuery(t) {
     "whatsapp",
     "correo",
     "contacto",
-    "guayaquil",
     "tatiana",
     "yadira",
     "formador de formadores",
@@ -1801,6 +1833,25 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
       }
     }
 
+    // ====== asesor humano (WhatsApp directo) ======
+    if (isHumanAdvisorRequest(userMessage)) {
+      resetFlows(sessionId);
+      const waLink = getWhatsAppLink();
+      const reply = waLink
+        ? `Está bien, te voy a enviar un asesor por vía WhatsApp.
+
+Toca este enlace para abrir WhatsApp:
+${waLink}`
+        : `Está bien, te voy a enviar un asesor por vía WhatsApp.
+
+Escríbenos al ${CONTACT_PHONE_1}.`;
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
+    }
+
     // ====== asesor ======
     if (t.includes("asesor") || t.includes("recomendar") || t.includes("recomendacion") || t.includes("recomendación")) {
       resetFlows(sessionId);
@@ -1974,64 +2025,64 @@ Dime tu NOMBRE (solo nombre y apellido).`;
       }
     }
 
-   // ====== FLUJO CERTIFICADO (estado) por pedido 4 dígitos + curso ======
-if (certFlow.has(sessionId)) {
-  const pedido = extractNumeroPedido(userMessage);
-  const curso = extractCourse(userMessage, pedido);
+    // ====== FLUJO CERTIFICADO (estado) ======
+    if (certFlow.has(sessionId)) {
+      const cedula = extractCedula(userMessage);
+      const curso = extractCourse(userMessage, cedula);
 
-  if (!pedido) {
-    const reply = `Por favor escribe tu NÚMERO DE PEDIDO (4 dígitos).
-Ejemplo: 9039
+      if (!cedula) {
+        const reply = `Por favor escribe tu CÉDULA (10 dígitos).
+Ejemplo: 0923456789
 (Para salir: MENU)`;
-    if (supabase) {
-      await insertChatMessage(sessionId, userKey, "bot", reply);
-      await touchSessionLastMessage(sessionId, userKey, reply);
-    }
-    return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
-  }
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
+      }
 
-  if (!curso || curso.length < 3) {
-    const reply = `✅ Número de pedido recibido (${pedido})
+      if (!curso || curso.length < 3) {
+        const reply = `✅ Cédula recibida (${cedula})
 
 Ahora escribe el NOMBRE DEL CURSO.
 Ejemplo: Inteligencia Emocional
 (Para salir: MENU)`;
-    if (supabase) {
-      await insertChatMessage(sessionId, userKey, "bot", reply);
-      await touchSessionLastMessage(sessionId, userKey, reply);
-    }
-    return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
-  }
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
+      }
 
-  let reply;
-  try {
-    const row = await getCertificateStatus(pedido, curso);
-    if (!row) {
-      reply = `No encuentro un registro para:
-• Pedido: ${pedido}
+      let reply;
+      try {
+        const row = await getCertificateStatus(cedula, curso);
+        if (!row) {
+          reply = `No encuentro un registro para:
+• Cédula: ${cedula}
 • Curso: ${curso}
 
 Si crees que es un error, contáctanos:
 📱 ${CONTACT_PHONE_1}
 ☎️ ${CONTACT_PHONE_2}
 ✉️ ${CONTACT_EMAIL}`;
-    } else {
-      reply = certificateReplyFromRow(row);
-    }
-  } catch {
-    reply = `Lo siento, no pude consultar el estado en este momento.
+        } else {
+          reply = certificateReplyFromRow(row);
+        }
+      } catch {
+        reply = `Lo siento, no pude consultar el estado en este momento.
 Intenta más tarde.`;
-  }
+      }
 
-  certFlow.delete(sessionId);
+      certFlow.delete(sessionId);
 
-  if (supabase) {
-    await insertChatMessage(sessionId, userKey, "bot", reply);
-    await touchSessionLastMessage(sessionId, userKey, reply);
-  }
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
 
-  return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
-}
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
+    }
 
     // ====== FLUJO ASESOR (SIN IA) con validación ======
     if (advisorFlow.has(sessionId)) {
@@ -2224,8 +2275,7 @@ Ahora dime tu NOMBRE (nombre y apellido).`;
 
         const reply = `3/4) 📅 ¿En qué días se te facilita más?
 • Lun-Vie
-• Sábado
-• Domingo`;
+• Sábado y Domingo`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2235,12 +2285,11 @@ Ahora dime tu NOMBRE (nombre y apellido).`;
 
       if (st.step === "dias") {
         const d = normalizeText(userMessage);
-        const ok = ["lun-vie", "sabado", "domingo"].includes(d);
+        const ok = d === "lun-vie" || (d.includes("sabado") && d.includes("domingo"));
         if (!ok) {
           const reply = `Selecciona una opción:
 • Lun-Vie
-• Sábado
-• Domingo
+• Sábado y Domingo
 (Para salir: MENU)`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -2249,7 +2298,7 @@ Ahora dime tu NOMBRE (nombre y apellido).`;
           return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowStep2() }, 200);
         }
 
-        st.data.dias = d;
+        st.data.dias = d === "lun-vie" ? "lun-vie" : "sabado y domingo";
 
         let schedId = null;
         try {
@@ -2363,8 +2412,7 @@ Si quieres ver opciones: escribe MENU`;
 
 ¿En qué días se te facilita más?
 • Lun-Vie
-• Sábado
-• Domingo`;
+• Sábado y Domingo`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2374,12 +2422,11 @@ Si quieres ver opciones: escribe MENU`;
 
       if (st.step === "dias") {
         const d = normalizeText(userMessage);
-        const ok = ["lun-vie", "sabado", "domingo"].includes(d);
+        const ok = d === "lun-vie" || (d.includes("sabado") && d.includes("domingo"));
         if (!ok) {
           const reply = `Selecciona una opción:
 • Lun-Vie
-• Sábado
-• Domingo
+• Sábado y Domingo
 (Para salir: MENU)`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -2388,7 +2435,7 @@ Si quieres ver opciones: escribe MENU`;
           return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowStep2() }, 200);
         }
 
-        st.data.dias = d;
+        st.data.dias = d === "lun-vie" ? "lun-vie" : "sabado y domingo";
 
         let saved = true;
         try {
