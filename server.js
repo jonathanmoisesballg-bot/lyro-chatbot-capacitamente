@@ -332,7 +332,7 @@ function buildCoursePicker(type, { availableOnly } = { availableOnly: true }) {
     suggestions.push({ text: k, label: `${L}) ${c.label}` });
   });
 
-  suggestions.push({ text: "menu", label: "📌 Menú" });
+  suggestions.push({ text: "menu", label: "📌 Menu" });
   suggestions.push({ text: "cancelar", label: "✖ Cancelar" });
 
   return { list, map, lines, suggestions };
@@ -506,12 +506,20 @@ function suggestionsMenu() {
 }
 
 function suggestionsOnlyMenu() {
-  return [{ text: "menu", label: "📌 Menú" }];
+  return [{ text: "menu", label: "📌 Menu" }];
+}
+
+function suggestionsCourseLists() {
+  return [
+    { text: "menu", label: "📌 Menu" },
+    { text: "test de ayuda", label: "🧭 Test de ayuda" },
+    { text: "inscribirme", label: "📝 Inscribirme" },
+  ];
 }
 
 function suggestionsAfterInfo() {
   return [
-    { text: "menu", label: "📌 Menú" },
+    { text: "menu", label: "📌 Menu" },
     { text: "test de ayuda", label: "🧪 Test de ayuda" },
     { text: "inscribirme", label: "📝 Inscribirme" },
     { text: "certificarme", label: "📜 Certificarme" },
@@ -522,7 +530,7 @@ function suggestionsAfterInfo() {
 
 function suggestionsFundacionInfo() {
   return [
-    { text: "menu", label: "📌 Menú" },
+    { text: "menu", label: "📌 Menu" },
     { text: "quienes somos", label: "👥 ¿Quiénes somos?" },
     { text: "mision", label: "🎯 Misión" },
     { text: "vision", label: "🌟 Visión" },
@@ -535,7 +543,7 @@ function suggestionsFundacionInfo() {
 
 function suggestionsCertFlow() {
   return [
-    { text: "menu", label: "📌 Menú" },
+    { text: "menu", label: "📌 Menu" },
     { text: "cancelar", label: "✖ Cancelar" },
   ];
 }
@@ -545,7 +553,7 @@ function suggestionsScheduleFlowStep1() {
     { text: "mañana", label: "🌤️ Mañana" },
     { text: "tarde", label: "🌇 Tarde" },
     { text: "noche", label: "🌙 Noche" },
-    { text: "menu", label: "📌 Menú" },
+    { text: "menu", label: "📌 Menu" },
   ];
 }
 
@@ -553,7 +561,7 @@ function suggestionsScheduleFlowStep2() {
   return [
     { text: "lun-vie", label: "📅 Lun-Vie" },
     { text: "sabado y domingo", label: "📅 Sábado y Domingo" },
-    { text: "menu", label: "📌 Menú" },
+    { text: "menu", label: "📌 Menu" },
   ];
 }
 
@@ -561,7 +569,7 @@ function suggestionsAfterScheduleSaved() {
   return [
     { text: "inscribirme", label: "📝 Inscribirme" },
     { text: "test de ayuda", label: "🧪 Test de ayuda" },
-    { text: "menu", label: "📌 Menú" },
+    { text: "menu", label: "📌 Menu" },
   ];
 }
 
@@ -571,7 +579,7 @@ function suggestionsAdvisorStart() {
     { text: "padre", label: "👨‍👩‍👧 Padre/Madre" },
     { text: "estudiante", label: "🎒 Estudiante" },
     { text: "profesional", label: "💼 Profesional" },
-    { text: "menu", label: "📌 Menú" },
+    { text: "menu", label: "📌 Menu" },
   ];
 }
 
@@ -580,7 +588,7 @@ function suggestionsAdvisorInterest() {
     { text: "habilidades blandas", label: "🧠 Habilidades blandas" },
     { text: "tecnologia", label: "💻 Tecnología" },
     { text: "educacion", label: "📚 Educación" },
-    { text: "menu", label: "📌 Menú" },
+    { text: "menu", label: "📌 Menu" },
   ];
 }
 
@@ -589,13 +597,13 @@ function suggestionsAdvisorTime() {
     { text: "1-2", label: "⏱️ 1-2h/semana" },
     { text: "3-5", label: "⏱️ 3-5h/semana" },
     { text: "5+", label: "⏱️ +5h/semana" },
-    { text: "menu", label: "📌 Menú" },
+    { text: "menu", label: "📌 Menu" },
   ];
 }
 
 function suggestionsLeadFlow() {
   return [
-    { text: "menu", label: "📌 Menú" },
+    { text: "menu", label: "📌 Menu" },
     { text: "cancelar", label: "✖ Cancelar" },
   ];
 }
@@ -604,8 +612,8 @@ function suggestionsCertificarmeCursos() {
   const items = CERT_COURSES.map((c) => ({ text: c.name, label: c.label }));
   return [
     ...items,
-    { text: "menu", label: "?? Men£" },
-    { text: "cancelar", label: "? Cancelar" },
+    { text: "menu", label: "📌 Menu" },
+    { text: "cancelar", label: "✖ Cancelar" },
   ];
 }
 function suggestionsChooseCourses(type) {
@@ -1624,7 +1632,7 @@ Para confirmar, escribe tu número de WhatsApp (ej: +593991112233 o 0991112233).
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
         }
-        return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsCourseLists() }, 200);
       }
 
       if (st.step === "whatsapp") {
@@ -1670,7 +1678,7 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
         }
-        return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsCourseLists() }, 200);
       }
     }
 
