@@ -519,7 +519,8 @@ function suggestionsAfterInfo() {
     { text: "menu", label: "📌 Menú" },
     { text: "test de ayuda", label: "🧪 Test de ayuda" },
     { text: "inscribirme", label: "📝 Inscribirme" },
-    { text: "ya estoy inscrito", label: "✅ ¿Ya estoy inscrito?" },
+    { text: "certificarme", label: "?? Certificarme" },
+    { text: "trabaja con nosotros", label: "?? Trabaja con nosotros" },
     { text: "3", label: "📞 Contacto" },
   ];
 }
@@ -532,6 +533,8 @@ function suggestionsFundacionInfo() {
     { text: "vision", label: "🌟 Visión" },
     { text: "valores", label: "🧭 Valores" },
     { text: "pilares", label: "🏛️ Pilares" },
+    { text: "certificarme", label: "?? Certificarme" },
+    { text: "trabaja con nosotros", label: "?? Trabaja con nosotros" },
   ];
 }
 
@@ -986,6 +989,9 @@ function certificateReplyFromRow(row) {
 Curso: ${row.curso}
 Actualizado: ${updated}
 
+Para descargar tu certificado, entra a tu cuenta de la Fundacion.
+Una vez que culminaste tu curso, tu certificado lo puedes descargar directamente.
+
 Si aún no lo recibiste, escríbenos:
 📱 ${CONTACT_PHONE_1}
 ☎️ ${CONTACT_PHONE_2}
@@ -1006,6 +1012,9 @@ Sugerencia: vuelve a consultar más tarde.`;
 
 Curso: ${row.curso}
 Actualizado: ${updated}
+
+Para descargar tu certificado, entra a tu cuenta de la Fundacion.
+Una vez que culminaste tu curso, tu certificado lo puedes descargar directamente.
 
 Si necesitas ayuda, contáctanos:
 📱 ${CONTACT_PHONE_1}
@@ -2501,8 +2510,7 @@ Escribe:
 - PILARES
 - BENEFICIOS
 - CERTIFICARME
-- TRABAJA CON NOSOTROS
-- YA ESTOY INSCRITO`;
+- TRABAJA CON NOSOTROS`;
 
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -2627,6 +2635,16 @@ app.listen(port, "0.0.0.0", () => {
   console.log(`⏱️ Cooldown(ms)=${AI_COOLDOWN_MS} | max diarios IA=${MAX_DAILY_AI_CALLS} | retries=${GEMINI_RETRIES}`);
   console.log(`🧯 RateLimit: max=${RATE_LIMIT_MAX}/ventana(${RATE_LIMIT_WINDOW_MS}ms) | maxMsg=${MAX_MESSAGE_CHARS} chars`);
 });
+
+
+
+
+
+
+
+
+
+
 
 
 
