@@ -2490,6 +2490,7 @@ Si quieres ver opciones: escribe MENU`;
         }
         return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
       }
+    }
     // ====== FLUJO HORARIO (opción 6) con validación de días ======
     if (scheduleFlow.has(sessionId)) {
       const st = scheduleFlow.get(sessionId);
@@ -2718,6 +2719,7 @@ app.listen(port, "0.0.0.0", () => {
   console.log(`⏱️ Cooldown(ms)=${AI_COOLDOWN_MS} | max diarios IA=${MAX_DAILY_AI_CALLS} | retries=${GEMINI_RETRIES}`);
   console.log(`🧯 RateLimit: max=${RATE_LIMIT_MAX}/ventana(${RATE_LIMIT_WINDOW_MS}ms) | maxMsg=${MAX_MESSAGE_CHARS} chars`);
 });
+
 
 
 
