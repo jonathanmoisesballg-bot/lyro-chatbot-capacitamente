@@ -485,20 +485,15 @@ Para colaborar, ser voluntario/a, proponer alianzas o participar como facilitado
 
 // Certificarme (sin IA) -> lista
 function certificarmeIntroTexto() {
-  return `📜 CERTIFICACIÓN
+  const lines = CERT_COURSES.map((c) => `- ${c.label}`).join("\n");
+  return `📜 CERTIFICACION
 
 Para certificarte, elige el CURSO:
 
-- Formador de Formadores
-- Inteligencia Emocional
-- Tecnología para Padres
+${lines}
 
-(Escribe el nombre del curso tal cual o tócalo en los botones)`;
+(Escribe el nombre del curso tal cual o tocalo en los botones)`;
 }
-
-// ============================
-// Sugerencias (botones)
-// ============================
 function suggestionsMenu() {
   return [
     { text: "1", label: "1) Cursos gratis" },
@@ -519,8 +514,8 @@ function suggestionsAfterInfo() {
     { text: "menu", label: "📌 Menú" },
     { text: "test de ayuda", label: "🧪 Test de ayuda" },
     { text: "inscribirme", label: "📝 Inscribirme" },
-    { text: "certificarme", label: "?? Certificarme" },
-    { text: "trabaja con nosotros", label: "?? Trabaja con nosotros" },
+    { text: "certificarme", label: "📜 Certificarme" },
+    { text: "trabaja con nosotros", label: "🤝 Trabaja con nosotros" },
     { text: "3", label: "📞 Contacto" },
   ];
 }
@@ -533,8 +528,8 @@ function suggestionsFundacionInfo() {
     { text: "vision", label: "🌟 Visión" },
     { text: "valores", label: "🧭 Valores" },
     { text: "pilares", label: "🏛️ Pilares" },
-    { text: "certificarme", label: "?? Certificarme" },
-    { text: "trabaja con nosotros", label: "?? Trabaja con nosotros" },
+    { text: "certificarme", label: "📜 Certificarme" },
+    { text: "trabaja con nosotros", label: "🤝 Trabaja con nosotros" },
   ];
 }
 
@@ -606,17 +601,13 @@ function suggestionsLeadFlow() {
 }
 
 function suggestionsCertificarmeCursos() {
+  const items = CERT_COURSES.map((c) => ({ text: c.name, label: c.label }));
   return [
-    { text: "Formador de Formadores", label: "🎓 Formador de Formadores ($120)" },
-    { text: "Inteligencia Emocional", label: "🎓 Inteligencia Emocional ($15)" },
-    { text: "Tecnología para Padres", label: "🎓 Tecnología para Padres ($15)" },
-    { text: "menu", label: "📌 Menú" },
-    { text: "cancelar", label: "✖ Cancelar" },
+    ...items,
+    { text: "menu", label: "?? Men£" },
+    { text: "cancelar", label: "? Cancelar" },
   ];
 }
-
-// ✅ Soporta: "free" | "cert" | "all"
-// ✅ Ahora devuelve BOTONES con letras A,B,C... (solo DISPONIBLES)
 function suggestionsChooseCourses(type) {
   const pick = buildCoursePicker(type, { availableOnly: true });
   return pick.suggestions;
@@ -2007,13 +1998,13 @@ ${pick.lines.join("\n")}`;
       if (st.step === "choose_course") {
         const cursoElegido = userMessage.trim();
 
-        const opciones = ["Formador de Formadores", "Inteligencia Emocional", "Tecnología para Padres"];
         const norm = normalizeText(cursoElegido);
-
-        const match =
-          opciones.find((o) => normalizeText(o) === norm) ||
-          opciones.find((o) => norm.includes(normalizeText(o)));
-
+        const opciones = CERT_COURSES.map((c) => c.name);
+        const matchObj =
+          CERT_COURSES.find((c) => normalizeText(c.name) === norm) ||
+          CERT_COURSES.find((c) => normalizeText(c.label) === norm) ||
+          CERT_COURSES.find((c) => norm.includes(normalizeText(c.name)));
+        const match = matchObj ? matchObj.name : opciones.find((o) => normalizeText(o) === norm);
         if (!match) {
           const reply = "Por favor selecciona un curso de la lista para continuar.";
           if (supabase) {
@@ -2025,20 +2016,17 @@ ${pick.lines.join("\n")}`;
 
         certificarmeFlow.delete(sessionId);
 
-        const schedId = lastSchedulePrefId.get(sessionId) || null;
         leadFlow.set(sessionId, {
           step: "nombre",
-          data: { nombre: "", whatsapp: "", curso: match, schedule_pref_id: schedId },
+          data: { nombre: "", whatsapp: "", curso: match, schedule_after_whatsapp: true },
         });
 
-        const extra = schedId ? "\n✅ Ya tengo tu horario guardado y lo vincularé a tu inscripción." : "";
-        const reply = `✅ Perfecto. Para certificarte en:
-🎓 ${match}
+        const reply = `? Perfecto. Para certificarte en:
+?? ${match}
 
-Necesitamos registrarte.${extra}
+Necesitamos registrarte.
 
 Dime tu NOMBRE (solo nombre y apellido).`;
-
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2381,6 +2369,21 @@ Escríbelo así: +593991112233 o 0991112233`;
 
         st.data.whatsapp = w;
 
+        if (st.data.schedule_after_whatsapp) {
+          st.step = "franja_after_whatsapp";
+          leadFlow.set(sessionId, st);
+
+          const reply = `Elige tu preferencia de horario:
+- Mañana
+- Tarde
+- Noche`;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowStep1() }, 200);
+        }
+
         try {
           await saveLead(userKey, sessionId, st.data);
         } catch (e) {
@@ -2405,8 +2408,88 @@ Si quieres ver opciones: escribe MENU`;
         }
         return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
       }
-    }
+      if (st.step === "franja_after_whatsapp") {
+        const v = normalizeText(userMessage);
+        const ok = ["manana", "tarde", "noche"].includes(v);
+        if (!ok) {
+          const reply = `Dime tu preferencia escribiendo:
+- Manana
+- Tarde
+- Noche
+(Para salir: MENU)`;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowStep1() }, 200);
+        }
 
+        st.data.franja = v;
+        st.step = "dias_after_whatsapp";
+        leadFlow.set(sessionId, st);
+
+        const reply = `En que dias se te facilita mas?
+- Lun-Vie
+- Sabado y Domingo`;
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowStep2() }, 200);
+      }
+
+      if (st.step === "dias_after_whatsapp") {
+        const d = normalizeText(userMessage);
+        const ok = d === "lun-vie" || (d.includes("sabado") && d.includes("domingo"));
+        if (!ok) {
+          const reply = `Selecciona una opcion:
+- Lun-Vie
+- Sabado y Domingo
+(Para salir: MENU)`;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowStep2() }, 200);
+        }
+
+        st.data.dias = d === "lun-vie" ? "lun-vie" : "sabado y domingo";
+
+        try {
+          const out = await saveSchedule(userKey, sessionId, { franja: st.data.franja, dias: st.data.dias });
+          const schedId = out?.id ?? null;
+          if (schedId) {
+            st.data.schedule_pref_id = schedId;
+            lastSchedulePrefId.set(sessionId, schedId);
+          }
+        } catch (e) {
+          console.warn("?? No se pudo guardar horario:", extractMessage(e));
+        }
+
+        try {
+          await saveLead(userKey, sessionId, st.data);
+        } catch (e) {
+          console.warn("?? No se pudo guardar lead:", extractMessage(e));
+        }
+
+        leadFlow.delete(sessionId);
+
+        const extra = st.data.schedule_pref_id ? `\nHorario vinculado (ID): ${st.data.schedule_pref_id}` : "";
+        const reply = `? Listo! Recibimos tus datos.
+
+Nombre: ${st.data.nombre}
+WhatsApp: ${st.data.whatsapp}
+Curso: ${st.data.curso}${extra}
+
+En breve te contactaremos por WhatsApp.
+Si quieres ver opciones: escribe MENU`;
+
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
+      }
     // ====== FLUJO HORARIO (opción 6) con validación de días ======
     if (scheduleFlow.has(sessionId)) {
       const st = scheduleFlow.get(sessionId);
@@ -2635,6 +2718,16 @@ app.listen(port, "0.0.0.0", () => {
   console.log(`⏱️ Cooldown(ms)=${AI_COOLDOWN_MS} | max diarios IA=${MAX_DAILY_AI_CALLS} | retries=${GEMINI_RETRIES}`);
   console.log(`🧯 RateLimit: max=${RATE_LIMIT_MAX}/ventana(${RATE_LIMIT_WINDOW_MS}ms) | maxMsg=${MAX_MESSAGE_CHARS} chars`);
 });
+
+
+
+
+
+
+
+
+
+
 
 
 
