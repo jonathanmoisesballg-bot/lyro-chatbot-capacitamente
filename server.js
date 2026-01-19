@@ -1789,7 +1789,7 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
         }
-        return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsCourseLists() }, 200);
       }
 
       if (t === "2") {
@@ -1799,7 +1799,7 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
         }
-        return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsCourseLists() }, 200);
       }
 
       if (t === "3") {
@@ -1986,7 +1986,7 @@ ${pick.lines.join("\n")}`;
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsCourseLists() }, 200);
     }
 
     if (t.includes("precio") || t.includes("costo") || (t.includes("curso") && (t.includes("pago") || t.includes("con certificado")))) {
@@ -1996,7 +1996,7 @@ ${pick.lines.join("\n")}`;
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsCourseLists() }, 200);
     }
 
     // ====== FLUJO CERTIFICARME (SIN IA) ======
