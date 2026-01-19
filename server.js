@@ -2204,7 +2204,7 @@ Escribe: INSCRIBIRME`;
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
         }
-        return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsCourseLists() }, 200);
       }
     }
 
