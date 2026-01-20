@@ -1,4 +1,4 @@
-// server.js
+Ôªø// server.js
 require("dotenv").config();
 
 const express = require("express");
@@ -22,11 +22,11 @@ const WHATSAPP_COUNTRY_CODE = process.env.WHATSAPP_COUNTRY_CODE || "593";
 const CONTACT_WHATSAPP = process.env.CONTACT_WHATSAPP || CONTACT_PHONE_1;
 
 // ============================
-// Seguridad / lÌmites simples
+// Seguridad / l√≠mites simples
 // ============================
 const MAX_MESSAGE_CHARS = Math.max(100, Number(process.env.MAX_MESSAGE_CHARS || 1200));
 
-// Rate limit (opcional, sin librerÌas)
+// Rate limit (opcional, sin librer√≠as)
 const RATE_LIMIT_MAX = Math.max(0, Number(process.env.RATE_LIMIT_MAX || 60)); // req por ventana
 const RATE_LIMIT_WINDOW_MS = Math.max(1000, Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000));
 const rateBuckets = new Map();
@@ -59,7 +59,7 @@ function checkRateLimit(req) {
   return { ok: true };
 }
 
-// Headers b·sicos
+// Headers b√°sicos
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "SAMEORIGIN");
@@ -84,11 +84,11 @@ app.options("*", cors(corsOptions));
 app.use(express.json({ strict: false, limit: "1mb" }));
 
 // ============================
-// IA (Gemini) - SOLO se usa si NO es tema FundaciÛn
+// IA (Gemini) - SOLO se usa si NO es tema Fundaci√≥n
 // ============================
 const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 if (!apiKey) {
-  console.warn("?? Falta GEMINI_API_KEY (o GOOGLE_API_KEY). El bot funcionar· en modo FundaciÛn/FAQ sin IA.");
+  console.warn("‚ö†Ô∏è Falta GEMINI_API_KEY (o GOOGLE_API_KEY). El bot funcionar√° en modo Fundaci√≥n/FAQ sin IA.");
 }
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
@@ -111,16 +111,16 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 let supabase = null;
 if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
   supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  console.log("? Supabase configurada: verdadero");
+  console.log("‚úÖ Supabase configurada: verdadero");
 } else {
-  console.warn("?? Supabase NO configurada. Falta SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY.");
+  console.warn("‚ö†Ô∏è Supabase NO configurada. Falta SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY.");
 }
 
 // ============================
 // System instruction (IA)
 // ============================
 const systemInstruction = `
-Eres Lyro-CapacÌtamente, un asistente virtual amable y servicial.
+Eres Lyro-Capac√≠tamente, un asistente virtual amable y servicial.
 Responde de forma clara, completa y concisa. Si algo es ambiguo, pide un dato puntual.
 `;
 
@@ -128,13 +128,13 @@ Responde de forma clara, completa y concisa. Si algo es ambiguo, pide un dato pu
 // Helpers base
 // ============================
 function normalizeText(s) {
-  // ? Importante: permite el signo "+" para que "5+" no se vuelva "5"
+  // ‚úÖ Importante: permite el signo "+" para que "5+" no se vuelva "5"
   return String(s || "")
     .trim()
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9\s\-+]/g, "") // ? permite "+"
+    .replace(/[^a-z0-9\s\-+]/g, "") // ‚úÖ permite "+"
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -210,40 +210,40 @@ function isRetryableGeminiError(status, msg) {
   return false;
 }
 
-// ? Fallback neutro (NUNCA dice ìIA no pudo responderî)
+// ‚úÖ Fallback neutro (NUNCA dice ‚ÄúIA no pudo responder‚Äù)
 function aiFallbackMenuText() {
   return `En este momento no puedo responder esa consulta.
 
-?? Puedes:
+üìå Puedes:
 1) Escribir: MENU (para ver opciones)
-2) Elegir una opciÛn del men˙ (1-6)
+2) Elegir una opci√≥n del men√∫ (1-6)
 3) O contactarnos:
-?? ${CONTACT_PHONE_1}
-?? ${CONTACT_PHONE_2}
-?? ${CONTACT_EMAIL}`;
+üì± ${CONTACT_PHONE_1}
+‚òéÔ∏è ${CONTACT_PHONE_2}
+‚úâÔ∏è ${CONTACT_EMAIL}`;
 }
 
 // ============================
-// Cursos (INFO + INSCRIPCI”N)
+// Cursos (INFO + INSCRIPCI√ìN)
 // ============================
 // NOTA:
-// - Para el MEN⁄ (1 y 2) se listan TODOS (incluye PrÛx.) en orden A-Z.
+// - Para el MEN√ö (1 y 2) se listan TODOS (incluye Pr√≥x.) en orden A-Z.
 // - Para INSCRIBIRME solo se muestran los DISPONIBLES (available: true).
 
 const FREE_COURSES = [
   {
-    name: "TecnologÌa para Educadores",
-    label: "?? TecnologÌa para Educadores ñ Tatiana Arias (Gratis)",
+    name: "Tecnolog√≠a para Educadores",
+    label: "üéì Tecnolog√≠a para Educadores ‚Äì Tatiana Arias (Gratis)",
     available: true,
   },
   {
-    name: "MetodologÌa de la Pregunta",
-    label: "?? MetodologÌa de la Pregunta ñ Tatiana Arias (PrÛx.)",
+    name: "Metodolog√≠a de la Pregunta",
+    label: "üéì Metodolog√≠a de la Pregunta ‚Äì Tatiana Arias (Pr√≥x.)",
     available: false,
   },
   {
-    name: "NeuroeducaciÛnÖ TambiÈn en casa",
-    label: "?? NeuroeducaciÛnÖ TambiÈn en casa ñ Prosandoval (PrÛx.)",
+    name: "Neuroeducaci√≥n‚Ä¶ Tambi√©n en casa",
+    label: "üéì Neuroeducaci√≥n‚Ä¶ Tambi√©n en casa ‚Äì Prosandoval (Pr√≥x.)",
     available: false,
   },
 ];
@@ -251,40 +251,40 @@ const FREE_COURSES = [
 const CERT_COURSES = [
   {
     name: "Formador de Formadores",
-    label: "?? Formador de Formadores ($120) ñ Tatiana Arias",
+    label: "üéì Formador de Formadores ($120) ‚Äì Tatiana Arias",
     available: true,
   },
   {
     name: "Inteligencia Emocional",
-    label: "?? Inteligencia Emocional ($15) ñ Tatiana Arias",
+    label: "üéì Inteligencia Emocional ($15) ‚Äì Tatiana Arias",
     available: true,
   },
   {
-    name: "TecnologÌa para Padres",
-    label: "?? TecnologÌa para Padres ($15) ñ Yadira Su·rez",
+    name: "Tecnolog√≠a para Padres",
+    label: "üéì Tecnolog√≠a para Padres ($15) ‚Äì Yadira Su√°rez",
     available: true,
   },
 
-  // PrÛximamente
+  // Pr√≥ximamente
   {
     name: "Contabilidad para no contadores",
-    label: "?? Contabilidad para no contadores ($20) (PrÛx.)",
+    label: "üéì Contabilidad para no contadores ($20) (Pr√≥x.)",
     available: false,
   },
   {
     name: "Docencia Virtual",
-    label: "?? Docencia Virtual ($20) (PrÛx.)",
+    label: "üéì Docencia Virtual ($20) (Pr√≥x.)",
     available: false,
   },
   {
     name: "Habilidades Cognitivas y Emocionales (Aprender a Pensar)",
-    label: "?? Habilidades Cognitivas y Emocionales (Aprender a Pensar) ($20) (PrÛx.)",
+    label: "üéì Habilidades Cognitivas y Emocionales (Aprender a Pensar) ($20) (Pr√≥x.)",
     available: false,
   },
 ];
 
 // ============================
-// EnumeraciÛn alfabÈtica A,B,C...
+// Enumeraci√≥n alfab√©tica A,B,C...
 // ============================
 const ALPHA = "abcdefghijklmnopqrstuvwxyz".split("");
 
@@ -300,7 +300,7 @@ function sortCoursesByName(list) {
   return [...list].sort((a, b) => normalizeText(a.name).localeCompare(normalizeText(b.name)));
 }
 
-// Detecta si el usuario escribiÛ "A", "a)", "a." etc.
+// Detecta si el usuario escribi√≥ "A", "a)", "a." etc.
 function extractAlphaChoice(text) {
   const raw = String(text || "").trim();
   const m = raw.match(/^([a-zA-Z])(?:[\)\.\-:\s]|$)/);
@@ -318,7 +318,7 @@ function buildCoursePicker(type, { availableOnly } = { availableOnly: true }) {
 
   const list = sortCoursesByName(availableOnly ? base.filter((c) => c.available) : base);
 
-  const map = {}; // { a: "TecnologÌa para Educadores", b: "..." }
+  const map = {}; // { a: "Tecnolog√≠a para Educadores", b: "..." }
   const lines = []; // ["A) ...", "B) ..."]
   const suggestions = []; // [{text:"a", label:"A) ..."}]
 
@@ -332,19 +332,19 @@ function buildCoursePicker(type, { availableOnly } = { availableOnly: true }) {
     suggestions.push({ text: k, label: `${L}) ${c.label}` });
   });
 
-  suggestions.push({ text: "menu", label: "?? Menu" });
-  suggestions.push({ text: "cancelar", label: "? Cancelar" });
+  suggestions.push({ text: "menu", label: "üìå Menu" });
+  suggestions.push({ text: "cancelar", label: "‚úñ Cancelar" });
 
   return { list, map, lines, suggestions };
 }
 
 // ============================
-// Textos FundaciÛn (SIN IA)
+// Textos Fundaci√≥n (SIN IA)
 // ============================
 function menuOpcionesTexto() {
-  return `?? Hola, soy LYRO-CAPACÕTAMENTE ??
+  return `üëã Hola, soy LYRO-CAPAC√çTAMENTE ü§ñ
 
-?? EST¡S EN EL MEN⁄ PRINCIPAL (elige una opciÛn)
+üìå EST√ÅS EN EL MEN√ö PRINCIPAL (elige una opci√≥n)
 
 1) Cursos gratis
 2) Cursos con certificados y precios
@@ -353,83 +353,95 @@ function menuOpcionesTexto() {
 5) Estado de certificado
 6) Horarios
 
-Responde con el n˙mero (1-6) o escribe tu pregunta.`;
+Responde con el n√∫mero (1-6) o escribe tu pregunta.`;
 }
 
-// ? (A-Z) para men˙ opciÛn 1
+// ‚úÖ (A-Z) para men√∫ opci√≥n 1
 function cursosGratisTexto() {
   const pick = buildCoursePicker("free", { availableOnly: false });
 
-  return `?? CURSOS GRATUITOS (A-Z)
+  return `üéì CURSOS GRATUITOS (A-Z)
 
 ${pick.lines.join("\n")}
 
-Si quieres recomendaciÛn personalizada, Escribe: TEST DE AYUDA
-Si quieres inscribirte hay dos opciones, escribe: INSCRIBIRME.
-La otra opcion es inscribirte mediante la pagina web: Crearte una cuenta para que puedas iniciar sesion (Tienda solidaria/Mi cuenta)
-Parte del equipo de la Fundacion se contactara contigo.`;
+Si quieres recomendaci√≥n personalizada, Escribe: TEST DE AYUDA 
+Si quieres inscribirte hay dos opciones, escribe: INSCRIBIRME . 
+La otra opcion es inscribirte mediante la pagina web: Crearte una cuenta para que puedas iniciar sesion (Tienda solidaria/Mi cuenta)`;
 }
 
-// ? (A-Z) para men˙ opciÛn 2
+// ‚úÖ (A-Z) para men√∫ opci√≥n 2
 function cursosCertTexto() {
   const pick = buildCoursePicker("cert", { availableOnly: false });
 
-  return `?? CURSOS CON CERTIFICADO (A-Z)
+  return `üéì CURSOS CON CERTIFICADO (A-Z)
 
 ${pick.lines.join("\n")}
 
-Si quieres recomendaciÛn personalizada, Escribe: TEST DE AYUDA
-Si quieres inscribirte hay dos opciones, escribe: INSCRIBIRME.
-La otra opcion es inscribirte mediante la pagina web: Crearte una cuenta para que puedas iniciar sesion (Tienda solidaria/Mi cuenta)
-Parte del equipo de la Fundacion se contactara contigo.`;
+Si quieres recomendaci√≥n personalizada, Escribe: TEST DE AYUDA 
+Si quieres inscribirte hay dos opciones, escribe: INSCRIBIRME . 
+La otra opcion es inscribirte mediante la pagina web: Crearte una cuenta para que puedas iniciar sesion (Tienda solidaria/Mi cuenta)`;
+}
+
+// ‚úÖ NUEVO: pagos
+function pagosTexto() {
+  const pick = buildCoursePicker("cert", { availableOnly: false });
+
+  return `üí≥ PAGOS DE CURSOS (Solo cursos con certificado)
+
+Los pagos son por Transferencia bancaria directa o PayPhone.
+
+üìå Para pagar, primero debes inscribirte a un curso (solo los de certificados).
+
+üéì CURSOS CON CERTIFICADO (A-Z)
+${pick.lines.join("\n")}
+
+‚úÖ Para inscribirte tienes 2 opciones:
+1) Escribe: INSCRIBIRME (aqu√≠ mismo) y elige el curso.
+2) O puedes inscribirte por la pagina web:
+   Crearte una cuenta para que puedas iniciar sesion (Tienda solidaria/Mi cuenta) y seguir el proceso de inscripcion.
+
+Al final, parte del equipo de la Fundacion se contactara contigo.`;
 }
 
 function contactoTexto() {
-  return `?? CONTACTO FUNDACI”N CAPACÕTAMENTE
+  return `üìû CONTACTO FUNDACI√ìN CAPAC√çTAMENTE
 
-?? ${CONTACT_PHONE_1}
-?? ${CONTACT_PHONE_2}
-?? ${CONTACT_EMAIL}
-?? ${CONTACT_CITY}`;
+üì± ${CONTACT_PHONE_1}
+‚òéÔ∏è ${CONTACT_PHONE_2}
+‚úâÔ∏è ${CONTACT_EMAIL}
+üìç ${CONTACT_CITY}`;
 }
 
 function donarTexto() {
-  return `?? DONAR (pasos)
+  return `üíô DONAR (pasos)
 
-1) Entra a Donaciones ? "Donar ahora"
-2) Elige una cantidad (o personalizada) ? "Continuar"
+1) Entra a Donaciones ‚Üí "Donar ahora"
+2) Elige una cantidad (o personalizada) ‚Üí "Continuar"
 3) Llena tus datos
-4) Elige mÈtodo (Transferencia o PayPal)
+4) Elige m√©todo (Transferencia o PayPal)
 5) Presiona "Donar ahora"`;
 }
 
-function pagoTexto() {
-  return `Los pagos son por Transferencia bancaria directa o Payphone.
-Para ello primero debes inscribirte en un curso con certificado.
-Puedes inscribirte en la pagina web: crea una cuenta para iniciar sesion (Tienda solidaria/Mi cuenta).
-Parte del equipo de la Fundacion se contactara contigo.`;
-}
-
 function horariosTexto() {
-  return `?? HORARIOS (modalidad virtual)
+  return `üïí HORARIOS (modalidad virtual)
 
 Los horarios son FLEXIBLES: se ajustan a tu disponibilidad porque las clases son 100% online.
 
-?? Dime tu preferencia:
-- MaÒana
+üìå Dime tu preferencia:
+- Ma√±ana
 - Tarde
 - Noche`;
 }
 
 function beneficiosTexto() {
-  return `? BENEFICIOS EN FUNDACI”N CAPACÕTAMENTE
+  return `‚úÖ BENEFICIOS EN FUNDACI√ìN CAPAC√çTAMENTE
 
-- FormaciÛn online accesible y de excelencia.
-- MetodologÌa innovadora basada en: tecnologÌa, constructivismo, neurociencia e inteligencia emocional.
-- Enfoque social: orientado especialmente a poblaciÛn vulnerable, con compromiso en progreso social, econÛmico y en valores.
-- Cursos gratuitos y cursos con certificaciÛn a bajo costo.
+- Formaci√≥n online accesible y de excelencia.
+- Metodolog√≠a innovadora basada en: tecnolog√≠a, constructivismo, neurociencia e inteligencia emocional.
+- Enfoque social: orientado especialmente a poblaci√≥n vulnerable, con compromiso en progreso social, econ√≥mico y en valores.
+- Cursos gratuitos y cursos con certificaci√≥n a bajo costo.
 - Modalidad virtual y flexible.
-- AcompaÒamiento y asesorÌa para elegir el curso ideal.
+- Acompa√±amiento y asesor√≠a para elegir el curso ideal.
 
 Para ver cursos escribe:
 - 1 (Cursos gratis)
@@ -438,66 +450,66 @@ O Escribe: TEST DE AYUDA`;
 }
 
 function misionTexto() {
-  return `?? NUESTRA MISI”N
+  return `üéØ NUESTRA MISI√ìN
 
-Brindar una formaciÛn online de excelencia y accesible, con una metodologÌa innovadora basada en el uso de estrategias tecnolÛgicas, constructivismo, neurociencia e inteligencia emocional, con el objetivo de responder a las necesidades del campo laboral actual, orientada sobre todo a la poblaciÛn m·s vulnerable, comprometida con el progreso social, econÛmico y en valores de la sociedad.`;
+Brindar una formaci√≥n online de excelencia y accesible, con una metodolog√≠a innovadora basada en el uso de estrategias tecnol√≥gicas, constructivismo, neurociencia e inteligencia emocional, con el objetivo de responder a las necesidades del campo laboral actual, orientada sobre todo a la poblaci√≥n m√°s vulnerable, comprometida con el progreso social, econ√≥mico y en valores de la sociedad.`;
 }
 
 function visionTexto() {
-  return `?? NUESTRA VISI”N
+  return `üåü NUESTRA VISI√ìN
 
-Ser reconocida nacional e internacionalmente como un referente de educaciÛn con enfoque social, dirigida para todo aquel que desee adquirir conocimientos significativos.
+Ser reconocida nacional e internacionalmente como un referente de educaci√≥n con enfoque social, dirigida para todo aquel que desee adquirir conocimientos significativos.
 
-- Implementar las mejores e innovadoras estrategias pedagÛgicas y tecnolÛgicas en sus cursos para lograr mayor integraciÛn laboral.
-- Consolidarse como el mejor centro de capacitaciÛn online y presencial del Ecuador y LatinoamÈrica.
-- Transferir metodologÌas constructivistas, inteligencia emocional y neurociencia a nivel nacional e internacional.`;
+- Implementar las mejores e innovadoras estrategias pedag√≥gicas y tecnol√≥gicas en sus cursos para lograr mayor integraci√≥n laboral.
+- Consolidarse como el mejor centro de capacitaci√≥n online y presencial del Ecuador y Latinoam√©rica.
+- Transferir metodolog√≠as constructivistas, inteligencia emocional y neurociencia a nivel nacional e internacional.`;
 }
 
 function valoresTexto() {
-  return `?? VALORES
+  return `üß≠ VALORES
 
 - Disciplina
 - Compromiso social
 - Liderazgo
 - Aprendizaje continuo
 - Integridad
-- InclusiÛn
-- EmpatÌa`;
+- Inclusi√≥n
+- Empat√≠a`;
 }
 
 function pilaresTexto() {
-  return `??? NUESTRA DIFERENCIA: PILARES FUNDAMENTALES
+  return `üèõÔ∏è NUESTRA DIFERENCIA: PILARES FUNDAMENTALES
 
 Contamos con 4 pilares sobre los cuales se soportan nuestros cursos:
-- TecnologÌa
+- Tecnolog√≠a
 - Constructivismo
 - Inteligencia Emocional
 - Neurociencia`;
 }
 
 function quienesSomosTexto() {
-  return `?? øQUI…NES SOMOS?
+  return `üë• ¬øQUI√âNES SOMOS?
 
-La FundaciÛn CapacÌtamente nace hace m·s de 10 aÒos como expresiÛn del compromiso social de su fundadora. En 2021 nace la FundaciÛn CapacÌtamente ìFormando Mentes y Corazonesî como Centro de FormaciÛn Profesional y AsesorÌas, para el Trabajo y el Desarrollo Humano, especializada en capacitaciÛn en educaciÛn, tecnologÌa, inteligencia emocional, neurociencia y m·s.
+La Fundaci√≥n Capac√≠tamente nace hace m√°s de 10 a√±os como expresi√≥n del compromiso social de su fundadora. En 2021 nace la Fundaci√≥n Capac√≠tamente ‚ÄúFormando Mentes y Corazones‚Äù como Centro de Formaci√≥n Profesional y Asesor√≠as, para el Trabajo y el Desarrollo Humano, especializada en capacitaci√≥n en educaci√≥n, tecnolog√≠a, inteligencia emocional, neurociencia y m√°s.
 
-Uno de nuestros objetivos es ayudar a las personas a alcanzar sus metas por medio de una educaciÛn de alta calidad y al alcance de todos.`;
+Uno de nuestros objetivos es ayudar a las personas a alcanzar sus metas por medio de una educaci√≥n de alta calidad y al alcance de todos.`;
 }
 
 function trabajarConNosotrosTexto() {
-  return `?? TRABAJA / COLABORA CON NOSOTROS
+  return `ü§ù TRABAJA / COLABORA CON NOSOTROS
 
-Para colaborar, ser voluntario/a, proponer alianzas o participar como facilitador/a, cont·ctanos:
+Para colaborar, ser voluntario/a, proponer alianzas o participar como facilitador/a, cont√°ctanos:
 
-?? WhatsApp: ${CONTACT_PHONE_1}
-?? ${CONTACT_PHONE_2}
-?? ${CONTACT_EMAIL}
-?? ${CONTACT_CITY}`;
+üì± WhatsApp: ${CONTACT_PHONE_1}
+‚òéÔ∏è ${CONTACT_PHONE_2}
+‚úâÔ∏è ${CONTACT_EMAIL}
+üìç ${CONTACT_CITY}`;
 }
 
 // Certificarme (sin IA) -> lista
 function certificarmeIntroTexto() {
   const lines = CERT_COURSES.map((c) => `- ${c.label}`).join("\n");
-  return `?? CERTIFICACION
+  return `üìú CERTIFICACION
 
 Para certificarte, elige el CURSO:
 
@@ -505,6 +517,7 @@ ${lines}
 
 (Escribe el nombre del curso tal cual o tocalo en los botones)`;
 }
+
 function suggestionsMenu() {
   return [
     { text: "1", label: "1) Cursos gratis" },
@@ -517,105 +530,105 @@ function suggestionsMenu() {
 }
 
 function suggestionsOnlyMenu() {
-  return [{ text: "menu", label: "?? Menu" }];
+  return [{ text: "menu", label: "üìå Menu" }];
 }
 
 function suggestionsCourseLists() {
   return [
-    { text: "menu", label: "?? Menu" },
-    { text: "test de ayuda", label: "?? Test de ayuda" },
-    { text: "inscribirme", label: "?? Inscribirme" },
+    { text: "menu", label: "üìå Menu" },
+    { text: "test de ayuda", label: "üß≠ Test de ayuda" },
+    { text: "inscribirme", label: "üìù Inscribirme" },
   ];
 }
 
 function suggestionsAfterInfo() {
   return [
-    { text: "menu", label: "?? Menu" },
-    { text: "test de ayuda", label: "?? Test de ayuda" },
-    { text: "inscribirme", label: "?? Inscribirme" },
-    { text: "certificarme", label: "?? Certificarme" },
-    { text: "trabaja con nosotros", label: "?? Trabaja con nosotros" },
-    { text: "3", label: "?? Contacto" },
+    { text: "menu", label: "üìå Menu" },
+    { text: "test de ayuda", label: "üß™ Test de ayuda" },
+    { text: "inscribirme", label: "üìù Inscribirme" },
+    { text: "certificarme", label: "üìú Certificarme" },
+    { text: "trabaja con nosotros", label: "ü§ù Trabaja con nosotros" },
+    { text: "3", label: "üìû Contacto" },
   ];
 }
 
 function suggestionsFundacionInfo() {
   return [
-    { text: "menu", label: "?? Menu" },
-    { text: "quienes somos", label: "?? øQuiÈnes somos?" },
-    { text: "mision", label: "?? MisiÛn" },
-    { text: "vision", label: "?? VisiÛn" },
-    { text: "valores", label: "?? Valores" },
-    { text: "pilares", label: "??? Pilares" },
-    { text: "certificarme", label: "?? Certificarme" },
-    { text: "trabaja con nosotros", label: "?? Trabaja con nosotros" },
+    { text: "menu", label: "üìå Menu" },
+    { text: "quienes somos", label: "üë• ¬øQui√©nes somos?" },
+    { text: "mision", label: "üéØ Misi√≥n" },
+    { text: "vision", label: "üåü Visi√≥n" },
+    { text: "valores", label: "üß≠ Valores" },
+    { text: "pilares", label: "üèõÔ∏è Pilares" },
+    { text: "certificarme", label: "üìú Certificarme" },
+    { text: "trabaja con nosotros", label: "ü§ù Trabaja con nosotros" },
   ];
 }
 
 function suggestionsCertFlow() {
   return [
-    { text: "menu", label: "?? Menu" },
-    { text: "cancelar", label: "? Cancelar" },
+    { text: "menu", label: "üìå Menu" },
+    { text: "cancelar", label: "‚úñ Cancelar" },
   ];
 }
 
 function suggestionsScheduleFlowStep1() {
   return [
-    { text: "maÒana", label: "??? MaÒana" },
-    { text: "tarde", label: "?? Tarde" },
-    { text: "noche", label: "?? Noche" },
-    { text: "menu", label: "?? Menu" },
+    { text: "ma√±ana", label: "üå§Ô∏è Ma√±ana" },
+    { text: "tarde", label: "üåá Tarde" },
+    { text: "noche", label: "üåô Noche" },
+    { text: "menu", label: "üìå Menu" },
   ];
 }
 
 function suggestionsScheduleFlowStep2() {
   return [
-    { text: "lun-vie", label: "?? Lun-Vie" },
-    { text: "sabado y domingo", label: "?? S·bado y Domingo" },
-    { text: "menu", label: "?? Menu" },
+    { text: "lun-vie", label: "üìÖ Lun-Vie" },
+    { text: "sabado y domingo", label: "üìÖ S√°bado y Domingo" },
+    { text: "menu", label: "üìå Menu" },
   ];
 }
 
 function suggestionsAfterScheduleSaved() {
   return [
-    { text: "inscribirme", label: "?? Inscribirme" },
-    { text: "test de ayuda", label: "?? Test de ayuda" },
-    { text: "menu", label: "?? Menu" },
+    { text: "inscribirme", label: "üìù Inscribirme" },
+    { text: "test de ayuda", label: "üß™ Test de ayuda" },
+    { text: "menu", label: "üìå Menu" },
   ];
 }
 
 function suggestionsAdvisorStart() {
   return [
-    { text: "docente", label: "????? Docente" },
-    { text: "padre", label: "???????? Padre/Madre" },
-    { text: "estudiante", label: "?? Estudiante" },
-    { text: "profesional", label: "?? Profesional" },
-    { text: "menu", label: "?? Menu" },
+    { text: "docente", label: "üë©‚Äçüè´ Docente" },
+    { text: "padre", label: "üë®‚Äçüë©‚Äçüëß Padre/Madre" },
+    { text: "estudiante", label: "üéí Estudiante" },
+    { text: "profesional", label: "üíº Profesional" },
+    { text: "menu", label: "üìå Menu" },
   ];
 }
 
 function suggestionsAdvisorInterest() {
   return [
-    { text: "habilidades blandas", label: "?? Habilidades blandas" },
-    { text: "tecnologia", label: "?? TecnologÌa" },
-    { text: "educacion", label: "?? EducaciÛn" },
-    { text: "menu", label: "?? Menu" },
+    { text: "habilidades blandas", label: "üß† Habilidades blandas" },
+    { text: "tecnologia", label: "üíª Tecnolog√≠a" },
+    { text: "educacion", label: "üìö Educaci√≥n" },
+    { text: "menu", label: "üìå Menu" },
   ];
 }
 
 function suggestionsAdvisorTime() {
   return [
-    { text: "1-2", label: "?? 1-2h/semana" },
-    { text: "3-5", label: "?? 3-5h/semana" },
-    { text: "5+", label: "?? +5h/semana" },
-    { text: "menu", label: "?? Menu" },
+    { text: "1-2", label: "‚è±Ô∏è 1-2h/semana" },
+    { text: "3-5", label: "‚è±Ô∏è 3-5h/semana" },
+    { text: "5+", label: "‚è±Ô∏è +5h/semana" },
+    { text: "menu", label: "üìå Menu" },
   ];
 }
 
 function suggestionsLeadFlow() {
   return [
-    { text: "menu", label: "?? Menu" },
-    { text: "cancelar", label: "? Cancelar" },
+    { text: "menu", label: "üìå Menu" },
+    { text: "cancelar", label: "‚úñ Cancelar" },
   ];
 }
 
@@ -623,17 +636,18 @@ function suggestionsCertificarmeCursos() {
   const items = CERT_COURSES.map((c) => ({ text: c.name, label: c.label }));
   return [
     ...items,
-    { text: "menu", label: "?? Menu" },
-    { text: "cancelar", label: "? Cancelar" },
+    { text: "menu", label: "üìå Menu" },
+    { text: "cancelar", label: "‚úñ Cancelar" },
   ];
 }
+
 function suggestionsChooseCourses(type) {
   const pick = buildCoursePicker(type, { availableOnly: true });
   return pick.suggestions;
 }
 
 // ============================
-// Detectores (SIN IA para FundaciÛn)
+// Detectores (SIN IA para Fundaci√≥n)
 // ============================
 function isGreeting(t) {
   const s = normalizeText(t);
@@ -703,6 +717,24 @@ function isEnrollmentStatusQuery(t) {
     s.includes("estado de inscrip") ||
     s.includes("como se si ya estoy inscr") ||
     s.includes("como se que ya estoy inscr")
+  );
+}
+
+// ‚úÖ NUEVO: pagos
+function isPaymentQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("pago") ||
+    s.includes("pagar") ||
+    s.includes("payphone") ||
+    s.includes("transferencia") ||
+    s.includes("transferir") ||
+    s.includes("metodo de pago") ||
+    s.includes("metodos de pago") ||
+    s.includes("forma de pago") ||
+    s.includes("formas de pago") ||
+    s.includes("como pago") ||
+    s.includes("como pagar")
   );
 }
 
@@ -782,11 +814,6 @@ function isFoundationQuery(t) {
   return keys.some((k) => s.includes(normalizeText(k)));
 }
 
-function isPaymentQuery(t) {
-  const s = normalizeText(t);
-  return s.includes("pago") || s.includes("pagar") || s.includes("pagos");
-}
-
 // ============================
 // Flujos
 // ============================
@@ -795,7 +822,7 @@ const advisorFlow = new Map();
 const leadFlow = new Map();
 const scheduleFlow = new Map();
 const certificarmeFlow = new Map();
-const enrollCheckFlow = new Map(); // ? nuevo
+const enrollCheckFlow = new Map(); // ‚úÖ nuevo
 
 const lastSchedulePrefId = new Map();
 const courseContext = new Map();
@@ -806,7 +833,7 @@ function resetFlows(sessionId) {
   leadFlow.delete(sessionId);
   scheduleFlow.delete(sessionId);
   certificarmeFlow.delete(sessionId);
-  enrollCheckFlow.delete(sessionId); // ? nuevo
+  enrollCheckFlow.delete(sessionId); // ‚úÖ nuevo
 }
 
 // ============================
@@ -855,7 +882,7 @@ async function insertSessionRow(row) {
   throw error;
 }
 
-// ?? CAMBIO CLAVE: ensureSession ya NO inserta el men˙ autom·ticamente (evita duplicados)
+// üîß CAMBIO CLAVE: ensureSession ya NO inserta el men√∫ autom√°ticamente (evita duplicados)
 async function ensureSession(sessionId, userKey) {
   if (!supabase) return { created: false };
 
@@ -871,7 +898,7 @@ async function ensureSession(sessionId, userKey) {
   }
 
   if (existing.user_key !== userKey) {
-    const e = new Error("No autorizado: sesiÛn no pertenece a este usuario.");
+    const e = new Error("No autorizado: sesi√≥n no pertenece a este usuario.");
     e.status = 403;
     throw e;
   }
@@ -890,7 +917,7 @@ async function touchSessionLastMessage(sessionId, userKey, previewText) {
 
   const s = await getSession(sessionId);
   if (!s || s.user_key !== userKey) {
-    const e = new Error("No autorizado: sesiÛn no pertenece a este usuario.");
+    const e = new Error("No autorizado: sesi√≥n no pertenece a este usuario.");
     e.status = 403;
     throw e;
   }
@@ -908,7 +935,7 @@ async function insertChatMessage(sessionId, userKey, role, content) {
 
   const s = await getSession(sessionId);
   if (!s || s.user_key !== userKey) {
-    const e = new Error("No autorizado: sesiÛn no pertenece a este usuario.");
+    const e = new Error("No autorizado: sesi√≥n no pertenece a este usuario.");
     e.status = 403;
     throw e;
   }
@@ -917,7 +944,7 @@ async function insertChatMessage(sessionId, userKey, role, content) {
   if (error) throw error;
 }
 
-// ? Nuevo: insertar men˙ SOLO cuando se crea desde /sessions
+// ‚úÖ Nuevo: insertar men√∫ SOLO cuando se crea desde /sessions
 async function insertWelcomeMenu(sessionId, userKey) {
   const reply = menuOpcionesTexto();
   await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -925,14 +952,14 @@ async function insertWelcomeMenu(sessionId, userKey) {
 }
 
 // ============================
-// PIN (Fijar conversaciÛn) - opcional
+// PIN (Fijar conversaci√≥n) - opcional
 // ============================
 async function setPinned(sessionId, userKey, pinned) {
   if (!supabase) return;
 
   const s = await getSession(sessionId);
   if (!s || s.user_key !== userKey) {
-    const e = new Error("No autorizado: sesiÛn no pertenece a este usuario.");
+    const e = new Error("No autorizado: sesi√≥n no pertenece a este usuario.");
     e.status = 403;
     throw e;
   }
@@ -999,7 +1026,7 @@ function certificateReplyFromRow(row) {
   const updated = humanDateEC(row.updated_at);
 
   if (estado === "listo") {
-    return `? CERTIFICADO LISTO
+    return `‚úÖ CERTIFICADO LISTO
 
 Curso: ${row.curso}
 Actualizado: ${updated}
@@ -1007,23 +1034,23 @@ Actualizado: ${updated}
 Para descargar tu certificado, entra a tu cuenta de la Fundacion.
 Una vez que culminaste tu curso, tu certificado lo puedes descargar directamente.
 
-Si a˙n no lo recibiste, escrÌbenos:
-?? ${CONTACT_PHONE_1}
-?? ${CONTACT_PHONE_2}
-?? ${CONTACT_EMAIL}`;
+Si a√∫n no lo recibiste, escr√≠benos:
+üì± ${CONTACT_PHONE_1}
+‚òéÔ∏è ${CONTACT_PHONE_2}
+‚úâÔ∏è ${CONTACT_EMAIL}`;
   }
 
   if (estado === "en proceso" || estado === "en_proceso") {
-    return `? CERTIFICADO EN PROCESO
+    return `‚è≥ CERTIFICADO EN PROCESO
 
 Curso: ${row.curso}
 Actualizado: ${updated}
 
-Sugerencia: vuelve a consultar m·s tarde.`;
+Sugerencia: vuelve a consultar m√°s tarde.`;
   }
 
   if (estado === "no listo" || estado === "no_listo") {
-    return `?? CERTIFICADO A⁄N NO LISTO
+    return `‚ö†Ô∏è CERTIFICADO A√öN NO LISTO
 
 Curso: ${row.curso}
 Actualizado: ${updated}
@@ -1031,13 +1058,13 @@ Actualizado: ${updated}
 Para descargar tu certificado, entra a tu cuenta de la Fundacion.
 Una vez que culminaste tu curso, tu certificado lo puedes descargar directamente.
 
-Si necesitas ayuda, cont·ctanos:
-?? ${CONTACT_PHONE_1}
-?? ${CONTACT_PHONE_2}
-?? ${CONTACT_EMAIL}`;
+Si necesitas ayuda, cont√°ctanos:
+üì± ${CONTACT_PHONE_1}
+‚òéÔ∏è ${CONTACT_PHONE_2}
+‚úâÔ∏è ${CONTACT_EMAIL}`;
   }
 
-  return `?? ESTADO DE CERTIFICADO
+  return `üìÑ ESTADO DE CERTIFICADO
 
 Curso: ${row.curso}
 Estado: ${row.estado}
@@ -1045,7 +1072,7 @@ Actualizado: ${updated}`;
 }
 
 // ============================
-// Leads (inscripciÛn) + schedule_pref_id
+// Leads (inscripci√≥n) + schedule_pref_id
 // ============================
 async function saveLead(userKey, sessionId, data) {
   if (!supabase) return;
@@ -1086,7 +1113,7 @@ function extractWhatsapp(text) {
 // ============================
 function pickScheduleId(row) {
   if (!row) return null;
-  return row.id ?? row.identificacion ?? row["identificaciÛn"] ?? row.identificacion_id ?? null;
+  return row.id ?? row.identificacion ?? row["identificaci√≥n"] ?? row.identificacion_id ?? null;
 }
 
 async function saveSchedule(userKey, sessionId, data) {
@@ -1129,37 +1156,37 @@ function recommendCourse({ persona, interes, tiempo }) {
   const t = normalizeText(tiempo);
 
   if (p.includes("padre") || p.includes("madre")) {
-    return { curso: "TecnologÌa para Padres ($15)", motivo: "ideal si quieres acompaÒar y guiar mejor el uso de tecnologÌa en casa." };
+    return { curso: "Tecnolog√≠a para Padres ($15)", motivo: "ideal si quieres acompa√±ar y guiar mejor el uso de tecnolog√≠a en casa." };
   }
 
   if (p.includes("docente")) {
     if (i.includes("tecnolog")) {
-      return { curso: "TecnologÌa para Educadores (Gratis)", motivo: "enfocado a herramientas y recursos ˙tiles para docentes." };
+      return { curso: "Tecnolog√≠a para Educadores (Gratis)", motivo: "enfocado a herramientas y recursos √∫tiles para docentes." };
     }
-    return { curso: "Formador de Formadores ($120)", motivo: "perfecto para fortalecer habilidades de enseÒanza y facilitaciÛn." };
+    return { curso: "Formador de Formadores ($120)", motivo: "perfecto para fortalecer habilidades de ense√±anza y facilitaci√≥n." };
   }
 
   if (i.includes("habilidades") || i.includes("blandas")) {
-    return { curso: "Inteligencia Emocional ($15)", motivo: "fortalece comunicaciÛn, manejo de emociones y relaciones." };
+    return { curso: "Inteligencia Emocional ($15)", motivo: "fortalece comunicaci√≥n, manejo de emociones y relaciones." };
   }
 
   if (i.includes("educa")) {
-    return { curso: "Formador de Formadores ($120)", motivo: "te ayuda a estructurar sesiones y enseÒar con mejor metodologÌa." };
+    return { curso: "Formador de Formadores ($120)", motivo: "te ayuda a estructurar sesiones y ense√±ar con mejor metodolog√≠a." };
   }
 
   if (i.includes("tecnolog")) {
-    return { curso: "TecnologÌa para Educadores (Gratis)", motivo: "una base ˙til para avanzar r·pido sin costo." };
+    return { curso: "Tecnolog√≠a para Educadores (Gratis)", motivo: "una base √∫til para avanzar r√°pido sin costo." };
   }
 
   if (t === "1-2") {
-    return { curso: "Inteligencia Emocional ($15)", motivo: "es una opciÛn ligera y muy aplicable dÌa a dÌa." };
+    return { curso: "Inteligencia Emocional ($15)", motivo: "es una opci√≥n ligera y muy aplicable d√≠a a d√≠a." };
   }
 
-  return { curso: "Formador de Formadores ($120)", motivo: "muy completo si quieres una formaciÛn sÛlida." };
+  return { curso: "Formador de Formadores ($120)", motivo: "muy completo si quieres una formaci√≥n s√≥lida." };
 }
 
 // ============================
-// IA en memoria + lÌmites
+// IA en memoria + l√≠mites
 // ============================
 const sessions = new Map();
 const SESSION_TTL_MS = 30 * 60 * 1000;
@@ -1240,7 +1267,7 @@ async function geminiSendWithRetry(sessionObj, userMessage) {
 }
 
 // ============================
-// ? VERIFICAR INSCRIPCI”N (leads)
+// ‚úÖ VERIFICAR INSCRIPCI√ìN (leads)
 // ============================
 function buildPhoneVariants(phone) {
   const raw = String(phone || "").trim().replace(/\s+/g, "");
@@ -1333,20 +1360,18 @@ function formatEnrollmentsReply(nombre, rows) {
   const cursos = [...new Set((rows || []).map((r) => r.curso).filter(Boolean))];
 
   if (cursos.length === 0) {
-    return `EncontrÈ registros a nombre de: ${nombre}, pero no veo el curso guardado.
+    return `Encontr√© registros a nombre de: ${nombre}, pero no veo el curso guardado.
 
-Si deseas inscribirte ahora escribe: INSCRIBIRME
-Parte del equipo de la Fundacion se contactara contigo.`;
+Si deseas inscribirte ahora escribe: INSCRIBIRME`;
   }
 
-  return `? SÌ, encontrÈ inscripciÛn a tu nombre.
+  return `‚úÖ S√≠, encontr√© inscripci√≥n a tu nombre.
 
 Nombre: ${rows[0]?.nombre || nombre}
 Cursos registrados:
 ${cursos.map((c) => `- ${c}`).join("\n")}
 
-Si deseas inscribirte a otro curso escribe: INSCRIBIRME
-Parte del equipo de la Fundacion se contactara contigo.`;
+Si deseas inscribirte a otro curso escribe: INSCRIBIRME`;
 }
 
 // ============================
@@ -1414,7 +1439,7 @@ app.get("/sessions", async (req, res) => {
   }
 });
 
-// Crear nueva conversaciÛn
+// Crear nueva conversaci√≥n
 app.post("/sessions", async (req, res) => {
   const rl = checkRateLimit(req);
   if (!rl.ok) return sendJson(res, { error: "Demasiadas solicitudes. Intenta en unos segundos." }, 429);
@@ -1426,12 +1451,12 @@ app.post("/sessions", async (req, res) => {
     const sessionId = newSessionId();
 
     await ensureSession(sessionId, userKey);
-    // ? aquÌ sÌ insertamos el men˙ como primer mensaje (solo al crear con botÛn "Nueva")
+    // ‚úÖ aqu√≠ s√≠ insertamos el men√∫ como primer mensaje (solo al crear con bot√≥n "Nueva")
     await insertWelcomeMenu(sessionId, userKey);
 
     return sendJson(res, { sessionId }, 200);
   } catch (e) {
-    return sendJson(res, { error: "Error creando sesiÛn", details: String(e?.message || e) }, 500);
+    return sendJson(res, { error: "Error creando sesi√≥n", details: String(e?.message || e) }, 500);
   }
 });
 
@@ -1464,7 +1489,7 @@ app.post("/session/:sessionId/pin", async (req, res) => {
   }
 });
 
-// Eliminar conversaciÛn
+// Eliminar conversaci√≥n
 app.delete("/session/:sessionId", async (req, res) => {
   const rl = checkRateLimit(req);
   if (!rl.ok) return sendJson(res, { error: "Demasiadas solicitudes. Intenta en unos segundos." }, 429);
@@ -1478,14 +1503,14 @@ app.delete("/session/:sessionId", async (req, res) => {
     const userKey = getUserKey(req);
 
     const s = await getSession(sessionId);
-    if (!s) return sendJson(res, { error: "SesiÛn no encontrada." }, 404);
-    if (s.user_key !== userKey) return sendJson(res, { error: "No autorizado para borrar esta sesiÛn." }, 403);
+    if (!s) return sendJson(res, { error: "Sesi√≥n no encontrada." }, 404);
+    if (s.user_key !== userKey) return sendJson(res, { error: "No autorizado para borrar esta sesi√≥n." }, 403);
 
     const { error: mErr } = await supabase.from("chat_messages").delete().eq("session_id", sessionId);
     if (mErr) return sendJson(res, { error: "Error borrando mensajes", details: mErr.message }, 500);
 
     const { error: dErr } = await supabase.from("chat_sessions").delete().eq("session_id", sessionId);
-    if (dErr) return sendJson(res, { error: "Error borrando sesiÛn", details: dErr.message }, 500);
+    if (dErr) return sendJson(res, { error: "Error borrando sesi√≥n", details: dErr.message }, 500);
 
     sessions.delete(sessionId);
     resetFlows(sessionId);
@@ -1513,7 +1538,7 @@ app.get("/history/:sessionId", async (req, res) => {
     const limit = Math.min(Number(req.query.limit || 200), 500);
 
     const s = await getSession(sessionId);
-    if (!s || s.user_key !== userKey) return sendJson(res, { error: "SesiÛn no encontrada." }, 404);
+    if (!s || s.user_key !== userKey) return sendJson(res, { error: "Sesi√≥n no encontrada." }, 404);
 
     const { data, error } = await supabase
       .from("chat_messages")
@@ -1534,7 +1559,7 @@ app.get("/history/:sessionId", async (req, res) => {
 // Chat principal
 // ============================
 app.post("/chat", async (req, res) => {
-  // ?? para que el catch NO pierda el sessionId
+  // üîß para que el catch NO pierda el sessionId
   let sessionId = "";
   try {
     const rl = checkRateLimit(req);
@@ -1542,7 +1567,7 @@ app.post("/chat", async (req, res) => {
       return sendJson(
         res,
         {
-          reply: "Est·s enviando mensajes muy r·pido. Intenta en unos segundos.",
+          reply: "Est√°s enviando mensajes muy r√°pido. Intenta en unos segundos.",
           sessionId: String(req.body?.sessionId || ""),
           suggestions: suggestionsMenu(),
         },
@@ -1582,7 +1607,7 @@ app.post("/chat", async (req, res) => {
 
     if (t === "cancelar") {
       resetFlows(sessionId);
-      const reply = "? Listo. CancelÈ el proceso. Escribe MENU para ver opciones.";
+      const reply = "‚úÖ Listo. Cancel√© el proceso. Escribe MENU para ver opciones.";
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1590,14 +1615,29 @@ app.post("/chat", async (req, res) => {
       return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
-    // ====== FLUJO: verificar si ya est· inscrito ======
+    // ====== pagos (Transferencia / PayPhone) ======
+    if (isPaymentQuery(userMessage)) {
+      resetFlows(sessionId);
+      courseContext.set(sessionId, "cert");
+
+      const reply = pagosTexto();
+
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsCourseLists() }, 200);
+    }
+
+    // ====== FLUJO: verificar si ya est√° inscrito ======
     if (enrollCheckFlow.has(sessionId)) {
       const st = enrollCheckFlow.get(sessionId);
 
       if (st.step === "nombre") {
         const nombre = userMessage.trim();
         if (!nombre || nombre.length < 3) {
-          const reply = "Escribe tu NOMBRE y APELLIDO (mÌnimo 3 caracteres).";
+          const reply = "Escribe tu NOMBRE y APELLIDO (m√≠nimo 3 caracteres).";
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
             await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1609,7 +1649,7 @@ app.post("/chat", async (req, res) => {
         try {
           rows = (await getEnrollmentsByName(nombre)) || [];
         } catch {
-          const reply = "Lo siento, no pude consultar tu inscripciÛn en este momento. Intenta m·s tarde.";
+          const reply = "Lo siento, no pude consultar tu inscripci√≥n en este momento. Intenta m√°s tarde.";
           enrollCheckFlow.delete(sessionId);
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -1619,10 +1659,9 @@ app.post("/chat", async (req, res) => {
         }
 
         if (!rows.length) {
-          const reply = `No encuentro una inscripciÛn con el nombre: ${nombre}.
+          const reply = `No encuentro una inscripci√≥n con el nombre: ${nombre}.
 
-Si quieres inscribirte ahora escribe: INSCRIBIRME
-Parte del equipo de la Fundacion se contactara contigo.`;
+Si quieres inscribirte ahora escribe: INSCRIBIRME`;
           enrollCheckFlow.delete(sessionId);
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -1634,9 +1673,9 @@ Parte del equipo de la Fundacion se contactara contigo.`;
         // muchas coincidencias -> pedir whatsapp
         if (rows.length > 1) {
           enrollCheckFlow.set(sessionId, { step: "whatsapp", nombre });
-          const reply = `EncontrÈ varias coincidencias con ese nombre.
+          const reply = `Encontr√© varias coincidencias con ese nombre.
 
-Para confirmar, escribe tu n˙mero de WhatsApp (ej: +593991112233 o 0991112233).`;
+Para confirmar, escribe tu n√∫mero de WhatsApp (ej: +593991112233 o 0991112233).`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
             await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1657,7 +1696,7 @@ Para confirmar, escribe tu n˙mero de WhatsApp (ej: +593991112233 o 0991112233).`
       if (st.step === "whatsapp") {
         const w = extractWhatsapp(userMessage);
         if (!w) {
-          const reply = "No pude leer el n˙mero ?? EscrÌbelo asÌ: +593991112233 o 0991112233";
+          const reply = "No pude leer el n√∫mero üòÖ Escr√≠belo as√≠: +593991112233 o 0991112233";
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
             await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1669,7 +1708,7 @@ Para confirmar, escribe tu n˙mero de WhatsApp (ej: +593991112233 o 0991112233).`
         try {
           rows = (await getEnrollmentsByWhatsAppAndName(w, st.nombre)) || [];
         } catch {
-          const reply = "Lo siento, no pude consultar tu inscripciÛn en este momento. Intenta m·s tarde.";
+          const reply = "Lo siento, no pude consultar tu inscripci√≥n en este momento. Intenta m√°s tarde.";
           enrollCheckFlow.delete(sessionId);
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -1679,10 +1718,9 @@ Para confirmar, escribe tu n˙mero de WhatsApp (ej: +593991112233 o 0991112233).`
         }
 
         if (!rows.length) {
-          const reply = `No encontrÈ una inscripciÛn que coincida con ese WhatsApp.
+          const reply = `No encontr√© una inscripci√≥n que coincida con ese WhatsApp.
 
-Si deseas inscribirte ahora escribe: INSCRIBIRME
-Parte del equipo de la Fundacion se contactara contigo.`;
+Si deseas inscribirte ahora escribe: INSCRIBIRME`;
           enrollCheckFlow.delete(sessionId);
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -1702,12 +1740,12 @@ Parte del equipo de la Fundacion se contactara contigo.`;
       }
     }
 
-    // ====== disparador: ìya estoy inscritoî ======
+    // ====== disparador: ‚Äúya estoy inscrito‚Äù ======
     if (isEnrollmentStatusQuery(userMessage)) {
       resetFlows(sessionId);
       enrollCheckFlow.set(sessionId, { step: "nombre" });
 
-      const reply = "? Claro. Para verificarlo, dime tu NOMBRE y APELLIDO (tal como lo registraste).";
+      const reply = "‚úÖ Claro. Para verificarlo, dime tu NOMBRE y APELLIDO (tal como lo registraste).";
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
@@ -1715,7 +1753,7 @@ Parte del equipo de la Fundacion se contactara contigo.`;
       return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
     }
 
-    // ====== info fundaciÛn ======
+    // ====== info fundaci√≥n ======
     if (isBenefitsQuery(userMessage)) {
       resetFlows(sessionId);
       const reply = beneficiosTexto();
@@ -1798,7 +1836,7 @@ Parte del equipo de la Fundacion se contactara contigo.`;
       return sendJson(res, { reply, sessionId, suggestions: suggestionsCertificarmeCursos() }, 200);
     }
 
-    // ====== men˙ numÈrico ======
+    // ====== men√∫ num√©rico ======
     if (/^[1-6]$/.test(t)) {
       resetFlows(sessionId);
 
@@ -1880,7 +1918,6 @@ Parte del equipo de la Fundacion se contactara contigo.`;
       return sendJson(res, { reply, sessionId, suggestions: suggestionsAdvisorStart() }, 200);
     }
 
-
     // ====== asesor humano (WhatsApp directo) ======
     if (isHumanAdvisorRequest(userMessage) || t.includes("asesor")) {
       resetFlows(sessionId);
@@ -1901,7 +1938,7 @@ Escribenos al ${CONTACT_PHONE_1}.`;
     }
 
     // ====== asesor ======
-    if (t.includes("recomendar") || t.includes("recomendacion") || t.includes("recomendaci??n")) {
+    if (t.includes("recomendar") || t.includes("recomendacion") || t.includes("recomendaciÔøΩÔøΩn")) {
       resetFlows(sessionId);
       advisorFlow.set(sessionId, { step: "persona", persona: "", interes: "", tiempo: "" });
 
@@ -1917,11 +1954,11 @@ Escribenos al ${CONTACT_PHONE_1}.`;
     if (t.includes("gratis") || t.includes("gratuito")) courseContext.set(sessionId, "free");
     if (t.includes("precio") || t.includes("costo") || t.includes("con certificado") || t.includes("pago")) courseContext.set(sessionId, "cert");
 
-    // ====== inscripciÛn (A-Z + letras, sin bug) ======
-    if (t.includes("inscrib") || t.includes("inscripcion") || t.includes("inscripciÛn")) {
+    // ====== inscripci√≥n (A-Z + letras, sin bug) ======
+    if (t.includes("inscrib") || t.includes("inscripcion") || t.includes("inscripci√≥n")) {
       resetFlows(sessionId);
 
-      // ? CLAVE: si es "inscribirme" general, usa courseContext si existe
+      // ‚úÖ CLAVE: si es "inscribirme" general, usa courseContext si existe
       const wantsFree = t.includes("gratis") || t.includes("gratuito");
       const wantsCert = t.includes("cert") || t.includes("precio") || t.includes("costo") || t.includes("pago") || t.includes("con certificado");
 
@@ -1930,7 +1967,7 @@ Escribenos al ${CONTACT_PHONE_1}.`;
       const type =
         wantsFree ? "free" : wantsCert ? "cert" : schedIdPrev ? "all" : ctxType === "free" || ctxType === "cert" ? ctxType : "all";
 
-      // picker de cursos (incluye PrÛx.)
+      // picker de cursos (incluye Pr√≥x.)
       const pick = buildCoursePicker(type, { availableOnly: false });
 
       leadFlow.set(sessionId, {
@@ -1943,23 +1980,25 @@ Escribenos al ${CONTACT_PHONE_1}.`;
           course_type: type,
           franja: "",
           dias: "",
-          course_map: pick.map, // ? mapa letra -> nombre curso
+          course_map: pick.map, // ‚úÖ mapa letra -> nombre curso
           skip_schedule: !!schedIdPrev,
         },
       });
 
       const title =
         type === "free"
-          ? "?? INSCRIPCI”N (CURSOS GRATIS A-Z)"
+          ? "üìù INSCRIPCI√ìN (CURSOS GRATIS A-Z)"
           : type === "cert"
-          ? "?? INSCRIPCI”N (CURSOS CON CERTIFICADO A-Z)"
-          : "?? INSCRIPCI”N (CURSOS A-Z)";
+          ? "üìù INSCRIPCI√ìN (CURSOS CON CERTIFICADO A-Z)"
+          : "üìù INSCRIPCI√ìN (CURSOS A-Z)";
 
       const reply = `${title}
 
 1/4) Elige el curso (responde con la letra):
 
-${pick.lines.join("\n")}`;
+${pick.lines.join("\n")}
+
+Al final, parte del equipo de la Fundacion se contactara contigo.`;
 
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -1989,16 +2028,6 @@ ${pick.lines.join("\n")}`;
       }
       return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
     }
-
-    if (isPaymentQuery(userMessage)) {
-      const reply = pagoTexto();
-      if (supabase) {
-        await insertChatMessage(sessionId, userKey, "bot", reply);
-        await touchSessionLastMessage(sessionId, userKey, reply);
-      }
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsCourseLists() }, 200);
-    }
-
 
     if (t.includes("contact") || t.includes("whatsapp") || t.includes("correo")) {
       const reply = contactoTexto();
@@ -2059,8 +2088,8 @@ ${pick.lines.join("\n")}`;
           data: { nombre: "", whatsapp: "", curso: match, schedule_after_whatsapp: true },
         });
 
-        const reply = `? Perfecto. Para certificarte en:
-?? ${match}
+        const reply = `‚úÖ Perfecto. Para certificarte en:
+üéì ${match}
 
 Necesitamos registrarte.
 
@@ -2120,7 +2149,7 @@ ${CONTACT_EMAIL}`;
         }
       } catch {
         reply = `Lo siento, no pude consultar el estado en este momento.
-Intenta m·s tarde.`;
+Intenta m√°s tarde.`;
       }
 
       certFlow.delete(sessionId);
@@ -2133,7 +2162,7 @@ Intenta m·s tarde.`;
       return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
     }
 
-    // ====== FLUJO ASESOR (SIN IA) con validaciÛn ======
+    // ====== FLUJO ASESOR (SIN IA) con validaci√≥n ======
     if (advisorFlow.has(sessionId)) {
       const st = advisorFlow.get(sessionId);
 
@@ -2141,7 +2170,7 @@ Intenta m·s tarde.`;
         const p = normalizeText(userMessage);
         const ok = ["docente", "padre", "madre", "estudiante", "profesional"].some((x) => p.includes(x));
         if (!ok) {
-          const reply = `Elige una opciÛn v·lida:
+          const reply = `Elige una opci√≥n v√°lida:
 - Docente
 - Padre/Madre
 - Estudiante
@@ -2157,11 +2186,11 @@ Intenta m·s tarde.`;
         st.step = "interes";
         advisorFlow.set(sessionId, st);
 
-        const reply = `2/3) øQuÈ buscas principalmente?
+        const reply = `2/3) ¬øQu√© buscas principalmente?
 
 - Habilidades blandas
-- TecnologÌa
-- EducaciÛn`;
+- Tecnolog√≠a
+- Educaci√≥n`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2173,10 +2202,10 @@ Intenta m·s tarde.`;
         const i = normalizeText(userMessage);
         const ok = i.includes("habilidades") || i.includes("blandas") || i.includes("tecnolog") || i.includes("educa");
         if (!ok) {
-          const reply = `Elige una opciÛn v·lida:
+          const reply = `Elige una opci√≥n v√°lida:
 - Habilidades blandas
-- TecnologÌa
-- EducaciÛn`;
+- Tecnolog√≠a
+- Educaci√≥n`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
             await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2188,7 +2217,7 @@ Intenta m·s tarde.`;
         st.step = "tiempo";
         advisorFlow.set(sessionId, st);
 
-        const reply = `3/3) øCu·nto tiempo tienes a la semana?
+        const reply = `3/3) ¬øCu√°nto tiempo tienes a la semana?
 
 - 1-2
 - 3-5
@@ -2202,9 +2231,9 @@ Intenta m·s tarde.`;
 
       if (st.step === "tiempo") {
         const tt = normalizeText(userMessage);
-        const ok = ["1-2", "3-5", "5+"].includes(tt); // ? ahora sÌ funciona "5+"
+        const ok = ["1-2", "3-5", "5+"].includes(tt); // ‚úÖ ahora s√≠ funciona "5+"
         if (!ok) {
-          const reply = `Elige una opciÛn v·lida:
+          const reply = `Elige una opci√≥n v√°lida:
 - 1-2
 - 3-5
 - 5+`;
@@ -2221,16 +2250,15 @@ Intenta m·s tarde.`;
 
         const rec = recommendCourse(st);
 
-        const reply = `? RECOMENDACI”N PERSONALIZADA
+        const reply = `‚úÖ RECOMENDACI√ìN PERSONALIZADA
 
-Seg˙n lo que me dijiste, te recomiendo:
-?? ${rec.curso}
+Seg√∫n lo que me dijiste, te recomiendo:
+üéØ ${rec.curso}
 
 Motivo: ${rec.motivo}
 
 Si quieres, te ayudo a inscribirte:
-Escribe: INSCRIBIRME
-Parte del equipo de la Fundacion se contactara contigo.`;
+Escribe: INSCRIBIRME`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2239,7 +2267,7 @@ Parte del equipo de la Fundacion se contactara contigo.`;
       }
     }
 
-    // ====== FLUJO INSCRIPCI”N (con cursos + horarios) ======
+    // ====== FLUJO INSCRIPCI√ìN (con cursos + horarios) ======
     if (leadFlow.has(sessionId)) {
       const st = leadFlow.get(sessionId);
 
@@ -2248,11 +2276,11 @@ Parte del equipo de la Fundacion se contactara contigo.`;
 
         const pick = buildCoursePicker(type, { availableOnly: false });
 
-        // 1) ElecciÛn por letra (A,B,C...)
+        // 1) Elecci√≥n por letra (A,B,C...)
         const key = extractAlphaChoice(userMessage);
         const byLetter = key ? st.data.course_map?.[key] || pick.map?.[key] || "" : "";
 
-        // 2) ElecciÛn por nombre
+        // 2) Elecci√≥n por nombre
         const input = normalizeText(userMessage);
         const byName =
           pick.list.find((c) => normalizeText(c.name) === input) ||
@@ -2261,7 +2289,7 @@ Parte del equipo de la Fundacion se contactara contigo.`;
         const finalCourse = byLetter || (byName ? byName.name : "");
 
         if (!finalCourse) {
-          const reply = `Por favor selecciona un curso v·lido (letra o nombre):
+          const reply = `Por favor selecciona un curso v√°lido (letra o nombre):
 
 ${pick.lines.join("\n")}`;
           if (supabase) {
@@ -2277,7 +2305,7 @@ ${pick.lines.join("\n")}`;
           st.step = "nombre";
           leadFlow.set(sessionId, st);
 
-          const reply = `? Perfecto. Ya tengo tu horario guardado.
+          const reply = `‚úÖ Perfecto. Ya tengo tu horario guardado.
 
 Curso: ${st.data.curso}
 
@@ -2292,8 +2320,8 @@ Ahora dime tu NOMBRE (nombre y apellido).`;
         st.step = "franja";
         leadFlow.set(sessionId, st);
 
-        const reply = `2/4) ?? Elige tu preferencia de horario:
-- MaÒana
+        const reply = `2/4) üïí Elige tu preferencia de horario:
+- Ma√±ana
 - Tarde
 - Noche`;
         if (supabase) {
@@ -2308,7 +2336,7 @@ Ahora dime tu NOMBRE (nombre y apellido).`;
         const ok = ["manana", "tarde", "noche"].includes(v);
         if (!ok) {
           const reply = `Dime tu preferencia escribiendo:
-- MaÒana
+- Ma√±ana
 - Tarde
 - Noche
 (Para salir: MENU)`;
@@ -2323,9 +2351,9 @@ Ahora dime tu NOMBRE (nombre y apellido).`;
         st.step = "dias";
         leadFlow.set(sessionId, st);
 
-        const reply = `3/4) ?? øEn quÈ dÌas se te facilita m·s?
+        const reply = `3/4) üìÖ ¬øEn qu√© d√≠as se te facilita m√°s?
 - Lun-Vie
-- S·bado y Domingo`;
+- S√°bado y Domingo`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2337,9 +2365,9 @@ Ahora dime tu NOMBRE (nombre y apellido).`;
         const d = normalizeText(userMessage);
         const ok = d === "lun-vie" || (d.includes("sabado") && d.includes("domingo"));
         if (!ok) {
-          const reply = `Selecciona una opciÛn:
+          const reply = `Selecciona una opci√≥n:
 - Lun-Vie
-- S·bado y Domingo
+- S√°bado y Domingo
 (Para salir: MENU)`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -2359,13 +2387,13 @@ Ahora dime tu NOMBRE (nombre y apellido).`;
             lastSchedulePrefId.set(sessionId, schedId);
           }
         } catch (e) {
-          console.warn("?? No se pudo guardar horario:", extractMessage(e));
+          console.warn("‚ö†Ô∏è No se pudo guardar horario:", extractMessage(e));
         }
 
         st.step = "nombre";
         leadFlow.set(sessionId, st);
 
-        const reply = `4/4) ? Perfecto.
+        const reply = `4/4) ‚úÖ Perfecto.
 
 Curso: ${st.data.curso}
 Horario: ${st.data.franja} | ${st.data.dias}
@@ -2383,9 +2411,9 @@ Ahora dime tu NOMBRE (nombre y apellido).`;
         st.step = "whatsapp";
         leadFlow.set(sessionId, st);
 
-        const reply = `? Gracias, ${st.data.nombre}.
+        const reply = `‚úÖ Gracias, ${st.data.nombre}.
 
-Ahora escribe tu n˙mero de WhatsApp.
+Ahora escribe tu n√∫mero de WhatsApp.
 Ejemplo: +593991112233 o 0991112233`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -2397,8 +2425,8 @@ Ejemplo: +593991112233 o 0991112233`;
       if (st.step === "whatsapp") {
         const w = extractWhatsapp(userMessage);
         if (!w) {
-          const reply = `No pude leer el n˙mero ??
-EscrÌbelo asÌ: +593991112233 o 0991112233`;
+          const reply = `No pude leer el n√∫mero üòÖ
+Escr√≠belo as√≠: +593991112233 o 0991112233`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
             await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2413,7 +2441,7 @@ EscrÌbelo asÌ: +593991112233 o 0991112233`;
           leadFlow.set(sessionId, st);
 
           const reply = `Elige tu preferencia de horario:
-- MaÒana
+- Ma√±ana
 - Tarde
 - Noche`;
           if (supabase) {
@@ -2426,19 +2454,19 @@ EscrÌbelo asÌ: +593991112233 o 0991112233`;
         try {
           await saveLead(userKey, sessionId, st.data);
         } catch (e) {
-          console.warn("?? No se pudo guardar lead:", extractMessage(e));
+          console.warn("‚ö†Ô∏è No se pudo guardar lead:", extractMessage(e));
         }
 
         leadFlow.delete(sessionId);
 
         const extra = st.data.schedule_pref_id ? `\nHorario vinculado (ID): ${st.data.schedule_pref_id}` : "";
-        const reply = `? °Listo! Recibimos tus datos.
+        const reply = `‚úÖ ¬°Listo! Recibimos tus datos.
 
 Nombre: ${st.data.nombre}
 WhatsApp: ${st.data.whatsapp}
 Curso: ${st.data.curso}${extra}
 
-En breve te contactaremos por WhatsApp.
+Parte del equipo de la Fundaci√≥n se contactar√° contigo por WhatsApp.
 Si quieres ver opciones: escribe MENU`;
 
         if (supabase) {
@@ -2447,6 +2475,7 @@ Si quieres ver opciones: escribe MENU`;
         }
         return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
       }
+
       if (st.step === "franja_after_whatsapp") {
         const v = normalizeText(userMessage);
         const ok = ["manana", "tarde", "noche"].includes(v);
@@ -2502,25 +2531,25 @@ Si quieres ver opciones: escribe MENU`;
             lastSchedulePrefId.set(sessionId, schedId);
           }
         } catch (e) {
-          console.warn("?? No se pudo guardar horario:", extractMessage(e));
+          console.warn("‚ö†Ô∏è No se pudo guardar horario:", extractMessage(e));
         }
 
         try {
           await saveLead(userKey, sessionId, st.data);
         } catch (e) {
-          console.warn("?? No se pudo guardar lead:", extractMessage(e));
+          console.warn("‚ö†Ô∏è No se pudo guardar lead:", extractMessage(e));
         }
 
         leadFlow.delete(sessionId);
 
         const extra = st.data.schedule_pref_id ? `\nHorario vinculado (ID): ${st.data.schedule_pref_id}` : "";
-        const reply = `? Listo! Recibimos tus datos.
+        const reply = `‚úÖ Listo! Recibimos tus datos.
 
 Nombre: ${st.data.nombre}
 WhatsApp: ${st.data.whatsapp}
 Curso: ${st.data.curso}${extra}
 
-En breve te contactaremos por WhatsApp.
+Parte del equipo de la Fundaci√≥n se contactar√° contigo por WhatsApp.
 Si quieres ver opciones: escribe MENU`;
 
         if (supabase) {
@@ -2530,7 +2559,8 @@ Si quieres ver opciones: escribe MENU`;
         return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
       }
     }
-    // ====== FLUJO HORARIO (opciÛn 6) con validaciÛn de dÌas ======
+
+    // ====== FLUJO HORARIO (opci√≥n 6) con validaci√≥n de d√≠as ======
     if (scheduleFlow.has(sessionId)) {
       const st = scheduleFlow.get(sessionId);
 
@@ -2539,7 +2569,7 @@ Si quieres ver opciones: escribe MENU`;
         const ok = ["manana", "tarde", "noche"].includes(v);
         if (!ok) {
           const reply = `Dime tu preferencia escribiendo:
-- MaÒana
+- Ma√±ana
 - Tarde
 - Noche
 (Para salir: MENU)`;
@@ -2554,11 +2584,11 @@ Si quieres ver opciones: escribe MENU`;
         st.step = "dias";
         scheduleFlow.set(sessionId, st);
 
-        const reply = `? Anotado: ${v.toUpperCase()}.
+        const reply = `‚úÖ Anotado: ${v.toUpperCase()}.
 
-øEn quÈ dÌas se te facilita m·s?
+¬øEn qu√© d√≠as se te facilita m√°s?
 - Lun-Vie
-- S·bado y Domingo`;
+- S√°bado y Domingo`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2570,9 +2600,9 @@ Si quieres ver opciones: escribe MENU`;
         const d = normalizeText(userMessage);
         const ok = d === "lun-vie" || (d.includes("sabado") && d.includes("domingo"));
         if (!ok) {
-          const reply = `Selecciona una opciÛn:
+          const reply = `Selecciona una opci√≥n:
 - Lun-Vie
-- S·bado y Domingo
+- S√°bado y Domingo
 (Para salir: MENU)`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -2590,27 +2620,26 @@ Si quieres ver opciones: escribe MENU`;
           if (schedId) lastSchedulePrefId.set(sessionId, schedId);
         } catch (e) {
           saved = false;
-          console.warn("?? No se pudo guardar horario:", extractMessage(e));
+          console.warn("‚ö†Ô∏è No se pudo guardar horario:", extractMessage(e));
         }
 
         scheduleFlow.delete(sessionId);
         courseContext.delete(sessionId);
 
         const reply = saved
-          ? `? °Gracias! GuardÈ tu preferencia de horario.
+          ? `‚úÖ ¬°Gracias! Guard√© tu preferencia de horario.
 
 Franja: ${st.data.franja}
-DÌas: ${st.data.dias}
+D√≠as: ${st.data.dias}
 
-øDeseas inscribirte a un curso ahora?
-Escribe: INSCRIBIRME
-Parte del equipo de la Fundacion se contactara contigo.`
-          : `? Preferencia recibida (pero OJO: no se pudo guardar en la BD todavÌa).
+¬øDeseas inscribirte a un curso ahora?
+Escribe: INSCRIBIRME`
+          : `‚úÖ Preferencia recibida (pero OJO: no se pudo guardar en la BD todav√≠a).
 
 Franja: ${st.data.franja}
-DÌas: ${st.data.dias}
+D√≠as: ${st.data.dias}
 
-Revisa que en Render estÈn SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY.`;
+Revisa que en Render est√©n SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY.`;
 
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -2621,9 +2650,9 @@ Revisa que en Render estÈn SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY.`;
       }
     }
 
-    // ====== si es tema fundaciÛn, guiamos ======
+    // ====== si es tema fundaci√≥n, guiamos ======
     if (isFoundationQuery(userMessage)) {
-      const reply = `Puedo ayudarte con informaciÛn de la FundaciÛn CapacÌtamente.
+      const reply = `Puedo ayudarte con informaci√≥n de la Fundaci√≥n Capac√≠tamente.
 
 Escribe:
 - MENU (ver opciones)
@@ -2648,7 +2677,7 @@ Escribe:
     // IA
     // ============================
     if (!ai) {
-      const msg = "Ahora mismo solo puedo ayudarte con el men˙ e informaciÛn de la FundaciÛn. Escribe MENU para ver opciones.";
+      const msg = "Ahora mismo solo puedo ayudarte con el men√∫ e informaci√≥n de la Fundaci√≥n. Escribe MENU para ver opciones.";
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", msg);
         await touchSessionLastMessage(sessionId, userKey, msg);
@@ -2691,7 +2720,7 @@ Escribe:
       });
       sessionObj = { chat, lastAccess: Date.now() };
       sessions.set(sessionId, sessionObj);
-      console.log("?? Nueva sesiÛn IA:", sessionId);
+      console.log("üÜï Nueva sesi√≥n IA:", sessionId);
     } else {
       sessionObj.lastAccess = Date.now();
     }
@@ -2721,10 +2750,10 @@ Escribe:
   } catch (error) {
     const status = extractStatus(error);
     const msg = extractMessage(error);
-    console.error("? Error /chat:", msg);
+    console.error("‚ùå Error /chat:", msg);
 
     if (status === 403) {
-      return sendJson(res, { reply: "Esta conversaciÛn no te pertenece. Crea una nueva (botÛn Nueva).", sessionId: "" }, 403);
+      return sendJson(res, { reply: "Esta conversaci√≥n no te pertenece. Crea una nueva (bot√≥n Nueva).", sessionId: "" }, 403);
     }
 
     if (status === 429 || status === 503 || /RESOURCE_EXHAUSTED|quota|rate limit|429|overloaded|NO DISPONIBLE/i.test(msg)) {
@@ -2741,64 +2770,21 @@ Escribe:
 // Errores globales
 // ============================
 process.on("unhandledRejection", (reason) => {
-  console.error("? unhandledRejection:", reason);
+  console.error("‚ùå unhandledRejection:", reason);
 });
 process.on("uncaughtException", (err) => {
-  console.error("? uncaughtException:", err);
+  console.error("‚ùå uncaughtException:", err);
 });
 
-// Render envÌa SIGTERM cuando reinicia
+// Render env√≠a SIGTERM cuando reinicia
 process.on("SIGTERM", () => {
-  console.log("?? SIGTERM recibido. Cerrando servidor...");
+  console.log("üõë SIGTERM recibido. Cerrando servidor...");
   process.exit(0);
 });
 
 app.listen(port, "0.0.0.0", () => {
-  console.log(`? Servidor escuchando en puerto ${port}`);
-  console.log(`?? Gemini: modelo=${GEMINI_MODEL} tokens=${GEMINI_MAX_TOKENS} temperatura=${GEMINI_TEMPERATURE}`);
-  console.log(`?? Cooldown(ms)=${AI_COOLDOWN_MS} | max diarios IA=${MAX_DAILY_AI_CALLS} | retries=${GEMINI_RETRIES}`);
-  console.log(`?? RateLimit: max=${RATE_LIMIT_MAX}/ventana(${RATE_LIMIT_WINDOW_MS}ms) | maxMsg=${MAX_MESSAGE_CHARS} chars`);
+  console.log(`‚úÖ Servidor escuchando en puerto ${port}`);
+  console.log(`ü§ñ Gemini: modelo=${GEMINI_MODEL} tokens=${GEMINI_MAX_TOKENS} temperatura=${GEMINI_TEMPERATURE}`);
+  console.log(`‚è±Ô∏è Cooldown(ms)=${AI_COOLDOWN_MS} | max diarios IA=${MAX_DAILY_AI_CALLS} | retries=${GEMINI_RETRIES}`);
+  console.log(`üßØ RateLimit: max=${RATE_LIMIT_MAX}/ventana(${RATE_LIMIT_WINDOW_MS}ms) | maxMsg=${MAX_MESSAGE_CHARS} chars`);
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
