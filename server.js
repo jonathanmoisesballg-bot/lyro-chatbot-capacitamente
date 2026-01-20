@@ -384,24 +384,19 @@ La otra opcion es inscribirte mediante la pagina web: Crearte una cuenta para qu
 
 // ✅ NUEVO: pagos
 function pagosTexto() {
-  const pick = buildCoursePicker("cert", { availableOnly: false });
-
   return `💳 PAGOS DE CURSOS (Solo cursos con certificado)
 
 Los pagos son por Transferencia bancaria directa o PayPhone.
 
 📌 Para pagar, primero debes inscribirte a un curso (solo los de certificados).
 
-🎓 CURSOS CON CERTIFICADO (A-Z)
-${pick.lines.join("\n")}
-
 ✅ Para inscribirte tienes 2 opciones:
-1) Escribe: INSCRIBIRME (aquí mismo) y elige el curso.
-2) O puedes inscribirte por la pagina web:
-   Crearte una cuenta para que puedas iniciar sesion (Tienda solidaria/Mi cuenta) y seguir el proceso de inscripcion.
+• Escribe: INSCRIBIRME (aquí mismo) y elige el curso.
+• O puedes inscribirte por la página web (créate una cuenta para que puedas iniciar sesión: Tienda solidaria/Mi cuenta) y seguir el proceso de inscripción.
 
-Al final, parte del equipo de la Fundacion se contactara contigo.`;
+Al final, parte del equipo de la Fundación se contactará contigo.`;
 }
+
 
 function contactoTexto() {
   return `📞 CONTACTO FUNDACIÓN CAPACÍTAMENTE
