@@ -818,6 +818,7 @@ const leadFlow = new Map();
 const scheduleFlow = new Map();
 const certificarmeFlow = new Map();
 const enrollCheckFlow = new Map(); // ✅ nuevo
+const scheduleJustSaved = new Map();
 
 const lastSchedulePrefId = new Map();
 const courseContext = new Map();
@@ -1874,7 +1875,7 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
       }
 
       if (t === "5") {
-        certFlow.set(sessionId, { step: "need_data" });
+        certFlow.set(sessionId, { step: "order", orderNumber: "" });
         const reply = certAskText();
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -1957,7 +1958,8 @@ Escribenos al ${CONTACT_PHONE_1}.`;
       const wantsFree = t.includes("gratis") || t.includes("gratuito");
       const wantsCert = t.includes("cert") || t.includes("precio") || t.includes("costo") || t.includes("pago") || t.includes("con certificado");
 
-      const schedIdPrev = lastSchedulePrefId.get(sessionId) || null;
+      const schedIdPrev = scheduleJustSaved.get(sessionId) ? lastSchedulePrefId.get(sessionId) || null : null;
+      if (scheduleJustSaved.has(sessionId)) scheduleJustSaved.delete(sessionId);
       const ctxType = courseContext.get(sessionId);
       const type =
         wantsFree ? "free" : wantsCert ? "cert" : schedIdPrev ? "all" : ctxType === "free" || ctxType === "cert" ? ctxType : "all";
@@ -2100,61 +2102,128 @@ Dime tu NOMBRE (solo nombre y apellido).`;
 
     // ====== FLUJO CERTIFICADO (estado) ======
     if (certFlow.has(sessionId)) {
-      const orderNumber = extractOrderNumber(userMessage);
-      const curso = extractCourse(userMessage, orderNumber);
+      const st = certFlow.get(sessionId);
+      const raw = String(userMessage || "").trim();
+      const digits = raw.replace(/\D/g, "");
 
-      if (!orderNumber) {
-        const reply = `Por favor escribe el NUMERO DE PEDIDO (4 digitos).
+      const onlyFourDigitsMessage = `Por favor ingresa SOLO 4 DÍGITOS del número de pedido.
 Ejemplo: 9039
 (Para salir: MENU)`;
-        if (supabase) {
-          await insertChatMessage(sessionId, userKey, "bot", reply);
-          await touchSessionLastMessage(sessionId, userKey, reply);
-        }
-        return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
-      }
-
-      if (!curso || curso.length < 3) {
-        const reply = `Numero de pedido recibido (${orderNumber})
+      const askCourseMessage = (orderNumber) => `Número de pedido recibido (${orderNumber})
 
 Ahora escribe el NOMBRE DEL CURSO.
 Ejemplo: Inteligencia Emocional
 (Para salir: MENU)`;
+      const invalidCourseMessage = `Por favor escribe el NOMBRE DEL CURSO (solo texto).
+Ejemplo: Inteligencia Emocional
+(Para salir: MENU)`;
+
+      if (st.step === "order") {
+        if (digits.length !== 4) {
+          const reply = onlyFourDigitsMessage;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
+        }
+
+        const orderNumber = digits;
+        const cursoMaybe = extractCourse(raw, orderNumber);
+        const cursoNorm = normalizeText(cursoMaybe);
+
+        if (!cursoNorm || cursoNorm.length < 3) {
+          st.step = "course";
+          st.orderNumber = orderNumber;
+          certFlow.set(sessionId, st);
+
+          const reply = askCourseMessage(orderNumber);
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
+        }
+
+        let reply;
+        try {
+          const row = await getCertificateStatus(orderNumber, cursoMaybe);
+          if (!row) {
+            reply = `No encuentro un registro para:
+- Numero de pedido: ${orderNumber}
+- Curso: ${cursoMaybe}
+
+Si crees que es un error, contactanos:
+${CONTACT_PHONE_1}
+${CONTACT_PHONE_2}
+${CONTACT_EMAIL}`;
+          } else {
+            reply = certificateReplyFromRow(row);
+          }
+        } catch {
+          reply = `Lo siento, no pude consultar el estado en este momento.
+Intenta más tarde.`;
+        }
+
+        certFlow.delete(sessionId);
+
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
         }
-        return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
+
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
       }
 
-      let reply;
-      try {
-        const row = await getCertificateStatus(orderNumber, curso);
-        if (!row) {
-          reply = `No encuentro un registro para:
-- Numero de pedido: ${orderNumber}
+      if (st.step === "course") {
+        if (digits.length > 0) {
+          const reply = invalidCourseMessage;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
+        }
+
+        const curso = extractCourse(raw, "");
+        if (!curso || curso.length < 3) {
+          const reply = invalidCourseMessage;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsCertFlow() }, 200);
+        }
+
+        let reply;
+        try {
+          const row = await getCertificateStatus(st.orderNumber, curso);
+          if (!row) {
+            reply = `No encuentro un registro para:
+- Numero de pedido: ${st.orderNumber}
 - Curso: ${curso}
 
 Si crees que es un error, contactanos:
 ${CONTACT_PHONE_1}
 ${CONTACT_PHONE_2}
 ${CONTACT_EMAIL}`;
-        } else {
-          reply = certificateReplyFromRow(row);
-        }
-      } catch {
-        reply = `Lo siento, no pude consultar el estado en este momento.
+          } else {
+            reply = certificateReplyFromRow(row);
+          }
+        } catch {
+          reply = `Lo siento, no pude consultar el estado en este momento.
 Intenta más tarde.`;
+        }
+
+        certFlow.delete(sessionId);
+
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
       }
-
-      certFlow.delete(sessionId);
-
-      if (supabase) {
-        await insertChatMessage(sessionId, userKey, "bot", reply);
-        await touchSessionLastMessage(sessionId, userKey, reply);
-      }
-
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
     }
 
     // ====== FLUJO ASESOR (SIN IA) con validación ======
@@ -2612,7 +2681,10 @@ Si quieres ver opciones: escribe MENU`;
         try {
           const out = await saveSchedule(userKey, sessionId, st.data);
           const schedId = out?.id ?? null;
-          if (schedId) lastSchedulePrefId.set(sessionId, schedId);
+          if (schedId) {
+            lastSchedulePrefId.set(sessionId, schedId);
+            scheduleJustSaved.set(sessionId, true);
+          }
         } catch (e) {
           saved = false;
           console.warn("⚠️ No se pudo guardar horario:", extractMessage(e));
