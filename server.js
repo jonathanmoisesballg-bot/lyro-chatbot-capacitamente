@@ -456,7 +456,9 @@ function cursosFuturosTexto() {
 - Finanzas personales y presupuesto familiar (ahorro, deudas, planificación).
 - Herramientas para docencia online (Classroom/Meet, evaluaciones, recursos interactivos).
 
-¡No te pierdas los cursos nuevos que estamos preparando para ti!`;
+¡No te pierdas los cursos nuevos que estamos preparando para ti!
+
+Si deseas volver al menú principal, escribe: MENU.`;
 }
 
 function misionTexto() {
@@ -1823,7 +1825,7 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
     }
 
     if (isMissionQuery(userMessage)) {
