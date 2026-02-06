@@ -444,6 +444,21 @@ Para ver cursos escribe:
 O Escribe: TEST DE AYUDA`;
 }
 
+function cursosFuturosTexto() {
+  return `¡IMPORTANTE! Nuestra Fundación Capacítamente tiene pensado agregar cursos a futuro:
+
+- Excel Intermedio–Avanzado para oficina (tablas dinámicas, reportes, dashboards).
+- Power BI desde cero (KPIs y reportes para emprendimientos/empresas).
+- IA práctica para el trabajo (uso de herramientas de IA para redactar, resumir, planificar clases y crear materiales).
+- Marketing Digital para emprendedores (contenido, métricas, anuncios básicos).
+- Atención al cliente y ventas (protocolos, manejo de quejas, WhatsApp Business).
+- Ciberseguridad básica para familias y negocios (estafas, phishing, protección de cuentas).
+- Finanzas personales y presupuesto familiar (ahorro, deudas, planificación).
+- Herramientas para docencia online (Classroom/Meet, evaluaciones, recursos interactivos).
+
+¡No te pierdas los cursos nuevos que estamos preparando para ti!`;
+}
+
 function misionTexto() {
   return `🎯 NUESTRA MISIÓN
 
@@ -695,6 +710,27 @@ function isWorkWithUsQuery(t) {
     s.includes("colaborar") ||
     s.includes("alianza")
   );
+}
+
+function isFutureCoursesQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("cursos nuevos") ||
+    s.includes("nuevos cursos") ||
+    s.includes("cursos a futuro") ||
+    s.includes("cursos futuros") ||
+    s.includes("futuros cursos") ||
+    s.includes("proximos cursos") ||
+    s.includes("proximos") ||
+    s.includes("que cursos van a implementar") ||
+    s.includes("que cursos van a agregar") ||
+    s.includes("que cursos tendran")
+  );
+}
+
+function isAffirmation(t) {
+  const s = normalizeText(t);
+  return ["si", "sí", "ok", "okay", "de acuerdo", "esta bien", "está bien", "listo", "vale", "perfecto", "gracias", "bien"].includes(s);
 }
 
 function isCertificarmeQuery(t) {
@@ -1780,6 +1816,16 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
       return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
     }
 
+    if (isFutureCoursesQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = cursosFuturosTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+    }
+
     if (isMissionQuery(userMessage)) {
       resetFlows(sessionId);
       const reply = misionTexto();
@@ -1828,6 +1874,17 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
       return sendJson(res, { reply, sessionId, suggestions: suggestionsFundacionInfo() }, 200);
+    }
+
+    if (isAffirmation(userMessage)) {
+      const reply = `Perfecto. Si deseas, puedes seguir preguntándome y con gusto te ayudo.
+
+Si quieres ver el menú principal, escribe: MENU`;
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
     }
 
     if (isCertificarmeQuery(userMessage)) {
@@ -2831,12 +2888,14 @@ Escribe:
       return sendJson(res, { reply: msg, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
+    reply = `${reply}\n\nSi deseas, puedes seguir preguntándome y con gusto te ayudo. Si prefieres ver el menú principal, escribe: MENU.`;
+
     if (supabase) {
       await insertChatMessage(sessionId, userKey, "bot", reply);
       await touchSessionLastMessage(sessionId, userKey, reply);
     }
 
-    return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
+    return sendJson(res, { reply, sessionId, suggestions: [] }, 200);
   } catch (error) {
     const status = extractStatus(error);
     const msg = extractMessage(error);
