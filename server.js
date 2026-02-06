@@ -444,6 +444,28 @@ Para ver cursos escribe:
 O Escribe: TEST DE AYUDA`;
 }
 
+function becasTexto() {
+  return `¡IMPORTANTE! Sobre becas:
+
+Por el momento, la Fundación Capacítamente no otorga becas. Actualmente nuestros programas se mantienen con aportes y procesos internos, por lo que no contamos con un esquema de becas activo.
+
+Agradecemos tu interés. Si deseas, podemos orientarte sobre los cursos disponibles y sus costos para que elijas la mejor opción.
+
+Si deseas volver al menú principal, escribe: MENU.`;
+}
+
+function historialTexto() {
+  return `Para revisar tu historial de conversaciones, usa el panel lateral derecho.
+
+Paso a paso:
+1) En la parte superior derecha del chat, pulsa el botón con las tres líneas (☰).
+2) Se abrirá el panel de Historial, donde podrás ver tus conversaciones.
+
+Por seguridad y orden, el historial solo se puede consultar desde ese panel.
+
+Si deseas volver al menú principal, escribe: MENU.`;
+}
+
 function cursosFuturosTexto() {
   return `¡IMPORTANTE! Nuestra Fundación Capacítamente tiene pensado agregar cursos a futuro:
 
@@ -711,6 +733,25 @@ function isWorkWithUsQuery(t) {
     s.includes("voluntario") ||
     s.includes("colaborar") ||
     s.includes("alianza")
+  );
+}
+
+function isScholarshipQuery(t) {
+  const s = normalizeText(t);
+  return s.includes("beca") || s.includes("becas");
+}
+
+function isHistoryHelpQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("historial de conversaciones") ||
+    s.includes("historial de chats") ||
+    s.includes("ver mi historial") ||
+    s.includes("ver historial") ||
+    s.includes("mis conversaciones") ||
+    s.includes("ver conversaciones anteriores") ||
+    s.includes("conversaciones anteriores") ||
+    s.includes("ver mis chats")
   );
 }
 
@@ -1811,6 +1852,26 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
     if (isWorkWithUsQuery(userMessage)) {
       resetFlows(sessionId);
       const reply = trabajarConNosotrosTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
+    }
+
+    if (isScholarshipQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = becasTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
+    }
+
+    if (isHistoryHelpQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = historialTexto();
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);

@@ -481,8 +481,17 @@
     }
 
     function renderSuggestions(list) {
-      const items = Array.isArray(list) && list.length ? list : DEFAULT_MENU_SUGGESTIONS;
+      const hasList = Array.isArray(list);
+      const items = hasList ? list : DEFAULT_MENU_SUGGESTIONS;
+
       suggestionWrap.innerHTML = "";
+
+      if (Array.isArray(items) && items.length === 0) {
+        suggestionWrap.style.display = "none";
+        return;
+      }
+
+      suggestionWrap.style.display = "grid";
 
       items.forEach(it => {
         const btn = document.createElement("button");
@@ -731,7 +740,7 @@
         removeTyping(typingEl);
 
         addMessage(data.reply || "Sin respuesta.", "bot", new Date().toISOString());
-        renderSuggestions(data.suggestions || DEFAULT_MENU_SUGGESTIONS);
+        renderSuggestions(data.suggestions);
 
         await loadSessionsList();
       } catch (err) {
