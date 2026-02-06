@@ -745,9 +745,14 @@ function isHistoryHelpQuery(t) {
   const s = normalizeText(t);
   return (
     s.includes("historial de conversaciones") ||
+    s.includes("historial de conversacion") ||
     s.includes("historial de chats") ||
+    s.includes("historial de chat") ||
     s.includes("ver mi historial") ||
     s.includes("ver historial") ||
+    s.includes("dame mi historial") ||
+    s.includes("dar mi historial") ||
+    s.includes("me puedes dar mi historial") ||
     s.includes("mis conversaciones") ||
     s.includes("ver conversaciones anteriores") ||
     s.includes("conversaciones anteriores") ||
