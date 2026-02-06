@@ -1104,6 +1104,16 @@ function extractWhatsapp(text) {
   return m ? m[1] : "";
 }
 
+function isValidFullName(input) {
+  const raw = String(input || "").trim();
+  if (!raw) return false;
+  if (/\d/.test(raw)) return false;
+  const parts = raw.split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return false;
+  const lettersOnly = parts.every((p) => /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+$/.test(p));
+  return lettersOnly;
+}
+
 // ============================
 // Preferencia de horario (GUARDADO + devuelve ID si existe)
 // ============================
@@ -2471,7 +2481,19 @@ Ahora dime tu NOMBRE (nombre y apellido).`;
       }
 
       if (st.step === "nombre") {
-        st.data.nombre = userMessage.trim();
+        const nombreInput = userMessage.trim();
+        if (!isValidFullName(nombreInput)) {
+          const reply = `Por favor escribe tu NOMBRE Y APELLIDO (solo letras).
+Ejemplo: Maria Perez
+(Para salir: MENU)`;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+        }
+
+        st.data.nombre = nombreInput;
         st.step = "whatsapp";
         leadFlow.set(sessionId, st);
 
@@ -2489,8 +2511,9 @@ Ejemplo: +593991112233 o 0991112233`;
       if (st.step === "whatsapp") {
         const w = extractWhatsapp(userMessage);
         if (!w) {
-          const reply = `No pude leer el número 😅
-Escríbelo así: +593991112233 o 0991112233`;
+          const reply = `Por favor escribe tu número de WhatsApp (solo números).
+Ejemplo: +593991112233 o 0991112233
+(Para salir: MENU)`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
             await touchSessionLastMessage(sessionId, userKey, reply);
