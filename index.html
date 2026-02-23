@@ -504,12 +504,7 @@
         return;
       }
 
-      // Fuerza layout de una sola columna en runtime para evitar estilos cacheados
       suggestionWrap.style.display = "grid";
-      suggestionWrap.style.gridTemplateColumns = "1fr";
-      suggestionWrap.style.gridAutoRows = "minmax(84px, auto)";
-      suggestionWrap.style.gap = "10px";
-      suggestionWrap.style.maxHeight = "260px";
 
       items.forEach(it => {
         const btn = document.createElement("button");
@@ -517,13 +512,6 @@
         btn.type = "button";
         btn.textContent = it.label || it.text;
         btn.dataset.text = it.text;
-        // Refuerza tamaño y lectura cuando la etiqueta es larga
-        btn.style.width = "100%";
-        btn.style.minHeight = "84px";
-        btn.style.height = "auto";
-        btn.style.whiteSpace = "normal";
-        btn.style.overflowWrap = "anywhere";
-        btn.style.wordBreak = "break-word";
         btn.addEventListener("click", () => sendMessage(btn.dataset.text));
         suggestionWrap.appendChild(btn);
       });
@@ -823,5 +811,3 @@
   </script>
 </body>
 </html>
-
-
