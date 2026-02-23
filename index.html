@@ -261,7 +261,8 @@
       border-bottom:1px solid #eee;
 
       display:grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items:stretch;
       gap:8px;
 
       max-height: 170px;
@@ -280,15 +281,20 @@
     .suggestion{
       width:100%;
       background:#fff; color:#1E90FF; border:1px solid #1E90FF;
-      padding:12px 12px;
+      padding:12px;
       border-radius:16px;
       cursor:pointer;
       font-size:.92em;
+      line-height:1.25;
       transition: background-color .2s, color .2s, transform .08s;
       display:flex; align-items:center; justify-content:flex-start; gap:10px;
       text-align:left;
       min-height:48px;
+      height:auto !important;
       box-sizing:border-box;
+      white-space:normal;
+      word-break:break-word;
+      overflow-wrap:anywhere;
     }
 
     .suggestion::before{
