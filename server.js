@@ -467,20 +467,37 @@ Si deseas volver al menú principal, escribe: MENU.`;
 }
 
 function cursosFuturosTexto() {
-  return `¡IMPORTANTE! Nuestra Fundación Capacítamente tiene pensado agregar cursos a futuro:
+  return `📣 IMPORTANTE: CLASES PRÓXIMAS POR APERTURARSE
 
-- Excel Intermedio–Avanzado para oficina (tablas dinámicas, reportes, dashboards).
-- Power BI desde cero (KPIs y reportes para emprendimientos/empresas).
-- IA práctica para el trabajo (uso de herramientas de IA para redactar, resumir, planificar clases y crear materiales).
-- Marketing Digital para emprendedores (contenido, métricas, anuncios básicos).
-- Atención al cliente y ventas (protocolos, manejo de quejas, WhatsApp Business).
-- Ciberseguridad básica para familias y negocios (estafas, phishing, protección de cuentas).
-- Finanzas personales y presupuesto familiar (ahorro, deudas, planificación).
-- Herramientas para docencia online (Classroom/Meet, evaluaciones, recursos interactivos).
+Las clases de los cursos marcados como "Próx." están en proceso de apertura.
+La Fundación está organizando el inicio de esos grupos para próximas fechas.
 
-¡No te pierdas los cursos nuevos que estamos preparando para ti!
+✅ Te recomendamos mantenerte pendiente del chat y de nuestros canales oficiales para la confirmación de apertura.
 
-Si deseas volver al menú principal, escribe: MENU.`;
+Si deseas, te ayudamos a revisar cursos disponibles ahora mismo:
+- Escribe: 1 (Cursos gratis)
+- Escribe: 2 (Cursos con certificados y precios)
+- O escribe: INSCRIBIRME`;
+}
+
+function recuperarContrasenaTexto() {
+  return `🔐 RECUPERAR CONTRASEÑA DE TU CUENTA (FUNDACIÓN)
+
+Sigue estos pasos:
+
+1) Ingresa a la pantalla de inicio de sesión de tu cuenta.
+2) Haz clic en: "¿Olvidaste tu contraseña?".
+3) Escribe tu correo electrónico registrado.
+4) Revisa tu correo y abre el enlace de recuperación.
+5) Crea tu nueva contraseña y guárdala.
+6) Vuelve a iniciar sesión con tu nueva contraseña.
+
+📌 Si no ves el correo, revisa SPAM o correo no deseado.
+
+Si todavía no puedes ingresar, contáctanos:
+📱 ${CONTACT_PHONE_1}
+☎️ ${CONTACT_PHONE_2}
+✉️ ${CONTACT_EMAIL}`;
 }
 
 function misionTexto() {
@@ -770,9 +787,38 @@ function isFutureCoursesQuery(t) {
     s.includes("futuros cursos") ||
     s.includes("proximos cursos") ||
     s.includes("proximos") ||
+    s.includes("cursos prox") ||
+    s.includes("curso prox") ||
+    s.includes("cuando comienzan las clases") ||
+    s.includes("cuando empiezan las clases") ||
+    s.includes("cuando abren las clases") ||
+    s.includes("cuando inician las clases") ||
+    s.includes("cuando inicia el curso") ||
+    s.includes("cuando comienza el curso") ||
+    s.includes("cuando son los cursos proximos") ||
     s.includes("que cursos van a implementar") ||
     s.includes("que cursos van a agregar") ||
     s.includes("que cursos tendran")
+  );
+}
+
+function isPasswordRecoveryQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("recuperar contrasena") ||
+    s.includes("recuperar mi contrasena") ||
+    s.includes("olvide mi contrasena") ||
+    s.includes("olvidé mi contrasena") ||
+    s.includes("olvidar contrasena") ||
+    s.includes("cambiar contrasena") ||
+    s.includes("resetear contrasena") ||
+    s.includes("restablecer contrasena") ||
+    s.includes("no puedo iniciar sesion") ||
+    s.includes("no puedo entrar a mi cuenta") ||
+    s.includes("acceso a mi cuenta") ||
+    s.includes("clave de mi cuenta") ||
+    s.includes("contrasena de mi cuenta") ||
+    s.includes("password de mi cuenta")
   );
 }
 
@@ -1887,6 +1933,16 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
     if (isFutureCoursesQuery(userMessage)) {
       resetFlows(sessionId);
       const reply = cursosFuturosTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsCourseLists() }, 200);
+    }
+
+    if (isPasswordRecoveryQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = recuperarContrasenaTexto();
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);

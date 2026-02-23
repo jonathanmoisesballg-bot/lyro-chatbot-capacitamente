@@ -61,7 +61,7 @@
       position:fixed;
       right:20px;
       bottom:calc(92px + env(safe-area-inset-bottom, 0px));
-      width:420px; height:680px;
+      width:360px; height:640px;
       max-width:92vw; max-height:88vh;
       background:#fff; border-radius:12px;
       box-shadow:0 8px 30px rgba(0,0,0,.3);
@@ -261,12 +261,10 @@
       border-bottom:1px solid #eee;
 
       display:grid;
-      grid-template-columns: 1fr !important;
-      align-items:stretch;
-      grid-auto-rows:minmax(72px, auto);
-      gap:10px;
+      grid-template-columns: 1fr 1fr;
+      gap:8px;
 
-      max-height: 240px;
+      max-height: 170px;
       overflow-y: auto;
       overscroll-behavior: contain;
       scrollbar-width: thin;
@@ -279,45 +277,34 @@
     #suggestion-buttons::-webkit-scrollbar-thumb{ background: rgba(0,0,0,.18); border-radius: 999px; }
     #suggestion-buttons::-webkit-scrollbar-track{ background: transparent; }
 
-    #suggestion-buttons .suggestion{
-      appearance:none !important;
-      -webkit-appearance:none !important;
+    .suggestion{
       width:100%;
       background:#fff; color:#1E90FF; border:1px solid #1E90FF;
-      padding:14px 14px;
+      padding:12px 12px;
       border-radius:16px;
       cursor:pointer;
-      font-size:1em !important;
-      line-height:1.35 !important;
+      font-size:.92em;
       transition: background-color .2s, color .2s, transform .08s;
-      display:flex !important; align-items:flex-start !important; justify-content:flex-start; gap:10px;
+      display:flex; align-items:center; justify-content:flex-start; gap:10px;
       text-align:left;
-      min-height:72px !important;
-      height:auto !important;
-      max-height:none !important;
+      min-height:48px;
       box-sizing:border-box;
-      white-space:normal !important;
-      word-break:break-word !important;
-      overflow-wrap:anywhere !important;
-      overflow:visible !important;
-      text-transform:none !important;
     }
 
-    #suggestion-buttons .suggestion::before{
+    .suggestion::before{
       content:"";
       width:10px; height:10px;
       border-radius:50%;
       border:2px solid #1E90FF;
       flex:0 0 auto;
       box-sizing:border-box;
-      margin-top:4px;
     }
 
-    #suggestion-buttons .suggestion:hover{
+    .suggestion:hover{
       background:#1E90FF; color:#fff;
       transform: translateY(-1px);
     }
-    #suggestion-buttons .suggestion:hover::before{
+    .suggestion:hover::before{
       border-color:#fff;
       background: rgba(255,255,255,.25);
     }
@@ -811,3 +798,5 @@
   </script>
 </body>
 </html>
+
+
