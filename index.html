@@ -61,7 +61,7 @@
       position:fixed;
       right:20px;
       bottom:calc(92px + env(safe-area-inset-bottom, 0px));
-      width:360px; height:640px;
+      width:420px; height:680px;
       max-width:92vw; max-height:88vh;
       background:#fff; border-radius:12px;
       box-shadow:0 8px 30px rgba(0,0,0,.3);
@@ -261,12 +261,12 @@
       border-bottom:1px solid #eee;
 
       display:grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: 1fr !important;
       align-items:stretch;
-      grid-auto-rows:minmax(56px, auto);
-      gap:8px;
+      grid-auto-rows:minmax(72px, auto);
+      gap:10px;
 
-      max-height: 170px;
+      max-height: 240px;
       overflow-y: auto;
       overscroll-behavior: contain;
       scrollbar-width: thin;
@@ -284,15 +284,15 @@
       -webkit-appearance:none !important;
       width:100%;
       background:#fff; color:#1E90FF; border:1px solid #1E90FF;
-      padding:12px;
+      padding:14px 14px;
       border-radius:16px;
       cursor:pointer;
-      font-size:.92em !important;
-      line-height:1.3 !important;
+      font-size:1em !important;
+      line-height:1.35 !important;
       transition: background-color .2s, color .2s, transform .08s;
       display:flex !important; align-items:flex-start !important; justify-content:flex-start; gap:10px;
       text-align:left;
-      min-height:56px !important;
+      min-height:72px !important;
       height:auto !important;
       max-height:none !important;
       box-sizing:border-box;
