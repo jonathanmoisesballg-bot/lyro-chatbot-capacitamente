@@ -498,11 +498,19 @@
       suggestionWrap.style.display = "grid";
 
       items.forEach(it => {
+        const optionText = String(it.text || "").trim();
+        let optionLabel = it.label || it.text;
+
+        // Fuerza etiqueta completa de la opción 2 aunque llegue una versión antigua.
+        if (optionText === "2") {
+          optionLabel = "2) Cursos con certificados y precios";
+        }
+
         const btn = document.createElement("button");
         btn.className = "suggestion";
         btn.type = "button";
-        btn.textContent = it.label || it.text;
-        btn.dataset.text = it.text;
+        btn.textContent = optionLabel;
+        btn.dataset.text = optionText;
         btn.addEventListener("click", () => sendMessage(btn.dataset.text));
         suggestionWrap.appendChild(btn);
       });
