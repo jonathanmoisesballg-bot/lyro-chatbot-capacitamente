@@ -224,6 +224,7 @@
 
     #chat-messages{
       flex:1 1 auto;
+      min-height:0;
       padding:10px;
       overflow-y:auto;
       background:#F4F7F9;
@@ -261,16 +262,13 @@
       border-bottom:1px solid #eee;
 
       display:grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap:8px;
 
-      max-height: 170px;
+      max-height: 220px;
       overflow-y: auto;
       overscroll-behavior: contain;
       scrollbar-width: thin;
-    }
-    @media (max-width:420px){
-      #suggestion-buttons{ grid-template-columns: 1fr; }
     }
 
     #suggestion-buttons::-webkit-scrollbar{ width: 10px; }
@@ -285,9 +283,14 @@
       cursor:pointer;
       font-size:.92em;
       transition: background-color .2s, color .2s, transform .08s;
-      display:flex; align-items:center; justify-content:flex-start; gap:10px;
+      display:flex; align-items:flex-start; justify-content:flex-start; gap:10px;
       text-align:left;
+      line-height:1.25;
+      white-space:normal;
+      overflow-wrap:anywhere;
+      word-break:break-word;
       min-height:48px;
+      min-width:0;
       box-sizing:border-box;
     }
 
@@ -297,6 +300,7 @@
       border-radius:50%;
       border:2px solid #1E90FF;
       flex:0 0 auto;
+      margin-top:4px;
       box-sizing:border-box;
     }
 
@@ -546,8 +550,59 @@
         byCreated.forEach((s, i) => fallbackMap.set(s.session_id, i + 1));
       }
 
+      function renderSessionItem(s) {
+        const stamp = s.last_message_at || s.created_at || Date.now();
+        const convNum = (typeof s.conversation_number === "number")
+          ? s.conversation_number
+          : (fallbackMap.get(s.session_id) || 1);
+        const label = `Conversación #${convNum}`;
+        const pinned = !!s.pinned;
+
+        const itemDiv = document.createElement("div");
+        itemDiv.className = "session-item" + (s.session_id === currentSessionId ? " active" : "");
+        itemDiv.dataset.session = s.session_id;
+        itemDiv.dataset.pinned = pinned ? "1" : "0";
+
+        const pinBadge = pinned ? `<span class="pin-badge">📌 Fijada</span>` : "";
+
+        itemDiv.innerHTML = `
+          <div class="session-content-click">
+            <div class="meta">
+              🕒 ${fmtTime(stamp)}
+              <span style="opacity:.7;">•</span>
+              <span style="opacity:.95;">${label}</span>
+              ${pinBadge}
+            </div>
+            <div class="preview">${(s.last_message_preview || "Conversación nueva").replace(/</g,"&lt;")}</div>
+          </div>
+
+          <button class="history-more" type="button" title="Opciones">⋯</button>
+
+          <div class="history-menu">
+            <button class="history-pin" type="button">${pinned ? "📌 Quitar pin" : "📌 Fijar"}</button>
+            <button class="history-delete danger" type="button">🗑️ Eliminar</button>
+          </div>
+        `;
+
+        historyList.appendChild(itemDiv);
+      }
+
+      const pinnedSessions = sessions
+        .filter(s => !!s.pinned)
+        .sort((a, b) => new Date(b.pinned_at || b.last_message_at || b.created_at || 0) - new Date(a.pinned_at || a.last_message_at || a.created_at || 0));
+
+      const normalSessions = sessions.filter(s => !s.pinned);
+
+      if (pinnedSessions.length > 0) {
+        const pinnedSep = document.createElement("div");
+        pinnedSep.className = "day-sep";
+        pinnedSep.textContent = "📌 Fijadas";
+        historyList.appendChild(pinnedSep);
+        pinnedSessions.forEach(renderSessionItem);
+      }
+
       const groups = {};
-      for (const s of sessions) {
+      for (const s of normalSessions) {
         const stamp = s.last_message_at || s.created_at || Date.now();
         const k = dayKey(stamp);
         if (!groups[k]) groups[k] = [];
@@ -561,44 +616,7 @@
         sep.className = "day-sep";
         sep.textContent = "📅 " + fmtDate(k);
         historyList.appendChild(sep);
-
-        groups[k].forEach(s => {
-          const stamp = s.last_message_at || s.created_at || Date.now();
-          const convNum = (typeof s.conversation_number === "number")
-            ? s.conversation_number
-            : (fallbackMap.get(s.session_id) || 1);
-
-          const label = `Conversación #${convNum}`;
-          const pinned = !!s.pinned;
-
-          const itemDiv = document.createElement("div");
-          itemDiv.className = "session-item" + (s.session_id === currentSessionId ? " active" : "");
-          itemDiv.dataset.session = s.session_id;
-          itemDiv.dataset.pinned = pinned ? "1" : "0";
-
-          const pinBadge = pinned ? `<span class="pin-badge">📌 Fijada</span>` : "";
-
-          itemDiv.innerHTML = `
-            <div class="session-content-click">
-              <div class="meta">
-                🕒 ${fmtTime(stamp)}
-                <span style="opacity:.7;">•</span>
-                <span style="opacity:.95;">${label}</span>
-                ${pinBadge}
-              </div>
-              <div class="preview">${(s.last_message_preview || "Conversación nueva").replace(/</g,"&lt;")}</div>
-            </div>
-
-            <button class="history-more" type="button" title="Opciones">⋯</button>
-
-            <div class="history-menu">
-              <button class="history-pin" type="button">${pinned ? "📌 Quitar pin" : "📌 Fijar"}</button>
-              <button class="history-delete danger" type="button">🗑️ Eliminar</button>
-            </div>
-          `;
-
-          historyList.appendChild(itemDiv);
-        });
+        groups[k].forEach(renderSessionItem);
       });
     }
 
@@ -798,5 +816,3 @@
   </script>
 </body>
 </html>
-
-
