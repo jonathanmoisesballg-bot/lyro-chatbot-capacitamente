@@ -392,7 +392,14 @@
     }
 
     const SESSION_KEY = "chatSessionId";
+    const SUGGESTIONS_BY_SESSION_KEY = "lyroSuggestionsBySession";
     let currentSessionId = localStorage.getItem(SESSION_KEY) || "";
+    let suggestionsBySession = {};
+    try {
+      suggestionsBySession = JSON.parse(localStorage.getItem(SUGGESTIONS_BY_SESSION_KEY) || "{}") || {};
+    } catch {
+      suggestionsBySession = {};
+    }
 
     // UI refs
     const toggleButton = document.getElementById("chat-toggle");
@@ -416,6 +423,19 @@
       { text: "5", label: "5) Estado de certificado" },
       { text: "6", label: "6) Horarios" },
     ];
+
+    function saveSuggestionsForSession(sessionId, list) {
+      if (!sessionId) return;
+      suggestionsBySession[sessionId] = Array.isArray(list) ? list : DEFAULT_MENU_SUGGESTIONS;
+      try {
+        localStorage.setItem(SUGGESTIONS_BY_SESSION_KEY, JSON.stringify(suggestionsBySession));
+      } catch {}
+    }
+
+    function getSuggestionsForSession(sessionId) {
+      const list = sessionId ? suggestionsBySession[sessionId] : null;
+      return Array.isArray(list) ? list : DEFAULT_MENU_SUGGESTIONS;
+    }
 
     function menuWelcomeText() {
       return `👋 Hola, soy LYRO-CAPACÍTAMENTE 🤖
@@ -682,6 +702,7 @@
           }
           await loadSessionsList();
           renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
+          saveSuggestionsForSession(currentSessionId, DEFAULT_MENU_SUGGESTIONS);
         } catch(err) {
           alert("Error eliminando: " + err.message);
         }
@@ -713,6 +734,7 @@
         if (msgs.length === 0) {
           addMessage(menuWelcomeText(), "bot", new Date().toISOString());
           renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
+          saveSuggestionsForSession(currentSessionId, DEFAULT_MENU_SUGGESTIONS);
           return;
         }
 
@@ -723,7 +745,7 @@
         addMessage(menuWelcomeText(), "bot", new Date().toISOString());
       }
 
-      renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
+      renderSuggestions(getSuggestionsForSession(currentSessionId));
     }
 
     async function newConversation() {
@@ -734,6 +756,7 @@
       clearMessages();
       addMessage(menuWelcomeText(), "bot", new Date().toISOString());
       renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
+      saveSuggestionsForSession(currentSessionId, DEFAULT_MENU_SUGGESTIONS);
 
       try { await loadHistory(currentSessionId); } catch {}
       await loadSessionsList();
@@ -766,7 +789,9 @@
         removeTyping(typingEl);
 
         addMessage(data.reply || "Sin respuesta.", "bot", new Date().toISOString());
-        renderSuggestions(data.suggestions);
+        const nextSuggestions = Array.isArray(data.suggestions) ? data.suggestions : DEFAULT_MENU_SUGGESTIONS;
+        renderSuggestions(nextSuggestions);
+        saveSuggestionsForSession(currentSessionId, nextSuggestions);
 
         await loadSessionsList();
       } catch (err) {
@@ -774,6 +799,7 @@
         removeTyping(typingEl);
         addMessage("Lo siento, estoy teniendo problemas de conexión. Intenta más tarde.", "bot", new Date().toISOString());
         renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
+        saveSuggestionsForSession(currentSessionId, DEFAULT_MENU_SUGGESTIONS);
       } finally {
         chatInput.disabled = false;
         sendButton.disabled = false;
@@ -787,7 +813,7 @@
       chatContainer.style.display = isVisible ? "none" : "flex";
 
       if (!isVisible) {
-        renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
+        renderSuggestions(getSuggestionsForSession(currentSessionId));
         fetch(SERVER_URL + "/health").catch(()=>{});
         await loadSessionsList();
         await loadHistory(currentSessionId);
@@ -820,7 +846,7 @@
       }
     });
 
-    renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
+    renderSuggestions(getSuggestionsForSession(currentSessionId));
   </script>
 </body>
 </html>
