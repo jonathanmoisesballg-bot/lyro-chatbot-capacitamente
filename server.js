@@ -485,17 +485,33 @@ Si deseas volver al menú principal, escribe: MENU.`;
 }
 
 function cursosFuturosTexto() {
-  return `📣 IMPORTANTE: CLASES PRÓXIMAS POR APERTURARSE
+  return `📚 PROPUESTA DE CURSOS A IMPLEMENTAR
 
-Las clases de los cursos marcados como "Próx." están en proceso de apertura.
-La Fundación está organizando el inicio de esos grupos para próximas fechas.
+Con base en el enfoque formativo de la Fundacion, estas son recomendaciones de cursos que pueden aportar alto impacto academico y social:
 
-✅ Te recomendamos mantenerte pendiente del chat y de nuestros canales oficiales para la confirmación de apertura.
+1) Alfabetizacion Digital para Adultos y Emprendedores
+2) IA Practica para Docentes (sin programacion)
+3) Manejo de Estres y Regulacion Emocional para Familias
+4) Neuroaprendizaje para Memoria y Atencion
+5) Habilidades Blandas para Primer Empleo
+6) Finanzas Personales y Economia Familiar
+7) Emprendimiento Digital con Canva, WhatsApp e Instagram
+8) Herramientas de Google para Estudio y Trabajo
+9) Comunicacion Asertiva y Resolucion de Conflictos
+10) Ciberseguridad y Prevencion de Riesgos Digitales
 
-Si deseas, te ayudamos a revisar cursos disponibles ahora mismo:
-- Escribe: 1 (Cursos gratis)
-- Escribe: 2 (Cursos con certificados y precios)
-- O escribe: INSCRIBIRME`;
+✅ Si deseas una recomendacion personalizada para ti, escribe: TEST DE AYUDA`;
+}
+
+function sugerenciaCursoTexto() {
+  return `🎯 ORIENTACION DE CURSO RECOMENDADO
+
+Con gusto te ayudamos a elegir el curso ideal segun tu perfil, objetivos y disponibilidad.
+
+✅ Para una recomendacion precisa y personalizada:
+Escribe: TEST DE AYUDA
+
+El test es breve y, al finalizar, te sugeriremos la mejor opcion para ti.`;
 }
 
 function recuperarContrasenaTexto() {
@@ -821,9 +837,79 @@ function isFutureCoursesQuery(t) {
     s.includes("proximas clases") ||
     s.includes("cuando son las clases que dicen prox") ||
     s.includes("cuando son los cursos proximos") ||
+    s.includes("que cursos van a poner") ||
+    s.includes("que cursos van a ponmer") ||
     s.includes("que cursos van a implementar") ||
+    s.includes("que cursos van a crear") ||
+    s.includes("que cursos piensan agregar") ||
+    s.includes("que cursos piensan poner") ||
+    s.includes("que cursos piensan implementar") ||
     s.includes("que cursos van a agregar") ||
     s.includes("que cursos tendran")
+  );
+}
+
+function isCourseSuggestionQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("que curso me sugieren") ||
+    s.includes("que curson me sugieren") ||
+    s.includes("que cursos me sugieren") ||
+    s.includes("que curso me recomiendan") ||
+    s.includes("que cursos me recomiendan") ||
+    s.includes("me puedes sugerir un curso") ||
+    s.includes("me podrias sugerir un curso") ||
+    s.includes("que curso me recomienda") ||
+    s.includes("me sugiere algo")
+  );
+}
+
+function isAdvisorTestIntentQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("test de ayuda") ||
+    s.includes("test ayuda") ||
+    s.includes("quiero hacer un test") ||
+    s.includes("quiero hacer test") ||
+    s.includes("quiero hacer una prueba") ||
+    s.includes("quiero hacer una prueba para saber") ||
+    s.includes("prueba para saber que curso") ||
+    s.includes("como puedo saber que curso") ||
+    s.includes("como saber que curso") ||
+    s.includes("que curso esta a mi gusto") ||
+    s.includes("curso a mi gusto") ||
+    s.includes("que curso va conmigo") ||
+    s.includes("que curso es para mi") ||
+    s.includes("cual curso me conviene") ||
+    s.includes("ayudame a elegir curso") ||
+    s.includes("ayudame a escoger curso")
+  );
+}
+
+function isTodayDateQuery(t) {
+  const s = normalizeText(t);
+  if (s.includes("clases")) return false;
+  return (
+    s.includes("que dia estamos hoy") ||
+    s.includes("que dia es hoy") ||
+    s.includes("que fecha es hoy") ||
+    s.includes("fecha de hoy") ||
+    s.includes("fecha actual") ||
+    s.includes("dia de hoy")
+  );
+}
+
+function isCurrentTimeQuery(t) {
+  const s = normalizeText(t);
+  if (s.includes("clases")) return false;
+  return (
+    s.includes("que hora estamos") ||
+    s.includes("que hora es") ||
+    s.includes("que hora es ahorita") ||
+    s.includes("que hora es ahora") ||
+    s.includes("hora actual") ||
+    s.includes("hora en ecuador") ||
+    s.includes("hora ecuatoriana")
   );
 }
 
@@ -1390,6 +1476,63 @@ function getDayKeyEC() {
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
+}
+
+function getEcuadorNow() {
+  const now = new Date();
+  const fechaLarga = new Intl.DateTimeFormat("es-EC", {
+    timeZone: "America/Guayaquil",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(now);
+  const hora24 = new Intl.DateTimeFormat("es-EC", {
+    timeZone: "America/Guayaquil",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(now);
+  return { fechaLarga, hora24 };
+}
+
+async function buildEcuadorNowReplyWithAI(userMessage, mode) {
+  const now = getEcuadorNow();
+  const fallback =
+    mode === "date"
+      ? `Hoy en Ecuador estamos a ${now.fechaLarga}.`
+      : `En Ecuador, la hora actual es ${now.hora24}.`;
+
+  if (!ai || !canUseAI()) return fallback;
+
+  try {
+    incAI();
+    const chat = ai.chats.create({
+      model: GEMINI_MODEL,
+      config: {
+        temperature: 0.1,
+        maxOutputTokens: 120,
+      },
+    });
+
+    const prompt = `Responde en espanol, en una sola frase y de forma formal.
+Usa SOLAMENTE estos datos verificados de Ecuador (America/Guayaquil):
+- Fecha actual: ${now.fechaLarga}
+- Hora actual: ${now.hora24}
+No cambies ni inventes otra fecha u hora.
+
+Pregunta del usuario: "${String(userMessage || "").trim()}"
+
+Si pregunta por fecha, responde solo la fecha.
+Si pregunta por hora, responde solo la hora.`;
+
+    const out = await chat.sendMessage({ message: prompt });
+    const reply = String(out?.text || "").trim();
+    return reply || fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 function resetDailyIfNeeded() {
@@ -1979,6 +2122,26 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
       return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
     }
 
+    if (isTodayDateQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = await buildEcuadorNowReplyWithAI(userMessage, "date");
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
+    }
+
+    if (isCurrentTimeQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = await buildEcuadorNowReplyWithAI(userMessage, "time");
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
+    }
+
     if (isFutureCoursesQuery(userMessage)) {
       resetFlows(sessionId);
       const reply = cursosFuturosTexto();
@@ -1987,6 +2150,23 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
       return sendJson(res, { reply, sessionId, suggestions: suggestionsCourseLists() }, 200);
+    }
+
+    if (isCourseSuggestionQuery(userMessage)) {
+      resetFlows(sessionId);
+      advisorFlow.set(sessionId, { step: "persona", persona: "", interes: "", tiempo: "" });
+      const reply = `TEST DE AYUDA (3 preguntas)
+
+1/3) Cual te describe mejor?
+- Docente
+- Padre/Madre
+- Estudiante
+- Profesional`;
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsAdvisorStart() }, 200);
     }
 
     if (isClassTimeQuery(userMessage)) {
@@ -2156,7 +2336,7 @@ Si quieres ver el menú principal, escribe: MENU`;
     }
 
     // ====== test de ayuda (3 preguntas) ======
-    if (t.includes("test de ayuda") || t.includes("test ayuda")) {
+    if (isAdvisorTestIntentQuery(userMessage)) {
       resetFlows(sessionId);
       advisorFlow.set(sessionId, { step: "persona", persona: "", interes: "", tiempo: "" });
 
