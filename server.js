@@ -891,6 +891,7 @@ function isTodayDateQuery(t) {
   if (s.includes("clases")) return false;
   return (
     s.includes("que dia estamos hoy") ||
+    s.includes("que dia estamos") ||
     s.includes("que dia es hoy") ||
     s.includes("que fecha es hoy") ||
     s.includes("fecha de hoy") ||
@@ -1084,6 +1085,7 @@ const scheduleFlow = new Map();
 const certificarmeFlow = new Map();
 const enrollCheckFlow = new Map(); // ✅ nuevo
 const scheduleJustSaved = new Map();
+const justCancelled = new Set();
 
 const lastSchedulePrefId = new Map();
 const courseContext = new Map();
@@ -1499,40 +1501,10 @@ function getEcuadorNow() {
 
 async function buildEcuadorNowReplyWithAI(userMessage, mode) {
   const now = getEcuadorNow();
-  const fallback =
-    mode === "date"
-      ? `Hoy en Ecuador estamos a ${now.fechaLarga}.`
-      : `En Ecuador, la hora actual es ${now.hora24}.`;
-
-  if (!ai || !canUseAI()) return fallback;
-
-  try {
-    incAI();
-    const chat = ai.chats.create({
-      model: GEMINI_MODEL,
-      config: {
-        temperature: 0.1,
-        maxOutputTokens: 120,
-      },
-    });
-
-    const prompt = `Responde en espanol, en una sola frase y de forma formal.
-Usa SOLAMENTE estos datos verificados de Ecuador (America/Guayaquil):
-- Fecha actual: ${now.fechaLarga}
-- Hora actual: ${now.hora24}
-No cambies ni inventes otra fecha u hora.
-
-Pregunta del usuario: "${String(userMessage || "").trim()}"
-
-Si pregunta por fecha, responde solo la fecha.
-Si pregunta por hora, responde solo la hora.`;
-
-    const out = await chat.sendMessage({ message: prompt });
-    const reply = String(out?.text || "").trim();
-    return reply || fallback;
-  } catch {
-    return fallback;
+  if (mode === "date") {
+    return `Hoy en Ecuador estamos a:\n➡️ ${now.fechaLarga}`;
   }
+  return `La hora actual en Ecuador es:\n➡️ ${now.hora24} (America/Guayaquil)`;
 }
 
 function resetDailyIfNeeded() {
@@ -1844,6 +1816,7 @@ app.delete("/session/:sessionId", async (req, res) => {
     resetFlows(sessionId);
     lastSchedulePrefId.delete(sessionId);
     courseContext.delete(sessionId);
+    justCancelled.delete(sessionId);
     aiLastCallAt.delete(sessionId);
 
     return sendJson(res, { ok: true, sessionId }, 200);
@@ -1920,27 +1893,34 @@ app.post("/chat", async (req, res) => {
 
     const t = normalizeText(userMessage);
 
+    if (t !== "cancelar") {
+      justCancelled.delete(sessionId);
+    }
+
     // ====== comandos globales ======
     if (isGreeting(t) || isMenuCommand(t)) {
       resetFlows(sessionId);
       courseContext.delete(sessionId);
 
       const reply = menuOpcionesTexto();
+      const wasJustCancelled = justCancelled.has(sessionId);
+      justCancelled.delete(sessionId);
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
+      return sendJson(res, { reply, sessionId, suggestions: wasJustCancelled ? suggestionsOnlyMenu() : suggestionsMenu() }, 200);
     }
 
     if (t === "cancelar") {
       resetFlows(sessionId);
+      justCancelled.add(sessionId);
       const reply = "✅ Listo. Cancelé el proceso. Escribe MENU para ver opciones.";
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsMenu() }, 200);
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
     }
 
     // ====== pagos (Transferencia / PayPhone) ======
