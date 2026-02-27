@@ -428,6 +428,24 @@ Los horarios son FLEXIBLES: se ajustan a tu disponibilidad porque las clases son
 - Noche`;
 }
 
+function horariosConsultaTexto() {
+  return `🕒 HORARIO DE CLASES
+
+En nuestra modalidad 100% online, los horarios se adaptan a tu disponibilidad.
+Puedes estudiar en los tiempos que mejor se ajusten a tu rutina (manana, tarde o noche), con acompanamiento del equipo academico.
+
+✅ Si deseas, puedes inscribirte segun el horario que mejor te convenga usando el boton:
+6) Horarios`;
+}
+
+function inicioClasesTexto() {
+  return `📌 INFORMACION SOBRE INICIO DE CLASES
+
+Una vez inscrito/a, parte del equipo de la Fundacion se contactara contigo para confirmar el pago y habilitar tu acceso al curso seleccionado.
+
+✅ Despues de esa confirmacion, recibiras las indicaciones para el inicio de clases.`;
+}
+
 function beneficiosTexto() {
   return `✅ BENEFICIOS EN FUNDACIÓN CAPACÍTAMENTE
 
@@ -640,6 +658,13 @@ function suggestionsScheduleFlowStep2() {
   ];
 }
 
+function suggestionsHorariosMenu() {
+  return [
+    { text: "6", label: "6) Horarios" },
+    { text: "menu", label: "📌 Menu" },
+  ];
+}
+
 function suggestionsAfterScheduleSaved() {
   return [
     { text: "inscribirme", label: "📝 Inscribirme" },
@@ -789,16 +814,40 @@ function isFutureCoursesQuery(t) {
     s.includes("proximos") ||
     s.includes("cursos prox") ||
     s.includes("curso prox") ||
-    s.includes("cuando comienzan las clases") ||
-    s.includes("cuando empiezan las clases") ||
-    s.includes("cuando abren las clases") ||
-    s.includes("cuando inician las clases") ||
-    s.includes("cuando inicia el curso") ||
-    s.includes("cuando comienza el curso") ||
+    s.includes("clases prox") ||
+    s.includes("clase prox") ||
+    s.includes("prox clases") ||
+    s.includes("proxima clase") ||
+    s.includes("proximas clases") ||
+    s.includes("cuando son las clases que dicen prox") ||
     s.includes("cuando son los cursos proximos") ||
     s.includes("que cursos van a implementar") ||
     s.includes("que cursos van a agregar") ||
     s.includes("que cursos tendran")
+  );
+}
+
+function isClassTimeQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("aque hora son las clases") ||
+    s.includes("a que hora son las clases") ||
+    s.includes("a que hora dan las clases") ||
+    s.includes("que hora son las clases") ||
+    s.includes("horario de clases")
+  );
+}
+
+function isClassStartQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("cuando son las clases") ||
+    s.includes("cuando empiezan las clases") ||
+    s.includes("cuando comienzan las clases") ||
+    s.includes("cuando inician las clases") ||
+    s.includes("cuando abren las clases") ||
+    s.includes("cuando inicia el curso") ||
+    s.includes("cuando comienza el curso")
   );
 }
 
@@ -1933,6 +1982,26 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
     if (isFutureCoursesQuery(userMessage)) {
       resetFlows(sessionId);
       const reply = cursosFuturosTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsCourseLists() }, 200);
+    }
+
+    if (isClassTimeQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = horariosConsultaTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsHorariosMenu() }, 200);
+    }
+
+    if (isClassStartQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = inicioClasesTexto();
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
