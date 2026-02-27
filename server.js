@@ -889,11 +889,13 @@ function isAdvisorTestIntentQuery(t) {
 function isTodayDateQuery(t) {
   const s = normalizeText(t);
   if (s.includes("clases")) return false;
+  if (["fecha", "dia", "hoy", "fecha hoy", "dia hoy", "fecha actual", "dia actual"].includes(s)) return true;
   return (
     s.includes("que dia estamos hoy") ||
     s.includes("que dia estamos") ||
     s.includes("que dia es hoy") ||
     s.includes("que fecha es hoy") ||
+    s.includes("que fecha estamos") ||
     s.includes("fecha de hoy") ||
     s.includes("fecha actual") ||
     s.includes("dia de hoy")
