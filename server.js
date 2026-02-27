@@ -893,6 +893,8 @@ function isTodayDateQuery(t) {
   return (
     s.includes("que dia estamos hoy") ||
     s.includes("que dia estamos") ||
+    s.includes("dia que estamos") ||
+    s.includes("fecha que estamos") ||
     s.includes("que dia es hoy") ||
     s.includes("que fecha es hoy") ||
     s.includes("que fecha estamos") ||
@@ -905,8 +907,10 @@ function isTodayDateQuery(t) {
 function isCurrentTimeQuery(t) {
   const s = normalizeText(t);
   if (s.includes("clases")) return false;
+  if (["hora", "hora actual", "hora de hoy", "hora ahora"].includes(s)) return true;
   return (
     s.includes("que hora estamos") ||
+    s.includes("hora que estamos") ||
     s.includes("que hora es") ||
     s.includes("que hora es ahorita") ||
     s.includes("que hora es ahora") ||
