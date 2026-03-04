@@ -366,7 +366,8 @@ ${pick.lines.join("\n")}
 
 Si quieres recomendación personalizada, Escribe: TEST DE AYUDA 
 Si quieres inscribirte hay dos opciones, escribe: INSCRIBIRME . 
-La otra opcion es inscribirte mediante la pagina web: Crearte una cuenta para que puedas iniciar sesion (Tienda solidaria/Mi cuenta)`;
+La otra opción es inscribirte mediante la página web creando tu cuenta.
+Escribe: CREAR CUENTA o REGISTRARME para ver los pasos.`;
 }
 
 // ✅ (A-Z) para menú opción 2
@@ -379,7 +380,8 @@ ${pick.lines.join("\n")}
 
 Si quieres recomendación personalizada, Escribe: TEST DE AYUDA 
 Si quieres inscribirte hay dos opciones, escribe: INSCRIBIRME . 
-La otra opcion es inscribirte mediante la pagina web: Crearte una cuenta para que puedas iniciar sesion (Tienda solidaria/Mi cuenta)`;
+La otra opción es inscribirte mediante la página web creando tu cuenta.
+Escribe: CREAR CUENTA o REGISTRARME para ver los pasos.`;
 }
 
 // ✅ NUEVO: pagos
@@ -392,7 +394,8 @@ Los pagos son por Transferencia bancaria directa o PayPhone.
 
 ✅ Para inscribirte tienes 2 opciones:
 • Escribe: INSCRIBIRME (aquí mismo) y elige el curso.
-• O puedes inscribirte por la página web (créate una cuenta para que puedas iniciar sesión: Tienda solidaria/Mi cuenta) y seguir el proceso de inscripción.
+• O puedes inscribirte por la página web creando tu cuenta y siguiendo el proceso de inscripción.
+  Si necesitas la guía, escribe: CREAR CUENTA o REGISTRARME.
 
 Al final, parte del equipo de la Fundación se contactará contigo.`;
 }
@@ -425,7 +428,13 @@ Los horarios son FLEXIBLES: se ajustan a tu disponibilidad porque las clases son
 📌 Dime tu preferencia:
 - Mañana
 - Tarde
-- Noche`;
+- Noche
+
+📌 Cuando pases a inscripción, los datos se validan de forma estricta:
+- Nombre y apellido (solo letras). Ej: Maria Perez
+- WhatsApp Ecuador. Ej: 0991112233 o +593991112233
+- Correo válido. Ej: nombre@correo.com
+- Cédula ecuatoriana de 10 dígitos. Ej: 0912345678`;
 }
 
 function horariosConsultaTexto() {
@@ -529,6 +538,26 @@ Sigue estos pasos:
 📌 Si no ves el correo, revisa SPAM o correo no deseado.
 
 Si todavía no puedes ingresar, contáctanos:
+📱 ${CONTACT_PHONE_1}
+☎️ ${CONTACT_PHONE_2}
+✉️ ${CONTACT_EMAIL}`;
+}
+
+function crearCuentaTexto() {
+  return `🔐 PARA CREARTE UNA CUENTA O REGISTRARTE (FUNDACIÓN)
+
+Sigue estos pasos:
+
+1) Selecciona, en la parte superior, donde dice: Tienda solidaria / Mi cuenta.
+2) Verás dos paneles. Completa el de Registrarte e ingresa:
+   - Nombre de usuario (puede ser tu nombre y apellido)
+   - Correo electrónico
+   - Contraseña
+3) Revisa tu correo y abre el enlace de autenticación para validar tu cuenta.
+
+📌 Si no ves el correo, revisa SPAM o correo no deseado.
+
+Si todavía no puedes registrarte, contáctanos:
 📱 ${CONTACT_PHONE_1}
 ☎️ ${CONTACT_PHONE_2}
 ✉️ ${CONTACT_EMAIL}`;
@@ -964,6 +993,29 @@ function isPasswordRecoveryQuery(t) {
   );
 }
 
+function isAccountRegistrationQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("crear una cuenta") ||
+    s.includes("crear cuenta") ||
+    s.includes("como crear una cuenta") ||
+    s.includes("como crear cuenta") ||
+    s.includes("como me creo una cuenta") ||
+    s.includes("registrarme") ||
+    s.includes("registrar") ||
+    s.includes("como registrarme") ||
+    s.includes("como me registro") ||
+    s.includes("quiero registrarme en la fundacion") ||
+    s.includes("quiero crear cuenta en la fundacion") ||
+    s.includes("quiero registrarme") ||
+    s.includes("quiero crear una cuenta") ||
+    s.includes("abrir una cuenta") ||
+    s.includes("abrir cuenta") ||
+    s.includes("tienda solidaria mi cuenta") ||
+    s.includes("tienda solidaria micuenta")
+  );
+}
+
 function isAffirmation(t) {
   const s = normalizeText(t);
   return ["si", "sí", "ok", "okay", "de acuerdo", "esta bien", "está bien", "listo", "vale", "perfecto", "gracias", "bien"].includes(s);
@@ -1356,6 +1408,21 @@ async function saveLead(userKey, sessionId, data) {
   };
 
   const attempts = [
+    // Esquemas con email/correo + cédula
+    { ...base, whatsapp: data.whatsapp, email: data.email, cedula: data.cedula, schedule_pref_id: schedulePrefId },
+    { ...base, WhatsApp: data.whatsapp, email: data.email, cedula: data.cedula, schedule_pref_id: schedulePrefId },
+    { ...base, whatsapp: data.whatsapp, correo: data.email, cedula: data.cedula, schedule_pref_id: schedulePrefId },
+    { ...base, WhatsApp: data.whatsapp, correo: data.email, cedula: data.cedula, schedule_pref_id: schedulePrefId },
+    { ...base, whatsapp: data.whatsapp, correo_electronico: data.email, cedula: data.cedula, schedule_pref_id: schedulePrefId },
+    { ...base, WhatsApp: data.whatsapp, correo_electronico: data.email, cedula: data.cedula, schedule_pref_id: schedulePrefId },
+    // Esquemas sin schedule_pref_id
+    { ...base, whatsapp: data.whatsapp, email: data.email, cedula: data.cedula },
+    { ...base, WhatsApp: data.whatsapp, email: data.email, cedula: data.cedula },
+    { ...base, whatsapp: data.whatsapp, correo: data.email, cedula: data.cedula },
+    { ...base, WhatsApp: data.whatsapp, correo: data.email, cedula: data.cedula },
+    { ...base, whatsapp: data.whatsapp, correo_electronico: data.email, cedula: data.cedula },
+    { ...base, WhatsApp: data.whatsapp, correo_electronico: data.email, cedula: data.cedula },
+    // Fallback legado (si la tabla aún no tiene email/cedula)
     { ...base, whatsapp: data.whatsapp, schedule_pref_id: schedulePrefId },
     { ...base, WhatsApp: data.whatsapp, schedule_pref_id: schedulePrefId },
     { ...base, whatsapp: data.whatsapp },
@@ -1377,13 +1444,73 @@ function extractWhatsapp(text) {
   return m ? m[1] : "";
 }
 
+function normalizeEcuadorWhatsApp(text) {
+  const raw = String(text || "").replace(/\s+/g, "");
+  const digits = raw.replace(/\D/g, "");
+
+  // Formato local: 09XXXXXXXX
+  if (/^09\d{8}$/.test(digits)) return `+593${digits.slice(1)}`;
+  // Formato internacional sin +: 5939XXXXXXXX
+  if (/^5939\d{8}$/.test(digits)) return `+${digits}`;
+  // Formato internacional con +: +5939XXXXXXXX
+  if (/^\+5939\d{8}$/.test(raw)) return raw;
+
+  return "";
+}
+
+function isValidEcuadorWhatsApp(input) {
+  return !!normalizeEcuadorWhatsApp(input);
+}
+
+function extractEmail(text) {
+  const s = String(text || "").trim().toLowerCase();
+  const m = s.match(/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/);
+  return m ? m[0].toLowerCase() : "";
+}
+
+function isValidEmail(input) {
+  return !!extractEmail(input);
+}
+
+function extractCedula(text) {
+  return String(text || "").replace(/\D/g, "");
+}
+
+function isValidCedula(input) {
+  const c = extractCedula(input);
+  if (!/^\d{10}$/.test(c)) return false;
+
+  // Validación básica de cédula ecuatoriana (persona natural)
+  const province = Number(c.slice(0, 2));
+  const third = Number(c[2]);
+  if (province < 1 || province > 24) return false;
+  if (third >= 6) return false;
+
+  const coeffs = [2, 1, 2, 1, 2, 1, 2, 1, 2];
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    let v = Number(c[i]) * coeffs[i];
+    if (v >= 10) v -= 9;
+    sum += v;
+  }
+  const verifier = sum % 10 === 0 ? 0 : 10 - (sum % 10);
+  return verifier === Number(c[9]);
+}
+
+function maskCedula(value) {
+  const c = extractCedula(value);
+  if (!c) return "";
+  if (c.length <= 4) return "*".repeat(c.length);
+  return `${"*".repeat(c.length - 4)}${c.slice(-4)}`;
+}
+
 function isValidFullName(input) {
   const raw = String(input || "").trim();
   if (!raw) return false;
   if (/\d/.test(raw)) return false;
   const parts = raw.split(/\s+/).filter(Boolean);
   if (parts.length < 2) return false;
-  const lettersOnly = parts.every((p) => /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+$/.test(p));
+  const lettersOnly = parts.every((p) => /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,}$/.test(p));
   return lettersOnly;
 }
 
@@ -2185,6 +2312,16 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
       return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
     }
 
+    if (isAccountRegistrationQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = crearCuentaTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
+    }
+
     if (isMissionQuery(userMessage)) {
       resetFlows(sessionId);
       const reply = misionTexto();
@@ -2398,6 +2535,8 @@ Escribenos al ${CONTACT_PHONE_1}.`;
         data: {
           nombre: "",
           whatsapp: "",
+          email: "",
+          cedula: "",
           curso: "",
           schedule_pref_id: schedIdPrev,
           course_type: type,
@@ -2417,7 +2556,7 @@ Escribenos al ${CONTACT_PHONE_1}.`;
 
       const reply = `${title}
 
-1/4) Elige el curso (responde con la letra):
+Paso 1) Elige el curso (responde con la letra):
 
 ${pick.lines.join("\n")}
 
@@ -2508,7 +2647,7 @@ Al final, parte del equipo de la Fundacion se contactara contigo.`;
 
         leadFlow.set(sessionId, {
           step: "nombre",
-          data: { nombre: "", whatsapp: "", curso: match, schedule_after_whatsapp: true },
+          data: { nombre: "", whatsapp: "", email: "", cedula: "", curso: match, schedule_after_whatsapp: true },
         });
 
         const reply = `✅ Perfecto. Para certificarte en:
@@ -2810,7 +2949,7 @@ Ahora dime tu NOMBRE (nombre y apellido).`;
         st.step = "franja";
         leadFlow.set(sessionId, st);
 
-        const reply = `2/4) 🕒 Elige tu preferencia de horario:
+        const reply = `Paso 2) 🕒 Elige tu preferencia de horario:
 - Mañana
 - Tarde
 - Noche`;
@@ -2841,7 +2980,7 @@ Ahora dime tu NOMBRE (nombre y apellido).`;
         st.step = "dias";
         leadFlow.set(sessionId, st);
 
-        const reply = `3/4) 📅 ¿En qué días se te facilita más?
+        const reply = `Paso 3) 📅 ¿En qué días se te facilita más?
 - Lun-Vie
 - Sábado y Domingo`;
         if (supabase) {
@@ -2883,12 +3022,13 @@ Ahora dime tu NOMBRE (nombre y apellido).`;
         st.step = "nombre";
         leadFlow.set(sessionId, st);
 
-        const reply = `4/4) ✅ Perfecto.
+        const reply = `Paso 4) ✅ Perfecto.
 
 Curso: ${st.data.curso}
 Horario: ${st.data.franja} | ${st.data.dias}
 
-Ahora dime tu NOMBRE (nombre y apellido).`;
+Ahora dime tu NOMBRE y APELLIDO (solo letras).
+Ejemplo: Maria Perez`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2899,8 +3039,11 @@ Ahora dime tu NOMBRE (nombre y apellido).`;
       if (st.step === "nombre") {
         const nombreInput = userMessage.trim();
         if (!isValidFullName(nombreInput)) {
-          const reply = `Por favor escribe tu NOMBRE Y APELLIDO (solo letras).
-Ejemplo: Maria Perez
+          const reply = `Por favor escribe tu NOMBRE Y APELLIDO de forma correcta.
+- Solo letras (sin números)
+- Mínimo nombre y apellido
+Ejemplo válido: Maria Perez
+Ejemplo no válido: Maria123
 (Para salir: MENU)`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -2915,8 +3058,10 @@ Ejemplo: Maria Perez
 
         const reply = `✅ Gracias, ${st.data.nombre}.
 
-Ahora escribe tu número de WhatsApp.
-Ejemplo: +593991112233 o 0991112233`;
+Ahora escribe tu número de WhatsApp de Ecuador.
+Formato válido:
+- 0991112233
+- +593991112233`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -2925,10 +3070,13 @@ Ejemplo: +593991112233 o 0991112233`;
       }
 
       if (st.step === "whatsapp") {
-        const w = extractWhatsapp(userMessage);
-        if (!w) {
-          const reply = `Por favor escribe tu número de WhatsApp (solo números).
-Ejemplo: +593991112233 o 0991112233
+        if (!isValidEcuadorWhatsApp(userMessage)) {
+          const reply = `Por favor escribe tu WhatsApp en un formato válido de Ecuador.
+Ejemplos válidos:
+- 0991112233
+- +593991112233
+Ejemplo no válido:
+- 991112233
 (Para salir: MENU)`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -2937,7 +3085,65 @@ Ejemplo: +593991112233 o 0991112233
           return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
         }
 
-        st.data.whatsapp = w;
+        st.data.whatsapp = normalizeEcuadorWhatsApp(userMessage);
+        st.step = "email";
+        leadFlow.set(sessionId, st);
+
+        const reply = `✅ Perfecto.
+
+Ahora escribe tu correo electrónico.
+Ejemplo válido: nombre@correo.com
+Ejemplo no válido: nombre@correo`;
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+      }
+
+      if (st.step === "email") {
+        if (!isValidEmail(userMessage)) {
+          const reply = `Por favor escribe un correo electrónico válido.
+Ejemplo válido: nombre@correo.com
+Ejemplo no válido: nombre@correo
+(Para salir: MENU)`;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+        }
+
+        st.data.email = extractEmail(userMessage);
+        st.step = "cedula";
+        leadFlow.set(sessionId, st);
+
+        const reply = `✅ Correo registrado.
+
+Ahora escribe tu número de cédula (10 dígitos).
+Ejemplo: 0912345678`;
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+      }
+
+      if (st.step === "cedula") {
+        if (!isValidCedula(userMessage)) {
+          const reply = `Por favor escribe una cédula ecuatoriana válida.
+- Debe tener 10 dígitos
+- Debe pasar validación de cédula
+Ejemplo: 0912345678
+(Para salir: MENU)`;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+        }
+
+        st.data.cedula = extractCedula(userMessage);
 
         if (st.data.schedule_after_whatsapp) {
           st.step = "franja_after_whatsapp";
@@ -2967,6 +3173,8 @@ Ejemplo: +593991112233 o 0991112233
 
 Nombre: ${st.data.nombre}
 WhatsApp: ${st.data.whatsapp}
+Correo: ${st.data.email}
+Cédula: ${maskCedula(st.data.cedula)}
 Curso: ${st.data.curso}${extra}
 
 Parte del equipo de la Fundación se contactará contigo por WhatsApp.
@@ -3050,6 +3258,8 @@ Si quieres ver opciones: escribe MENU`;
 
 Nombre: ${st.data.nombre}
 WhatsApp: ${st.data.whatsapp}
+Correo: ${st.data.email}
+Cédula: ${maskCedula(st.data.cedula)}
 Curso: ${st.data.curso}${extra}
 
 Parte del equipo de la Fundación se contactará contigo por WhatsApp.
@@ -3139,7 +3349,13 @@ Franja: ${st.data.franja}
 Días: ${st.data.dias}
 
 ¿Deseas inscribirte a un curso ahora?
-Escribe: INSCRIBIRME`
+Escribe: INSCRIBIRME
+
+📌 Requisitos de inscripción (estrictos):
+- Nombre y apellido (solo letras). Ej: Maria Perez
+- WhatsApp Ecuador. Ej: 0991112233 o +593991112233
+- Correo válido. Ej: nombre@correo.com
+- Cédula ecuatoriana válida (10 dígitos). Ej: 0912345678`
           : `✅ Preferencia recibida (pero OJO: no se pudo guardar en la BD todavía).
 
 Franja: ${st.data.franja}
