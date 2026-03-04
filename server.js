@@ -432,9 +432,9 @@ Los horarios son FLEXIBLES: se ajustan a tu disponibilidad porque las clases son
 
 📌 Cuando pases a inscripción, los datos se validan de forma estricta:
 - Nombre y apellido (solo letras). Ej: Maria Perez
-- WhatsApp Ecuador. Ej: 0991112233 o +593991112233
+- WhatsApp. Ej: 0991112233 o +593991112233
 - Correo válido. Ej: nombre@correo.com
-- Cédula ecuatoriana de 10 dígitos. Ej: 0912345678`;
+- Cédula de 10 dígitos. Ej: 0912345678`;
 }
 
 function horariosConsultaTexto() {
@@ -1478,23 +1478,7 @@ function extractCedula(text) {
 
 function isValidCedula(input) {
   const c = extractCedula(input);
-  if (!/^\d{10}$/.test(c)) return false;
-
-  // Validación básica de cédula ecuatoriana (persona natural)
-  const province = Number(c.slice(0, 2));
-  const third = Number(c[2]);
-  if (province < 1 || province > 24) return false;
-  if (third >= 6) return false;
-
-  const coeffs = [2, 1, 2, 1, 2, 1, 2, 1, 2];
-  let sum = 0;
-  for (let i = 0; i < 9; i++) {
-    let v = Number(c[i]) * coeffs[i];
-    if (v >= 10) v -= 9;
-    sum += v;
-  }
-  const verifier = sum % 10 === 0 ? 0 : 10 - (sum % 10);
-  return verifier === Number(c[9]);
+  return /^\d{10}$/.test(c);
 }
 
 function maskCedula(value) {
@@ -3058,10 +3042,10 @@ Ejemplo no válido: Maria123
 
         const reply = `✅ Gracias, ${st.data.nombre}.
 
-Ahora escribe tu número de WhatsApp de Ecuador.
+Ahora escribe tu número de WhatsApp.
 Formato válido:
-- 0991112233
-- +593991112233`;
+0991112233
++593991112233`;
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
@@ -3071,12 +3055,12 @@ Formato válido:
 
       if (st.step === "whatsapp") {
         if (!isValidEcuadorWhatsApp(userMessage)) {
-          const reply = `Por favor escribe tu WhatsApp en un formato válido de Ecuador.
+          const reply = `Por favor escribe tu WhatsApp en un formato válido.
 Ejemplos válidos:
-- 0991112233
-- +593991112233
+0991112233
++593991112233
 Ejemplo no válido:
-- 991112233
+991112233
 (Para salir: MENU)`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -3131,9 +3115,8 @@ Ejemplo: 0912345678`;
 
       if (st.step === "cedula") {
         if (!isValidCedula(userMessage)) {
-          const reply = `Por favor escribe una cédula ecuatoriana válida.
+          const reply = `Por favor escribe una cédula válida.
 - Debe tener 10 dígitos
-- Debe pasar validación de cédula
 Ejemplo: 0912345678
 (Para salir: MENU)`;
           if (supabase) {
@@ -3353,9 +3336,9 @@ Escribe: INSCRIBIRME
 
 📌 Requisitos de inscripción (estrictos):
 - Nombre y apellido (solo letras). Ej: Maria Perez
-- WhatsApp Ecuador. Ej: 0991112233 o +593991112233
+- WhatsApp. Ej: 0991112233 o +593991112233
 - Correo válido. Ej: nombre@correo.com
-- Cédula ecuatoriana válida (10 dígitos). Ej: 0912345678`
+- Cédula válida (10 dígitos). Ej: 0912345678`
           : `✅ Preferencia recibida (pero OJO: no se pudo guardar en la BD todavía).
 
 Franja: ${st.data.franja}
