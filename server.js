@@ -428,13 +428,7 @@ Los horarios son FLEXIBLES: se ajustan a tu disponibilidad porque las clases son
 📌 Dime tu preferencia:
 - Mañana
 - Tarde
-- Noche
-
-📌 Cuando pases a inscripción, los datos se validan de forma estricta:
-- Nombre y apellido (solo letras). Ej: Maria Perez
-- WhatsApp. Ej: 0991112233 o +593991112233
-- Correo válido. Ej: nombre@correo.com
-- Cédula de 10 dígitos. Ej: 0912345678`;
+- Noche`;
 }
 
 function horariosConsultaTexto() {
@@ -3332,13 +3326,7 @@ Franja: ${st.data.franja}
 Días: ${st.data.dias}
 
 ¿Deseas inscribirte a un curso ahora?
-Escribe: INSCRIBIRME
-
-📌 Requisitos de inscripción (estrictos):
-- Nombre y apellido (solo letras). Ej: Maria Perez
-- WhatsApp. Ej: 0991112233 o +593991112233
-- Correo válido. Ej: nombre@correo.com
-- Cédula válida (10 dígitos). Ej: 0912345678`
+Escribe: INSCRIBIRME`
           : `✅ Preferencia recibida (pero OJO: no se pudo guardar en la BD todavía).
 
 Franja: ${st.data.franja}
