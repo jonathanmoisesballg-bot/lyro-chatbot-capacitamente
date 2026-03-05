@@ -411,6 +411,21 @@ function contactoTexto() {
 📍 ${CONTACT_CITY}`;
 }
 
+function whatsappInfoTexto() {
+  return `📱 CONTACTO OFICIAL POR WHATSAPP
+
+Con gusto te atendemos por este medio.
+
+Número de WhatsApp:
+✅ ${CONTACT_PHONE_1}
+
+También puedes abrir el chat directo tocando el ícono de WhatsApp que aparece junto al botón de nuestro chatbot en la página.
+
+Si lo prefieres, también puedes escribirnos a:
+☎️ ${CONTACT_PHONE_2}
+✉️ ${CONTACT_EMAIL}`;
+}
+
 function donarTexto() {
   return `💙 DONAR (pasos)
 
@@ -824,6 +839,26 @@ function isWorkWithUsQuery(t) {
     s.includes("voluntario") ||
     s.includes("colaborar") ||
     s.includes("alianza")
+  );
+}
+
+function isWhatsAppNumberQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("numero de whatsapp") ||
+    s.includes("numero whatsapp") ||
+    s.includes("numero de whatsap") ||
+    s.includes("numero whatsap") ||
+    s.includes("numero de whatsaap") ||
+    s.includes("numero whatsaap") ||
+    s.includes("numero de wathsapp") ||
+    s.includes("numero wathsapp") ||
+    s.includes("numero de wsp") ||
+    s.includes("numero wsp") ||
+    s.includes("whatsapp") ||
+    s.includes("whatsap") ||
+    s.includes("whatsaap") ||
+    s.includes("wsp")
   );
 }
 
@@ -2614,6 +2649,15 @@ Paso 1) Elige la modalidad:
 
     if (t.includes("donaci") || t.includes("donar")) {
       const reply = donarTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
+    }
+
+    if (isWhatsAppNumberQuery(userMessage)) {
+      const reply = whatsappInfoTexto();
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);

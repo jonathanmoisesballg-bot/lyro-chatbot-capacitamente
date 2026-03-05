@@ -573,7 +573,7 @@
         empty.style.padding = "10px";
         empty.textContent = "Aún no hay conversaciones. Pulsa “Nueva”.";
         historyList.appendChild(empty);
-        return;
+        return sessions;
       }
 
       const hasNumbers = sessions.some(s => typeof s.conversation_number === "number");
@@ -651,6 +651,8 @@
         historyList.appendChild(sep);
         groups[k].forEach(renderSessionItem);
       });
+
+      return sessions;
     }
 
     document.addEventListener("click", (e) => {
@@ -698,16 +700,28 @@
 
         try {
           await apiFetch(`/session/${encodeURIComponent(sid)}`, { method: "DELETE" });
+          delete suggestionsBySession[sid];
+          try {
+            localStorage.setItem(SUGGESTIONS_BY_SESSION_KEY, JSON.stringify(suggestionsBySession));
+          } catch {}
 
           if (sid === currentSessionId) {
-            currentSessionId = "";
-            localStorage.removeItem(SESSION_KEY);
-            clearMessages();
-            addMessage("Conversación eliminada. Pulsa “Nueva” para crear otra.", "bot", new Date().toISOString());
+            const sessions = await loadSessionsList();
+            if (sessions.length > 0) {
+              currentSessionId = sessions[0].session_id;
+              localStorage.setItem(SESSION_KEY, currentSessionId);
+              await loadHistory(currentSessionId);
+            } else {
+              currentSessionId = "";
+              localStorage.removeItem(SESSION_KEY);
+              clearMessages();
+              addMessage("Conversación eliminada. Pulsa “Nueva” para crear otra.", "bot", new Date().toISOString());
+              renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
+            }
+          } else {
+            await loadSessionsList();
+            renderSuggestions(getSuggestionsForSession(currentSessionId));
           }
-          await loadSessionsList();
-          renderSuggestions(DEFAULT_MENU_SUGGESTIONS);
-          saveSuggestionsForSession(currentSessionId, DEFAULT_MENU_SUGGESTIONS);
         } catch(err) {
           alert("Error eliminando: " + err.message);
         }
