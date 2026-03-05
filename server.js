@@ -1674,8 +1674,7 @@ const SESSION_TTL_MS = 30 * 60 * 1000;
 const MAX_SESSIONS = 300;
 
 const MAX_DAILY_AI_CALLS = Number(process.env.MAX_DAILY_AI_CALLS || 50);
-let aiCallsToday = 0;
-let aiCallsDayKey = getDayKeyEC();
+const aiCallsByUserDay = new Map(); // key: YYYY-MM-DD|userKey -> count
 
 const aiLastCallAt = new Map();
 
@@ -1715,22 +1714,21 @@ async function buildEcuadorNowReplyWithAI(userMessage, mode) {
   return `La hora actual en Ecuador es:\n➡️ ${now.hora24} (America/Guayaquil)`;
 }
 
-function resetDailyIfNeeded() {
-  const nowKey = getDayKeyEC();
-  if (nowKey !== aiCallsDayKey) {
-    aiCallsDayKey = nowKey;
-    aiCallsToday = 0;
-  }
+function aiUserDayKey(userKey) {
+  const day = getDayKeyEC();
+  return `${day}|${String(userKey || "").slice(0, 500)}`;
 }
 
-function canUseAI() {
-  resetDailyIfNeeded();
-  return aiCallsToday < MAX_DAILY_AI_CALLS;
+function canUseAI(userKey) {
+  const k = aiUserDayKey(userKey);
+  const count = aiCallsByUserDay.get(k) || 0;
+  return count < MAX_DAILY_AI_CALLS;
 }
 
-function incAI() {
-  resetDailyIfNeeded();
-  aiCallsToday++;
+function incAI(userKey) {
+  const k = aiUserDayKey(userKey);
+  const count = aiCallsByUserDay.get(k) || 0;
+  aiCallsByUserDay.set(k, count + 1);
 }
 
 setInterval(() => {
@@ -1748,6 +1746,12 @@ setInterval(() => {
   const cutoff = now - RATE_LIMIT_WINDOW_MS * 3;
   for (const [k, b] of rateBuckets.entries()) {
     if (b.start < cutoff) rateBuckets.delete(k);
+  }
+
+  // limpia contadores IA de días anteriores
+  const today = getDayKeyEC();
+  for (const [k] of aiCallsByUserDay.entries()) {
+    if (!k.startsWith(`${today}|`)) aiCallsByUserDay.delete(k);
   }
 }, 60 * 1000);
 
@@ -3565,7 +3569,7 @@ Escribe:
       return sendJson(res, { reply: msg, sessionId, suggestions: suggestionsMenu() }, 200);
     }
 
-    if (!canUseAI()) {
+    if (!canUseAI(userKey)) {
       const msg = aiFallbackMenuText();
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", msg);
@@ -3605,7 +3609,7 @@ Escribe:
       sessionObj.lastAccess = Date.now();
     }
 
-    incAI();
+    incAI(userKey);
 
     const response = await geminiSendWithRetry(sessionObj, userMessage);
 
