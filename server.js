@@ -587,9 +587,9 @@ Si deseas iniciar tu inscripcion ahora, escribe: INSCRIBIRME.`;
 }
 
 function empresasTexto() {
-  return `🏢 CURSOS PARA EMPRESAS O GRUPOS
+  return `🏢 CAPACITACION PARA INSTITUCIONES
 
-Si, contamos con opciones para grupos e instituciones.
+Contamos con opciones para instituciones y grupos.
 
 ✅ Para grupos desde 10 personas:
 - Podemos revisar descuentos y propuesta adaptada.
@@ -602,14 +602,20 @@ Para coordinar una propuesta, comparte:
 }
 
 function instructorTexto() {
-  return `🧑‍🏫 CONVIERTETE EN INSTRUCTOR/A
+  return `🧑‍🏫 FORMAR PARTE DE LA FUNDACION (INSTRUCTOR/A, MAESTRO/A O DOCENTE)
 
-Si deseas formar parte del equipo docente de la Fundacion:
+Si deseas ser parte del equipo de la Fundacion:
 1) Envia tu hoja de vida al correo: ${CONTACT_EMAIL}
-2) Indica area de especialidad y experiencia docente
+2) Indica tu area de especialidad y experiencia
 3) Comparte tu WhatsApp de contacto
 
-El equipo academico revisara tu perfil y te contactara si aplica a una vacante.`;
+Contactos oficiales:
+📱 ${CONTACT_PHONE_1}
+☎️ ${CONTACT_PHONE_2}
+✉️ ${CONTACT_EMAIL}
+📍 ${CONTACT_CITY}
+
+El equipo academico revisara tu perfil y se contactara contigo.`;
 }
 
 function tiendaSolidariaTexto() {
@@ -778,6 +784,29 @@ function suggestionsMenu() {
 
 function suggestionsOnlyMenu() {
   return [{ text: "menu", label: "📌 Menu" }];
+}
+
+function suggestionsBecas() {
+  return [
+    { text: "test de ayuda", label: "🧭 Test de ayuda" },
+    { text: "crear cuenta", label: "🔐 Crear cuenta" },
+    { text: "menu", label: "📌 Menu" },
+  ];
+}
+
+function suggestionsDifference() {
+  return [
+    { text: "1", label: "1) Cursos gratis" },
+    { text: "2", label: "2) Cursos con certificados y precios" },
+    { text: "menu", label: "📌 Menu" },
+  ];
+}
+
+function suggestionsStore() {
+  return [
+    { text: "crear cuenta", label: "🔐 Crear cuenta" },
+    { text: "menu", label: "📌 Menu" },
+  ];
 }
 
 function suggestionsCourseLists() {
@@ -1015,8 +1044,14 @@ function isSetecQuery(t) {
 function isApprovalCriteriaQuery(t) {
   const s = normalizeText(t);
   return (
+    s.includes("con cuanto apruebo") ||
+    s.includes("con cuanto se aprueba") ||
+    s.includes("cuanto necesito para aprobar") ||
+    s.includes("con que nota apruebo") ||
+    s.includes("con que nota se aprueba") ||
     s.includes("como se aprueba") ||
     s.includes("como aprobar") ||
+    s.includes("requisitos de fundacion") ||
     s.includes("requisitos de aprobacion") ||
     s.includes("nota minima") ||
     s.includes("puntaje minimo") ||
@@ -1069,7 +1104,12 @@ function isInstructorQuery(t) {
     s.includes("convertirme en instructor") ||
     s.includes("conviertete en instructor") ||
     s.includes("postular como instructor") ||
-    s.includes("docente de la fundacion")
+    s.includes("docente de la fundacion") ||
+    s.includes("quiero ser docente") ||
+    s.includes("quiero ser maestro") ||
+    s.includes("formar parte de la fundacion") ||
+    (s.includes("maestro") && s.includes("fundacion")) ||
+    (s.includes("docente") && s.includes("fundacion"))
   );
 }
 
@@ -1400,12 +1440,18 @@ function isFoundationQuery(t) {
     "becas",
     "setec",
     "aprobacion",
+    "apruebo",
+    "aprobar",
+    "requisitos",
     "modalidad",
     "online",
     "presencial",
     "empresa",
     "grupos",
     "instructor",
+    "docente",
+    "maestro",
+    "formar parte",
     "tienda solidaria",
     "mision",
     "vision",
@@ -1439,6 +1485,7 @@ const certificarmeFlow = new Map();
 const enrollCheckFlow = new Map(); // ✅ nuevo
 const scheduleJustSaved = new Map();
 const justCancelled = new Set();
+const scholarshipIntent = new Map();
 
 const lastSchedulePrefId = new Map();
 const courseContext = new Map();
@@ -2369,6 +2416,7 @@ app.post("/chat", async (req, res) => {
     if (isGreeting(t) || isMenuCommand(t)) {
       resetFlows(sessionId);
       courseContext.delete(sessionId);
+      scholarshipIntent.delete(sessionId);
 
       const reply = menuOpcionesTexto();
       const wasJustCancelled = justCancelled.has(sessionId);
@@ -2383,6 +2431,7 @@ app.post("/chat", async (req, res) => {
     if (t === "cancelar") {
       resetFlows(sessionId);
       justCancelled.add(sessionId);
+      scholarshipIntent.delete(sessionId);
       const reply = "✅ Listo. Cancelé el proceso. Escribe MENU para ver opciones.";
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
@@ -2552,12 +2601,13 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
 
     if (isScholarshipQuery(userMessage)) {
       resetFlows(sessionId);
+      scholarshipIntent.set(sessionId, true);
       const reply = becasTexto();
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsBecas() }, 200);
     }
 
     if (isCourseDifferenceQuery(userMessage)) {
@@ -2567,7 +2617,7 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsCourseLists() }, 200);
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsDifference() }, 200);
     }
 
     if (isSetecQuery(userMessage)) {
@@ -2637,7 +2687,7 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsStore() }, 200);
     }
 
     if (isHistoryHelpQuery(userMessage)) {
@@ -2702,7 +2752,7 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
 
     if (isCourseSuggestionQuery(userMessage)) {
       resetFlows(sessionId);
-      advisorFlow.set(sessionId, { step: "persona", persona: "", interes: "", tiempo: "" });
+      advisorFlow.set(sessionId, { step: "persona", persona: "", interes: "", tiempo: "", mode: scholarshipIntent.get(sessionId) ? "beca" : "" });
       const reply = `TEST DE AYUDA (3 preguntas)
 
 1/3) Cual te describe mejor?
@@ -2896,7 +2946,7 @@ Si quieres ver el menú principal, escribe: MENU`;
     // ====== test de ayuda (3 preguntas) ======
     if (isAdvisorTestIntentQuery(userMessage)) {
       resetFlows(sessionId);
-      advisorFlow.set(sessionId, { step: "persona", persona: "", interes: "", tiempo: "" });
+      advisorFlow.set(sessionId, { step: "persona", persona: "", interes: "", tiempo: "", mode: scholarshipIntent.get(sessionId) ? "beca" : "" });
 
       const reply = `TEST DE AYUDA (3 preguntas)
 
@@ -2934,7 +2984,7 @@ Escribenos al ${CONTACT_PHONE_1}.`;
     // ====== asesor ======
     if (t.includes("recomendar") || t.includes("recomendacion") || t.includes("recomendaci��n")) {
       resetFlows(sessionId);
-      advisorFlow.set(sessionId, { step: "persona", persona: "", interes: "", tiempo: "" });
+      advisorFlow.set(sessionId, { step: "persona", persona: "", interes: "", tiempo: "", mode: scholarshipIntent.get(sessionId) ? "beca" : "" });
 
       const reply = `TEST DE AYUDA (3 preguntas)\n\n1/3) Cual te describe mejor?\n- Docente\n- Padre/Madre\n- Estudiante\n- Profesional`;
       if (supabase) {
@@ -2951,6 +3001,7 @@ Escribenos al ${CONTACT_PHONE_1}.`;
     // ====== inscripción (A-Z + letras, sin bug) ======
     if (t.includes("inscrib") || t.includes("inscripcion") || t.includes("inscripción")) {
       resetFlows(sessionId);
+      scholarshipIntent.delete(sessionId);
 
       // ✅ CLAVE: si es "inscribirme" general, usa courseContext si existe
       const wantsFree = t.includes("gratis") || t.includes("gratuito");
@@ -3327,8 +3378,25 @@ Intenta más tarde.`;
         courseContext.delete(sessionId);
 
         const rec = recommendCourse(st);
+        const isScholarshipMode = st.mode === "beca" || scholarshipIntent.get(sessionId) === true;
 
-        const reply = `✅ RECOMENDACIÓN PERSONALIZADA
+        const reply = isScholarshipMode
+          ? `✅ RECOMENDACION PERSONALIZADA PARA BECA
+
+Segun lo que me dijiste, te recomiendo:
+🎯 ${rec.curso}
+
+Motivo: ${rec.motivo}
+
+Como es proceso de BECA, no necesitas inscribirte ahora por aqui.
+Envia tu solicitud de beca al correo: ${CONTACT_EMAIL}
+
+Incluye:
+1) Nombres completos
+2) WhatsApp
+3) Curso recomendado
+4) Motivo de la solicitud y situacion actual`
+          : `✅ RECOMENDACIÓN PERSONALIZADA
 
 Según lo que me dijiste, te recomiendo:
 🎯 ${rec.curso}
@@ -3337,11 +3405,17 @@ Motivo: ${rec.motivo}
 
 Si quieres, te ayudo a inscribirte:
 Escribe: INSCRIBIRME`;
+
+        scholarshipIntent.delete(sessionId);
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
         }
-        return sendJson(res, { reply, sessionId, suggestions: suggestionsCourseLists() }, 200);
+        return sendJson(
+          res,
+          { reply, sessionId, suggestions: isScholarshipMode ? suggestionsBecas() : suggestionsCourseLists() },
+          200
+        );
       }
     }
 
