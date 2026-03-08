@@ -248,6 +248,37 @@
       margin-top:4px;
     }
 
+    .msg-text { white-space: pre-wrap; }
+    .testimonials-grid{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:8px;
+      margin-top:8px;
+    }
+    .testimonial-card{
+      border:1px solid #59aef7;
+      border-radius:12px;
+      background:#f9fcff;
+      padding:10px;
+    }
+    .testimonial-stars{
+      color:#e7a23b;
+      letter-spacing:1px;
+      font-size:.95em;
+      margin-bottom:6px;
+    }
+    .testimonial-quote{
+      margin-bottom:8px;
+    }
+    .testimonial-name{
+      font-weight:700;
+      color:#13223a;
+    }
+    .testimonial-role{
+      font-size:.88em;
+      opacity:.8;
+    }
+
     #chat-footer{
       background:#fff;
       border-top:1px solid #eee;
@@ -475,12 +506,82 @@
 
     function clearMessages() { chatMessages.innerHTML = ""; }
 
+    function parseTestimonialsPayload(text) {
+      const marker = /\[\[TESTIMONIOS_CARDS\]\]([\s\S]*?)\[\[\/TESTIMONIOS_CARDS\]\]/;
+      const m = String(text || "").match(marker);
+      if (!m) return null;
+
+      const before = String(text || "").slice(0, m.index).trim();
+      const after = String(text || "").slice((m.index || 0) + m[0].length).trim();
+      const cards = m[1]
+        .split("\n")
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => {
+          const [name, role, quote] = line.split("|").map(v => (v || "").trim());
+          return { name, role, quote };
+        })
+        .filter(c => c.name && c.role && c.quote);
+
+      if (cards.length === 0) return null;
+      return { before, after, cards };
+    }
+
     function addMessage(text, sender, createdAt = null) {
       const msg = document.createElement("div");
       msg.className = "message " + sender;
 
       const content = document.createElement("div");
-      content.textContent = text;
+      const payload = sender === "bot" ? parseTestimonialsPayload(text) : null;
+      if (!payload) {
+        content.textContent = text;
+      } else {
+        if (payload.before) {
+          const before = document.createElement("div");
+          before.className = "msg-text";
+          before.textContent = payload.before;
+          content.appendChild(before);
+        }
+
+        const grid = document.createElement("div");
+        grid.className = "testimonials-grid";
+
+        payload.cards.forEach(card => {
+          const cardEl = document.createElement("div");
+          cardEl.className = "testimonial-card";
+
+          const stars = document.createElement("div");
+          stars.className = "testimonial-stars";
+          stars.textContent = "★★★★★";
+
+          const quote = document.createElement("div");
+          quote.className = "testimonial-quote";
+          quote.textContent = card.quote;
+
+          const name = document.createElement("div");
+          name.className = "testimonial-name";
+          name.textContent = card.name;
+
+          const role = document.createElement("div");
+          role.className = "testimonial-role";
+          role.textContent = card.role;
+
+          cardEl.appendChild(stars);
+          cardEl.appendChild(quote);
+          cardEl.appendChild(name);
+          cardEl.appendChild(role);
+          grid.appendChild(cardEl);
+        });
+        content.appendChild(grid);
+
+        if (payload.after) {
+          const after = document.createElement("div");
+          after.className = "msg-text";
+          after.style.marginTop = "8px";
+          after.textContent = payload.after;
+          content.appendChild(after);
+        }
+      }
 
       const time = document.createElement("span");
       time.className = "time";

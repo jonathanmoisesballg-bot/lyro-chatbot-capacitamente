@@ -522,6 +522,26 @@ Con base en el enfoque formativo de la Fundacion, estas son recomendaciones de c
 ✅ Si deseas una recomendacion personalizada para ti, escribe: TEST DE AYUDA`;
 }
 
+function fundadoraTexto() {
+  return `👩‍💼 FUNDADORA DE LA FUNDACION
+
+La Fundacion Capacitamente nace hace mas de 10 anos como expresion del compromiso social de su fundadora Ingeniera Tatiana Arias: Magister en Investigacion Educativa y Docencia, Lider Social Latinoamericana con especializacion en Espana, Coordinadora Academica Metodologica, Docente de la Universidad de Guayaquil.
+
+Si deseas ver el menu principal, escribe: MENU.`;
+}
+
+function testimoniosTexto() {
+  return `💬 TESTIMONIOS SOBRE LA FUNDACION
+
+[[TESTIMONIOS_CARDS]]
+Monica Valencia|Docente de Basica Superior|Ha sido una experiencia increible y maravillosa; el equipo en su totalidad denoto su gran capacidad de ensenanza.
+Alexandra Manzo|Docente de Basica Media|Gracias a la Fundacion Capacitamente he descubierto un mundo apasionante de aprendizaje y autoconocimiento.
+Fabio Cereceda|Maestro de Matematicas|Experiencia inolvidable para aprender nuevas tecnicas que me acompanaran en mi superacion profesional.
+[[/TESTIMONIOS_CARDS]]
+
+Si deseas ver el menu principal, escribe: MENU.`;
+}
+
 function sugerenciaCursoTexto() {
   return `🎯 ORIENTACION DE CURSO RECOMENDADO
 
@@ -680,10 +700,12 @@ function suggestionsFundacionInfo() {
   return [
     { text: "menu", label: "📌 Menu" },
     { text: "quienes somos", label: "👥 ¿Quiénes somos?" },
+    { text: "fundadora", label: "👩‍💼 Fundadora" },
     { text: "mision", label: "🎯 Misión" },
     { text: "vision", label: "🌟 Visión" },
     { text: "valores", label: "🧭 Valores" },
     { text: "pilares", label: "🏛️ Pilares" },
+    { text: "testimonios", label: "💬 Testimonios" },
     { text: "certificarme", label: "📜 Certificarme" },
     { text: "trabaja con nosotros", label: "🤝 Trabaja con nosotros" },
   ];
@@ -913,7 +935,35 @@ function isFutureCoursesQuery(t) {
     s.includes("que cursos piensan poner") ||
     s.includes("que cursos piensan implementar") ||
     s.includes("que cursos van a agregar") ||
-    s.includes("que cursos tendran")
+    s.includes("que cursos tendran") ||
+    s.includes("cursos que pondran a futuro") ||
+    s.includes("que cursos pondran a futuro") ||
+    s.includes("cuales son los cursos que pondran a futuro")
+  );
+}
+
+function isFounderQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("fundadora") ||
+    s.includes("quien fundo la fundacion") ||
+    s.includes("quien es la fundadora") ||
+    s.includes("fundadora de esta fundacion") ||
+    s.includes("tatiana arias")
+  );
+}
+
+function isTestimonialsQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("testimonios") ||
+    s.includes("testimonio") ||
+    s.includes("comentarios de la fundacion") ||
+    s.includes("comentarios sobre la fundacion") ||
+    s.includes("opiniones de la fundacion") ||
+    s.includes("resenas de la fundacion") ||
+    s.includes("que dicen de la fundacion") ||
+    s.includes("que dicen sobre la fundacion")
   );
 }
 
@@ -1158,6 +1208,9 @@ function isFoundationQuery(t) {
     "vision",
     "valores",
     "pilares",
+    "fundadora",
+    "testimonios",
+    "comentarios",
     "quienes somos",
     "acerca de",
     "nosotros",
@@ -2342,6 +2395,26 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
       return sendJson(res, { reply, sessionId, suggestions: suggestionsCourseLists() }, 200);
+    }
+
+    if (isFounderQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = fundadoraTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsFundacionInfo() }, 200);
+    }
+
+    if (isTestimonialsQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = testimoniosTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsFundacionInfo() }, 200);
     }
 
     if (isCourseSuggestionQuery(userMessage)) {
@@ -3545,6 +3618,8 @@ Escribe:
 - VISION
 - VALORES
 - PILARES
+- FUNDADORA
+- TESTIMONIOS
 - BENEFICIOS
 - CERTIFICARME
 - TRABAJA CON NOSOTROS`;
