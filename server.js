@@ -482,13 +482,18 @@ O Escribe: TEST DE AYUDA`;
 }
 
 function becasTexto() {
-  return `¡IMPORTANTE! Sobre becas:
+  return `🎓 BECAS FUNDACION CAPACITAMENTE
 
-Por el momento, la Fundación Capacítamente no otorga becas. Actualmente nuestros programas se mantienen con aportes y procesos internos, por lo que no contamos con un esquema de becas activo.
+Si ofrecemos becas parciales segun evaluacion del caso.
 
-Agradecemos tu interés. Si deseas, podemos orientarte sobre los cursos disponibles y sus costos para que elijas la mejor opción.
+Pasos para solicitarla:
+1) Elige el curso que te interesa.
+2) Envia tu solicitud de beca al correo: ${CONTACT_EMAIL}
+3) Incluye: nombres completos, WhatsApp, curso, motivo de la solicitud y situacion actual.
 
-Si deseas volver al menú principal, escribe: MENU.`;
+⏱️ Tiempo de respuesta referencial: hasta 3 dias laborables.
+
+Si deseas, primero te ayudo a elegir curso. Escribe: TEST DE AYUDA.`;
 }
 
 function historialTexto() {
@@ -520,6 +525,104 @@ Con base en el enfoque formativo de la Fundacion, estas son recomendaciones de c
 10) Ciberseguridad y Prevencion de Riesgos Digitales
 
 ✅ Si deseas una recomendacion personalizada para ti, escribe: TEST DE AYUDA`;
+}
+
+function diferenciaCursosTexto() {
+  return `📚 DIFERENCIA: CURSO GRATUITO VS CURSO CON CERTIFICADO
+
+1) Curso gratuito:
+- Acceso al contenido formativo sin costo.
+- Puede incluir constancia interna segun disponibilidad del programa.
+
+2) Curso con certificado:
+- Requiere pago.
+- Incluye certificacion al cumplir los requisitos academicos del curso.
+
+✅ Para ver cursos:
+- Escribe 1 (gratis)
+- Escribe 2 (con certificado y precios)`;
+}
+
+function setecTexto() {
+  return `🧾 QUE ES SETEC
+
+SETEC es el organismo de referencia en procesos de capacitacion y certificacion por competencias en Ecuador.
+
+En los cursos que aplican, la evaluacion/certificacion puede seguir lineamientos asociados a SETEC.
+
+Si deseas saber si un curso puntual aplica para ese esquema, dime el nombre del curso y te orientamos.`;
+}
+
+function aprobacionCursosTexto() {
+  return `✅ REQUISITOS DE APROBACION
+
+- Cursos gratuitos: referencia minima de 70% de cumplimiento academico.
+- Cursos con certificado: pueden incluir evaluacion final y criterios adicionales segun el programa.
+- En programas vinculados a estandar externo, se aplican los requisitos definidos para ese curso.
+
+Si deseas, te explico los requisitos exactos de un curso puntual.`;
+}
+
+function recursosCursoTexto() {
+  return `🧰 RECURSOS DE APRENDIZAJE
+
+Dependiendo del curso, puedes recibir:
+- Videos
+- Guias o material PDF
+- Actividades practicas
+- Acompanamiento academico
+
+Algunos cursos tambien incluyen recursos complementarios segun su malla.`;
+}
+
+function modalidadesTexto() {
+  return `🌐 MODALIDADES DISPONIBLES
+
+La Fundacion maneja modalidad Online y, en programas seleccionados, modalidad Presencial.
+
+- Online: horarios flexibles y acceso remoto.
+- Presencial: se habilita por convocatoria/programa.
+
+Si deseas iniciar tu inscripcion ahora, escribe: INSCRIBIRME.`;
+}
+
+function empresasTexto() {
+  return `🏢 CURSOS PARA EMPRESAS O GRUPOS
+
+Si, contamos con opciones para grupos e instituciones.
+
+✅ Para grupos desde 10 personas:
+- Podemos revisar descuentos y propuesta adaptada.
+
+Para coordinar una propuesta, comparte:
+1) Nombre de la institucion
+2) Cantidad de participantes
+3) Curso de interes
+4) Modalidad (online/presencial)`;
+}
+
+function instructorTexto() {
+  return `🧑‍🏫 CONVIERTETE EN INSTRUCTOR/A
+
+Si deseas formar parte del equipo docente de la Fundacion:
+1) Envia tu hoja de vida al correo: ${CONTACT_EMAIL}
+2) Indica area de especialidad y experiencia docente
+3) Comparte tu WhatsApp de contacto
+
+El equipo academico revisara tu perfil y te contactara si aplica a una vacante.`;
+}
+
+function tiendaSolidariaTexto() {
+  return `🛍️ TIENDA SOLIDARIA
+
+En la Tienda Solidaria puedes encontrar productos educativos y materiales de apoyo de la Fundacion.
+
+Para ingresar:
+1) Abre el menu principal del sitio
+2) Entra a: Tienda Solidaria
+3) Si deseas comprar o gestionar pedidos, usa Mi Cuenta
+
+Si necesitas apoyo para crear tu cuenta, escribe: CREAR CUENTA.`;
 }
 
 function fundadoraTexto() {
@@ -701,11 +804,14 @@ function suggestionsFundacionInfo() {
     { text: "menu", label: "📌 Menu" },
     { text: "quienes somos", label: "👥 ¿Quiénes somos?" },
     { text: "fundadora", label: "👩‍💼 Fundadora" },
+    { text: "becas", label: "🎓 Becas" },
+    { text: "setec", label: "🧾 SETEC" },
     { text: "mision", label: "🎯 Misión" },
     { text: "vision", label: "🌟 Visión" },
     { text: "valores", label: "🧭 Valores" },
     { text: "pilares", label: "🏛️ Pilares" },
     { text: "testimonios", label: "💬 Testimonios" },
+    { text: "tienda solidaria", label: "🛍️ Tienda solidaria" },
     { text: "certificarme", label: "📜 Certificarme" },
     { text: "trabaja con nosotros", label: "🤝 Trabaja con nosotros" },
   ];
@@ -887,6 +993,93 @@ function isWhatsAppNumberQuery(t) {
 function isScholarshipQuery(t) {
   const s = normalizeText(t);
   return s.includes("beca") || s.includes("becas");
+}
+
+function isCourseDifferenceQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("diferencia curso gratuito") ||
+    s.includes("diferencia entre curso gratuito y certificado") ||
+    s.includes("curso gratuito y curso con certificado") ||
+    s.includes("gratis o certificado") ||
+    s.includes("cual es la diferencia entre cursos") ||
+    (s.includes("diferencia") && s.includes("certificado") && s.includes("gratis"))
+  );
+}
+
+function isSetecQuery(t) {
+  const s = normalizeText(t);
+  return s.includes("setec") || s.includes("que es setec") || s.includes("certificacion setec");
+}
+
+function isApprovalCriteriaQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("como se aprueba") ||
+    s.includes("como aprobar") ||
+    s.includes("requisitos de aprobacion") ||
+    s.includes("nota minima") ||
+    s.includes("puntaje minimo") ||
+    s.includes("criterio de aprobacion")
+  );
+}
+
+function isLearningResourcesQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("que recursos incluye") ||
+    s.includes("que incluye el curso") ||
+    s.includes("material del curso") ||
+    s.includes("incluye pdf") ||
+    s.includes("incluye videos") ||
+    s.includes("recursos del curso")
+  );
+}
+
+function isModalitiesQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("modalidad") ||
+    s.includes("es online") ||
+    s.includes("es presencial") ||
+    s.includes("online o presencial") ||
+    s.includes("solo online") ||
+    s.includes("tambien presencial")
+  );
+}
+
+function isCorporateGroupsQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("empresa") ||
+    s.includes("empresas") ||
+    s.includes("grupo") ||
+    s.includes("grupos") ||
+    s.includes("institucion") ||
+    s.includes("capacitacion corporativa") ||
+    s.includes("descuento por grupo")
+  );
+}
+
+function isInstructorQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("ser instructor") ||
+    s.includes("quiero ser instructor") ||
+    s.includes("convertirme en instructor") ||
+    s.includes("conviertete en instructor") ||
+    s.includes("postular como instructor") ||
+    s.includes("docente de la fundacion")
+  );
+}
+
+function isStoreQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("tienda solidaria") ||
+    s.includes("comprar en la tienda") ||
+    s.includes("productos solidarios")
+  );
 }
 
 function isHistoryHelpQuery(t) {
@@ -1204,6 +1397,16 @@ function isFoundationQuery(t) {
     "beneficio",
     "beneficios",
     "ventajas",
+    "becas",
+    "setec",
+    "aprobacion",
+    "modalidad",
+    "online",
+    "presencial",
+    "empresa",
+    "grupos",
+    "instructor",
+    "tienda solidaria",
     "mision",
     "vision",
     "valores",
@@ -2350,6 +2553,86 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
     if (isScholarshipQuery(userMessage)) {
       resetFlows(sessionId);
       const reply = becasTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
+    }
+
+    if (isCourseDifferenceQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = diferenciaCursosTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsCourseLists() }, 200);
+    }
+
+    if (isSetecQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = setecTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsFundacionInfo() }, 200);
+    }
+
+    if (isApprovalCriteriaQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = aprobacionCursosTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsFundacionInfo() }, 200);
+    }
+
+    if (isLearningResourcesQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = recursosCursoTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsCourseLists() }, 200);
+    }
+
+    if (isModalitiesQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = modalidadesTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsEnrollmentMode() }, 200);
+    }
+
+    if (isCorporateGroupsQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = empresasTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
+    }
+
+    if (isInstructorQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = instructorTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
+    }
+
+    if (isStoreQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = tiendaSolidariaTexto();
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
@@ -3620,6 +3903,9 @@ Escribe:
 - PILARES
 - FUNDADORA
 - TESTIMONIOS
+- BECAS
+- SETEC
+- TIENDA SOLIDARIA
 - BENEFICIOS
 - CERTIFICARME
 - TRABAJA CON NOSOTROS`;
