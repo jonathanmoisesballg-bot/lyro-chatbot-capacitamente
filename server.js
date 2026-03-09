@@ -388,14 +388,16 @@ Escribe: CREAR CUENTA o REGISTRARME para ver los pasos.`;
 function todosLosCursosTexto() {
   const free = buildCoursePicker("free", { availableOnly: false });
   const cert = buildCoursePicker("cert", { availableOnly: false });
+  const freeBullets = free.list.map((c) => `● ${c.label}`).join("\n");
+  const certBullets = cert.list.map((c) => `● ${c.label}`).join("\n");
 
   return `📚 TODOS LOS CURSOS
 
 🎓 CURSOS GRATUITOS:
-${free.lines.join("\n")}
+${freeBullets}
 
 🎓 CURSOS CON CERTIFICADO:
-${cert.lines.join("\n")}`;
+${certBullets}`;
 }
 
 // ✅ NUEVO: pagos
@@ -845,9 +847,12 @@ function suggestionsOnlyMenu() {
 function suggestionsBecas() {
   return [
     { text: "test de ayuda", label: "🧭 Test de ayuda" },
-    { text: "crear cuenta", label: "🔐 Crear cuenta" },
     { text: "menu", label: "📌 Menu" },
   ];
+}
+
+function suggestionsAfterScholarshipTest() {
+  return [{ text: "menu", label: "📌 Menu" }];
 }
 
 function suggestionsDifference() {
@@ -3497,7 +3502,7 @@ Escribe: INSCRIBIRME`;
         }
         return sendJson(
           res,
-          { reply, sessionId, suggestions: isScholarshipMode ? suggestionsBecas() : suggestionsCourseLists() },
+          { reply, sessionId, suggestions: isScholarshipMode ? suggestionsOnlyMenu() : suggestionsCourseLists() },
           200
         );
       }

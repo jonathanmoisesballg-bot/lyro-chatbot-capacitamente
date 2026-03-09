@@ -123,6 +123,34 @@
     }
     #history-top b{ font-size:1.02em; }
 
+    .history-filter{
+      padding:10px 12px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .history-filter input{
+      flex:1;
+      border:1px solid #334155;
+      border-radius:8px;
+      background:#111827;
+      color:#e5e7eb;
+      padding:7px 9px;
+      font-size:12px;
+      outline:none;
+    }
+    .history-filter button{
+      border:1px solid #334155;
+      border-radius:8px;
+      background:#1e293b;
+      color:#e5e7eb;
+      padding:7px 10px;
+      font-size:12px;
+      cursor:pointer;
+    }
+    .history-filter button:hover{ background:#334155; }
+
     #history-list{
       overflow:auto;
       padding:10px;
@@ -376,6 +404,10 @@
         <b>📚 Historial</b>
         <button class="header-btn" id="history-close">✕</button>
       </div>
+      <div class="history-filter">
+        <input type="date" id="history-date-filter" />
+        <button type="button" id="history-date-clear">Limpiar</button>
+      </div>
       <div id="history-list"></div>
     </div>
 
@@ -443,6 +475,8 @@
     const historyDrawer = document.getElementById("history-drawer");
     const historyOpen = document.getElementById("history-open");
     const historyClose = document.getElementById("history-close");
+    const historyDateFilter = document.getElementById("history-date-filter");
+    const historyDateClear = document.getElementById("history-date-clear");
     const historyList = document.getElementById("history-list");
     const newChatBtn = document.getElementById("new-chat");
 
@@ -665,22 +699,30 @@
     async function loadSessionsList() {
       const data = await apiFetch("/sessions?limit=50", { method: "GET" });
       const sessions = data.sessions || [];
+      const selectedDate = String(historyDateFilter?.value || "").trim();
+      const filteredSessions = selectedDate
+        ? sessions.filter((s) => {
+            const stamp = s.last_message_at || s.created_at || Date.now();
+            return dayKey(stamp) === selectedDate;
+          })
+        : sessions;
       historyList.innerHTML = "";
 
-      if (sessions.length === 0) {
+      if (filteredSessions.length === 0) {
         const empty = document.createElement("div");
         empty.style.opacity = "0.8";
         empty.style.fontSize = "0.9em";
         empty.style.padding = "10px";
         empty.textContent = "Aún no hay conversaciones. Pulsa “Nueva”.";
+        if (selectedDate) empty.textContent = "No hay conversaciones para la fecha seleccionada.";
         historyList.appendChild(empty);
-        return sessions;
+        return filteredSessions;
       }
 
-      const hasNumbers = sessions.some(s => typeof s.conversation_number === "number");
+      const hasNumbers = filteredSessions.some(s => typeof s.conversation_number === "number");
       let fallbackMap = new Map();
       if (!hasNumbers) {
-        const byCreated = [...sessions].sort((a,b) => new Date(a.created_at||0) - new Date(b.created_at||0));
+        const byCreated = [...filteredSessions].sort((a,b) => new Date(a.created_at||0) - new Date(b.created_at||0));
         byCreated.forEach((s, i) => fallbackMap.set(s.session_id, i + 1));
       }
 
@@ -721,11 +763,11 @@
         historyList.appendChild(itemDiv);
       }
 
-      const pinnedSessions = sessions
+      const pinnedSessions = filteredSessions
         .filter(s => !!s.pinned)
         .sort((a, b) => new Date(b.pinned_at || b.last_message_at || b.created_at || 0) - new Date(a.pinned_at || a.last_message_at || a.created_at || 0));
 
-      const normalSessions = sessions.filter(s => !s.pinned);
+      const normalSessions = filteredSessions.filter(s => !s.pinned);
 
       if (pinnedSessions.length > 0) {
         const pinnedSep = document.createElement("div");
@@ -753,7 +795,7 @@
         groups[k].forEach(renderSessionItem);
       });
 
-      return sessions;
+      return filteredSessions;
     }
 
     document.addEventListener("click", (e) => {
@@ -956,6 +998,11 @@
     historyOpen.onclick = () => historyDrawer.classList.add("open");
     historyClose.onclick = () => historyDrawer.classList.remove("open");
     newChatBtn.onclick = async () => { await newConversation(); };
+    historyDateFilter.addEventListener("change", async () => { await loadSessionsList(); });
+    historyDateClear.addEventListener("click", async () => {
+      historyDateFilter.value = "";
+      await loadSessionsList();
+    });
 
     // ESC cierra drawer / chat
     document.addEventListener("keydown", (e) => {
