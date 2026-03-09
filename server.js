@@ -389,17 +389,13 @@ function todosLosCursosTexto() {
   const free = buildCoursePicker("free", { availableOnly: false });
   const cert = buildCoursePicker("cert", { availableOnly: false });
 
-  return `📚 TODOS LOS CURSOS DISPONIBLES Y PROXIMOS
+  return `📚 TODOS LOS CURSOS
 
 🎓 CURSOS GRATUITOS:
 ${free.lines.join("\n")}
 
 🎓 CURSOS CON CERTIFICADO:
-${cert.lines.join("\n")}
-
-Para verlos por separado:
-- Escribe 1 (gratis)
-- Escribe 2 (con certificados y precios)`;
+${cert.lines.join("\n")}`;
 }
 
 // ✅ NUEVO: pagos
@@ -1278,6 +1274,8 @@ function isCourseSuggestionQuery(t) {
 function isAllCoursesQuery(t) {
   const s = normalizeText(t);
   return (
+    s === "curso" ||
+    s === "cursos" ||
     s.includes("cuales son los cursos que hay") ||
     s.includes("cuales son los cursos") ||
     s.includes("que cursos hay") ||
