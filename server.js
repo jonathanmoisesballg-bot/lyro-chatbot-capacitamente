@@ -385,6 +385,23 @@ La otra opción es inscribirte mediante la página web creando tu cuenta.
 Escribe: CREAR CUENTA o REGISTRARME para ver los pasos.`;
 }
 
+function todosLosCursosTexto() {
+  const free = buildCoursePicker("free", { availableOnly: false });
+  const cert = buildCoursePicker("cert", { availableOnly: false });
+
+  return `📚 TODOS LOS CURSOS DISPONIBLES Y PROXIMOS
+
+🎓 CURSOS GRATUITOS:
+${free.lines.join("\n")}
+
+🎓 CURSOS CON CERTIFICADO:
+${cert.lines.join("\n")}
+
+Para verlos por separado:
+- Escribe 1 (gratis)
+- Escribe 2 (con certificados y precios)`;
+}
+
 // ✅ NUEVO: pagos
 function pagosTexto() {
   return `💳 PAGOS DE CURSOS (Solo cursos con certificado)
@@ -1258,6 +1275,19 @@ function isCourseSuggestionQuery(t) {
   );
 }
 
+function isAllCoursesQuery(t) {
+  const s = normalizeText(t);
+  return (
+    s.includes("cuales son los cursos que hay") ||
+    s.includes("cuales son los cursos") ||
+    s.includes("que cursos hay") ||
+    s.includes("que cursos tienen") ||
+    s.includes("quiero ver los cursos") ||
+    s.includes("lista de cursos") ||
+    s.includes("dame los cursos")
+  );
+}
+
 function isAdvisorTestIntentQuery(t) {
   const s = normalizeText(t);
   return (
@@ -1455,6 +1485,8 @@ function isFoundationQuery(t) {
     "capacitamente",
     "curso",
     "cursos",
+    "que cursos hay",
+    "lista de cursos",
     "certificado",
     "certificacion",
     "certificar",
@@ -2772,6 +2804,16 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
       return sendJson(res, { reply, sessionId, suggestions: suggestionsCourseLists() }, 200);
+    }
+
+    if (isAllCoursesQuery(userMessage)) {
+      resetFlows(sessionId);
+      const reply = todosLosCursosTexto();
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", reply);
+        await touchSessionLastMessage(sessionId, userKey, reply);
+      }
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsDifference() }, 200);
     }
 
     if (isFounderQuery(userMessage)) {
