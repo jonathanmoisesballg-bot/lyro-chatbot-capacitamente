@@ -426,6 +426,49 @@ Si lo prefieres, también puedes escribirnos a:
 ✉️ ${CONTACT_EMAIL}`;
 }
 
+function buildGuidedFallbackForFoundation(text) {
+  const s = normalizeText(text);
+
+  const looksFoundationLike =
+    s.includes("fundacion") ||
+    s.includes("capacitamente") ||
+    s.includes("curso") ||
+    s.includes("beca") ||
+    s.includes("certific") ||
+    s.includes("inscrib") ||
+    s.includes("cuenta") ||
+    s.includes("setec") ||
+    s.includes("contact") ||
+    s.includes("whatsapp") ||
+    s.includes("horario") ||
+    s.includes("testimonio") ||
+    s.includes("fundadora");
+
+  if (!looksFoundationLike) return null;
+
+  return {
+    reply: `Puedo ayudarte mejor si eliges una ruta directa:
+
+- 1 (Cursos gratis)
+- 2 (Cursos con certificados y precios)
+- BECAS
+- REQUISITOS DE APROBACION
+- CREAR CUENTA
+- CONTACTO
+
+Si prefieres, escribe MENU para ver todas las opciones.`,
+    suggestions: [
+      { text: "1", label: "1) Cursos gratis" },
+      { text: "2", label: "2) Cursos con certificados y precios" },
+      { text: "becas", label: "🎓 Becas" },
+      { text: "requisitos de aprobacion", label: "✅ Requisitos de aprobación" },
+      { text: "crear cuenta", label: "🔐 Crear cuenta" },
+      { text: "3", label: "📞 Contacto" },
+      { text: "menu", label: "📌 Menu" },
+    ],
+  };
+}
+
 function donarTexto() {
   return `💙 DONAR (pasos)
 
@@ -2034,7 +2077,7 @@ function incAI(userKey) {
   aiCallsByUserDay.set(k, count + 1);
 }
 
-setInterval(() => {
+const housekeepingTimer = setInterval(() => {
   const now = Date.now();
   for (const [sid, s] of sessions.entries()) {
     if (now - s.lastAccess > SESSION_TTL_MS) sessions.delete(sid);
@@ -2057,6 +2100,7 @@ setInterval(() => {
     if (!k.startsWith(`${today}|`)) aiCallsByUserDay.delete(k);
   }
 }, 60 * 1000);
+if (typeof housekeepingTimer.unref === "function") housekeepingTimer.unref();
 
 async function geminiSendWithRetry(sessionObj, userMessage) {
   let lastErr = null;
@@ -3992,6 +4036,16 @@ Escribe:
       return sendJson(res, { reply, sessionId, suggestions: suggestionsFundacionInfo() }, 200);
     }
 
+    // ====== fallback guiado ANTES de IA ======
+    const guided = buildGuidedFallbackForFoundation(userMessage);
+    if (guided) {
+      if (supabase) {
+        await insertChatMessage(sessionId, userKey, "bot", guided.reply);
+        await touchSessionLastMessage(sessionId, userKey, guided.reply);
+      }
+      return sendJson(res, { reply: guided.reply, sessionId, suggestions: guided.suggestions }, 200);
+    }
+
     // ============================
     // IA
     // ============================
@@ -4103,9 +4157,22 @@ process.on("SIGTERM", () => {
   process.exit(0);
 });
 
-app.listen(port, "0.0.0.0", () => {
-  console.log(`✅ Servidor escuchando en puerto ${port}`);
-  console.log(`🤖 Gemini: modelo=${GEMINI_MODEL} tokens=${GEMINI_MAX_TOKENS} temperatura=${GEMINI_TEMPERATURE}`);
-  console.log(`⏱️ Cooldown(ms)=${AI_COOLDOWN_MS} | max diarios IA=${MAX_DAILY_AI_CALLS} | retries=${GEMINI_RETRIES}`);
-  console.log(`🧯 RateLimit: max=${RATE_LIMIT_MAX}/ventana(${RATE_LIMIT_WINDOW_MS}ms) | maxMsg=${MAX_MESSAGE_CHARS} chars`);
-});
+if (require.main === module) {
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`✅ Servidor escuchando en puerto ${port}`);
+    console.log(`🤖 Gemini: modelo=${GEMINI_MODEL} tokens=${GEMINI_MAX_TOKENS} temperatura=${GEMINI_TEMPERATURE}`);
+    console.log(`⏱️ Cooldown(ms)=${AI_COOLDOWN_MS} | max diarios IA=${MAX_DAILY_AI_CALLS} | retries=${GEMINI_RETRIES}`);
+    console.log(`🧯 RateLimit: max=${RATE_LIMIT_MAX}/ventana(${RATE_LIMIT_WINDOW_MS}ms) | maxMsg=${MAX_MESSAGE_CHARS} chars`);
+  });
+}
+
+module.exports = {
+  normalizeText,
+  isScholarshipQuery,
+  isCourseDifferenceQuery,
+  isApprovalCriteriaQuery,
+  isInstructorQuery,
+  isStoreQuery,
+  isAccountRegistrationQuery,
+  buildGuidedFallbackForFoundation,
+};
