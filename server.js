@@ -1581,6 +1581,7 @@ const scholarshipIntent = new Map();
 
 const lastSchedulePrefId = new Map();
 const courseContext = new Map();
+const profileCache = new Map(); // sessionId -> {nombre, cedula, whatsapp, email, modalidad, sede, franja, dias, schedule_pref_id}
 
 function resetFlows(sessionId) {
   certFlow.delete(sessionId);
@@ -3116,6 +3117,62 @@ Escribenos al ${CONTACT_PHONE_1}.`;
       const type =
         wantsFree ? "free" : wantsCert ? "cert" : schedIdPrev ? "all" : ctxType === "free" || ctxType === "cert" ? ctxType : "all";
 
+      const cached = profileCache.get(sessionId);
+      const hasProfile =
+        cached &&
+        cached.nombre &&
+        cached.whatsapp &&
+        cached.email &&
+        cached.cedula;
+
+      if (hasProfile) {
+        const modalidad = cached.modalidad === "virtual" ? "online" : cached.modalidad || "";
+        const sede = modalidad === "presencial" ? PRESENTIAL_SEDE : "";
+        const pick = buildCoursePicker(type, { availableOnly: false });
+
+        leadFlow.set(sessionId, {
+          step: "choose_course",
+          data: {
+            nombre: cached.nombre,
+            whatsapp: cached.whatsapp,
+            email: cached.email,
+            cedula: cached.cedula,
+            curso: "",
+            modalidad,
+            sede,
+            schedule_pref_id: cached.schedule_pref_id || schedIdPrev,
+            course_type: type,
+            franja: cached.franja || "",
+            dias: cached.dias || "",
+            course_map: pick.map,
+            skip_schedule: true,
+            skip_profile: true,
+          },
+        });
+
+        const title =
+          type === "free"
+            ? "📝 INSCRIPCIÓN (CURSOS GRATIS A-Z)"
+            : type === "cert"
+            ? "📝 INSCRIPCIÓN (CURSOS CON CERTIFICADO A-Z)"
+            : "📝 INSCRIPCIÓN (CURSOS A-Z)";
+
+        const sedeLine = modalidad === "presencial" ? `\nSede: ${sede}` : "";
+        const reply = `${title}
+
+Modalidad: ${String(modalidad || "online").toUpperCase()}${sedeLine}
+
+Elige el curso (responde con la letra):
+
+${pick.lines.join("\n")}`;
+
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: pick.suggestions }, 200);
+      }
+
       leadFlow.set(sessionId, {
         step: "choose_modality",
         data: {
@@ -3132,6 +3189,7 @@ Escribenos al ${CONTACT_PHONE_1}.`;
           dias: "",
           course_map: {},
           skip_schedule: !!schedIdPrev,
+          skip_profile: false,
         },
       });
 
@@ -3624,6 +3682,37 @@ ${pick.lines.join("\n")}`;
 
         st.data.curso = finalCourse;
 
+        if (st.data.skip_profile) {
+          try {
+            await saveLead(userKey, sessionId, st.data);
+          } catch (e) {
+            console.warn("⚠️ No se pudo guardar lead:", extractMessage(e));
+          }
+
+          leadFlow.delete(sessionId);
+
+          const sedeInfo = st.data.modalidad === "presencial" ? `\nSede: ${st.data.sede || PRESENTIAL_SEDE}` : "";
+          const horarioInfo = st.data.franja && st.data.dias ? `\nHorario: ${st.data.franja} | ${st.data.dias}` : "";
+          const reply = `✅ ¡Listo! Tu preinscripción fue registrada.
+
+Nombre: ${st.data.nombre}
+WhatsApp: ${st.data.whatsapp}
+Correo: ${st.data.email}
+Cédula: ${maskCedula(st.data.cedula)}
+Modalidad: ${String(st.data.modalidad || "online").toUpperCase()}${sedeInfo}${horarioInfo}
+Curso: ${st.data.curso}
+
+Parte del equipo de la Fundación se contactará contigo por WhatsApp para continuar con la inscripción oficial.
+En ese contacto te compartirán el proceso para crear tu cuenta en la página y finalizar tu matrícula.
+Si quieres ver opciones: escribe MENU`;
+
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
+        }
+
         if (st.data.skip_schedule) {
           st.step = "nombre";
           leadFlow.set(sessionId, st);
@@ -3865,13 +3954,14 @@ Ejemplo: 0912345678
 
         const extra = st.data.schedule_pref_id ? `\nHorario vinculado (ID): ${st.data.schedule_pref_id}` : "";
         const sedeInfo = st.data.modalidad === "presencial" ? `\nSede: ${st.data.sede || PRESENTIAL_SEDE}` : "";
+        const horarioInfo = st.data.franja && st.data.dias ? `\nHorario: ${st.data.franja} | ${st.data.dias}` : "";
         const reply = `✅ ¡Listo! Tu preinscripción fue registrada.
 
 Nombre: ${st.data.nombre}
 WhatsApp: ${st.data.whatsapp}
 Correo: ${st.data.email}
 Cédula: ${maskCedula(st.data.cedula)}
-Modalidad: ${String(st.data.modalidad || "online").toUpperCase()}${sedeInfo}
+Modalidad: ${String(st.data.modalidad || "online").toUpperCase()}${sedeInfo}${horarioInfo}
 Curso: ${st.data.curso}${extra}
 
 Parte del equipo de la Fundación se contactará contigo por WhatsApp para continuar con la inscripción oficial.
@@ -3953,13 +4043,14 @@ Si quieres ver opciones: escribe MENU`;
 
         const extra = st.data.schedule_pref_id ? `\nHorario vinculado (ID): ${st.data.schedule_pref_id}` : "";
         const sedeInfo = st.data.modalidad === "presencial" ? `\nSede: ${st.data.sede || PRESENTIAL_SEDE}` : "";
+        const horarioInfo = st.data.franja && st.data.dias ? `\nHorario: ${st.data.franja} | ${st.data.dias}` : "";
         const reply = `✅ Listo! Tu preinscripción fue registrada.
 
 Nombre: ${st.data.nombre}
 WhatsApp: ${st.data.whatsapp}
 Correo: ${st.data.email}
 Cédula: ${maskCedula(st.data.cedula)}
-Modalidad: ${String(st.data.modalidad || "online").toUpperCase()}${sedeInfo}
+Modalidad: ${String(st.data.modalidad || "online").toUpperCase()}${sedeInfo}${horarioInfo}
 Curso: ${st.data.curso}${extra}
 
 Parte del equipo de la Fundación se contactará contigo por WhatsApp para continuar con la inscripción oficial.
@@ -3995,10 +4086,133 @@ Si quieres ver opciones: escribe MENU`;
         }
 
         st.data.modalidad = isPresencial ? "presencial" : "virtual";
+        st.data.sede = isPresencial ? PRESENTIAL_SEDE : "";
+        st.step = "nombre";
+        scheduleFlow.set(sessionId, st);
+
+        const sedeLine = st.data.modalidad === "presencial" ? `\nSede: ${st.data.sede}` : "";
+        const reply = `✅ Modalidad: ${st.data.modalidad.toUpperCase()}${sedeLine}.
+
+Ahora dime tu NOMBRE y APELLIDO (solo letras).
+Ejemplo: Maria Perez`;
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+      }
+
+      if (st.step === "nombre") {
+        const nombreInput = userMessage.trim();
+        if (!isValidFullName(nombreInput)) {
+          const reply = `Por favor escribe tu NOMBRE Y APELLIDO de forma correcta.
+- Solo letras (sin números)
+- Mínimo nombre y apellido
+Ejemplo válido: Maria Perez
+Ejemplo no válido: Maria123
+(Para salir: MENU)`;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+        }
+
+        st.data.nombre = nombreInput;
+        st.step = "cedula";
+        scheduleFlow.set(sessionId, st);
+
+        const reply = `✅ Gracias, ${st.data.nombre}.
+
+Ahora escribe tu número de cédula (10 dígitos).
+Ejemplo: 0912345678`;
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+      }
+
+      if (st.step === "cedula") {
+        if (!isValidCedula(userMessage)) {
+          const reply = `Por favor escribe una cédula válida.
+- Debe tener 10 dígitos
+Ejemplo: 0912345678
+(Para salir: MENU)`;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+        }
+
+        st.data.cedula = extractCedula(userMessage);
+        st.step = "whatsapp";
+        scheduleFlow.set(sessionId, st);
+
+        const reply = `✅ Cédula registrada.
+
+Ahora escribe tu número de WhatsApp.
+Formato válido:
+0991112233
++593991112233`;
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+      }
+
+      if (st.step === "whatsapp") {
+        if (!isValidEcuadorWhatsApp(userMessage)) {
+          const reply = `Por favor escribe tu WhatsApp en un formato válido.
+Ejemplos válidos:
+0991112233
++593991112233
+Ejemplo no válido:
+991112233
+(Para salir: MENU)`;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+        }
+
+        st.data.whatsapp = normalizeEcuadorWhatsApp(userMessage);
+        st.step = "email";
+        scheduleFlow.set(sessionId, st);
+
+        const reply = `✅ Perfecto.
+
+Ahora escribe tu correo electrónico.
+Ejemplo válido: nombre@correo.com
+Ejemplo no válido: nombre@correo`;
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+      }
+
+      if (st.step === "email") {
+        if (!isValidEmail(userMessage)) {
+          const reply = `Por favor escribe un correo electrónico válido.
+Ejemplo válido: nombre@correo.com
+Ejemplo no válido: nombre@correo
+(Para salir: MENU)`;
+          if (supabase) {
+            await insertChatMessage(sessionId, userKey, "bot", reply);
+            await touchSessionLastMessage(sessionId, userKey, reply);
+          }
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsLeadFlow() }, 200);
+        }
+
+        st.data.email = extractEmail(userMessage);
         st.step = "franja";
         scheduleFlow.set(sessionId, st);
 
-        const reply = `✅ Modalidad: ${st.data.modalidad.toUpperCase()}.
+        const reply = `✅ Correo registrado.
 
 Ahora dime tu preferencia de horario:
 - Mañana
@@ -4074,6 +4288,7 @@ O escribe tu horario personalizado
           if (schedId) {
             lastSchedulePrefId.set(sessionId, schedId);
             scheduleJustSaved.set(sessionId, true);
+            st.data.schedule_pref_id = schedId;
           }
         } catch (e) {
           saved = false;
@@ -4083,14 +4298,32 @@ O escribe tu horario personalizado
         scheduleFlow.delete(sessionId);
         courseContext.delete(sessionId);
 
+        if (saved) {
+          profileCache.set(sessionId, {
+            nombre: st.data.nombre,
+            cedula: st.data.cedula,
+            whatsapp: st.data.whatsapp,
+            email: st.data.email,
+            modalidad: st.data.modalidad,
+            sede: st.data.sede,
+            franja: st.data.franja,
+            dias: st.data.dias,
+            schedule_pref_id: st.data.schedule_pref_id || null,
+          });
+        }
+
         const reply = saved
-          ? `✅ ¡Gracias! Guardé tu preferencia de horario.
+          ? `✅ ¡Listo! Tu horario quedó registrado.
 
-Franja: ${st.data.franja}
-Días: ${st.data.dias}
+Nombre: ${st.data.nombre}
+WhatsApp: ${st.data.whatsapp}
+Correo: ${st.data.email}
+Cédula: ${maskCedula(st.data.cedula)}
+Modalidad: ${String(st.data.modalidad || "virtual").toUpperCase()}
+Horario: ${st.data.franja} | ${st.data.dias}
 
-¿Deseas inscribirte a un curso ahora?
-Escribe: INSCRIBIRME`
+¿Deseas inscribirte a un curso ahora o necesitas ayuda para elegir?
+Puedes tocar INSCRIBIRME o TEST DE AYUDA.`
           : `✅ Preferencia recibida (pero OJO: no se pudo guardar en la BD todavía).
 
 Franja: ${st.data.franja}
