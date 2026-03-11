@@ -1925,6 +1925,23 @@ async function saveLead(userKey, sessionId, data) {
   throw errWithEstado;
 }
 
+async function saveLeadDraft(userKey, sessionId, data) {
+  const draft = { ...data, curso: data.curso || "PENDIENTE" };
+  return saveLead(userKey, sessionId, draft);
+}
+
+async function updateLeadCourseForSession(userKey, sessionId, curso) {
+  if (!supabase) return false;
+  const { data, error } = await supabase
+    .from("leads")
+    .update({ curso })
+    .match({ user_key: userKey, session_id: sessionId })
+    .select("id")
+    .limit(1);
+  if (error) return false;
+  return Array.isArray(data) && data.length > 0;
+}
+
 function extractWhatsapp(text) {
   const raw = String(text || "").replace(/\s+/g, "");
   const m = raw.match(/(\+?\d{9,15})/);
@@ -3684,7 +3701,8 @@ ${pick.lines.join("\n")}`;
 
         if (st.data.skip_profile) {
           try {
-            await saveLead(userKey, sessionId, st.data);
+            const updated = await updateLeadCourseForSession(userKey, sessionId, st.data.curso);
+            if (!updated) await saveLead(userKey, sessionId, st.data);
           } catch (e) {
             console.warn("⚠️ No se pudo guardar lead:", extractMessage(e));
           }
@@ -4310,6 +4328,11 @@ O escribe tu horario personalizado
             dias: st.data.dias,
             schedule_pref_id: st.data.schedule_pref_id || null,
           });
+          try {
+            await saveLeadDraft(userKey, sessionId, st.data);
+          } catch (e) {
+            console.warn("⚠️ No se pudo guardar lead (borrador):", extractMessage(e));
+          }
         }
 
         const reply = saved
