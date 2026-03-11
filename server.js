@@ -1899,35 +1899,38 @@ async function saveLead(userKey, sessionId, data) {
   const tryInsertAttempts = async (attempts) => {
     let lastErr = null;
     for (const row of attempts) {
-      const { error } = await supabase.from("leads").insert([row]);
-      if (!error) return null;
+      const { data: inserted, error } = await supabase.from("leads").insert([row]).select("id");
+      if (!error) {
+        const id = Array.isArray(inserted) && inserted[0] ? inserted[0].id ?? null : null;
+        return { error: null, id };
+      }
       lastErr = error;
     }
-    return lastErr;
+    return { error: lastErr, id: null };
   };
 
   // Intento principal: guarda estado=preinscrito automáticamente
-  const errWithEstado = await tryInsertAttempts(buildAttempts(baseWithEstado));
-  if (!errWithEstado) return;
+  const resWithEstado = await tryInsertAttempts(buildAttempts(baseWithEstado));
+  if (!resWithEstado.error) return resWithEstado.id;
 
   // Fallback de compatibilidad: por si faltan columnas nuevas (estado/modalidad/sede)
-  const msg = String(errWithEstado.message || "").toLowerCase();
+  const msg = String(resWithEstado.error.message || "").toLowerCase();
   const missingEstado = msg.includes("column") && msg.includes("estado");
   const missingModalidad = msg.includes("column") && msg.includes("modalidad");
   const missingSede = msg.includes("column") && msg.includes("sede");
 
   if (missingEstado || missingModalidad || missingSede) {
     const baseA = missingEstado ? baseMinimal : baseMinimalWithEstado;
-    const errNoExtras = await tryInsertAttempts(buildAttempts(baseA));
-    if (!errNoExtras) return;
+    const resNoExtras = await tryInsertAttempts(buildAttempts(baseA));
+    if (!resNoExtras.error) return resNoExtras.id;
 
     // Compatibilidad adicional para instalaciones sin columna estado
-    const errNoEstado = await tryInsertAttempts(buildAttempts(baseNoEstado));
-    if (!errNoEstado) return;
-    throw errNoEstado;
+    const resNoEstado = await tryInsertAttempts(buildAttempts(baseNoEstado));
+    if (!resNoEstado.error) return resNoEstado.id;
+    throw resNoEstado.error;
   }
 
-  throw errWithEstado;
+  throw resWithEstado.error;
 }
 
 async function saveLeadDraft(userKey, sessionId, data) {
@@ -1943,6 +1946,13 @@ async function updateLeadCourseForSession(userKey, sessionId, curso) {
     .match({ user_key: userKey, session_id: sessionId })
     .select("id")
     .limit(1);
+  if (error) return false;
+  return Array.isArray(data) && data.length > 0;
+}
+
+async function updateLeadCourseForId(leadId, curso) {
+  if (!supabase || !leadId) return false;
+  const { data, error } = await supabase.from("leads").update({ curso }).eq("id", leadId).select("id");
   if (error) return false;
   return Array.isArray(data) && data.length > 0;
 }
@@ -3171,6 +3181,7 @@ Escribenos al ${CONTACT_PHONE_1}.`;
             course_type: type,
             franja: cached.franja || "",
             dias: cached.dias || "",
+            lead_id: cached.lead_id || null,
             course_map: pick.map,
             skip_schedule: true,
             skip_profile: true,
@@ -3711,7 +3722,8 @@ ${pick.lines.join("\n")}`;
 
         if (st.data.skip_profile) {
           try {
-            const updated = await updateLeadCourseForSession(userKey, sessionId, st.data.curso);
+            const updatedById = await updateLeadCourseForId(st.data.lead_id, st.data.curso);
+            const updated = updatedById || (await updateLeadCourseForSession(userKey, sessionId, st.data.curso));
             if (!updated) await saveLead(userKey, sessionId, st.data);
           } catch (e) {
             console.warn("⚠️ No se pudo guardar lead:", extractMessage(e));
@@ -4192,7 +4204,7 @@ Formato válido:
       }
 
       if (st.step === "whatsapp") {
-        if (!isValidEcuadorWhatsApp(userMessage)) {
+        if (!isStrictEcuadorWhatsApp(userMessage)) {
           const reply = `Por favor escribe tu WhatsApp en un formato válido.
 Ejemplos válidos:
 0991112233
@@ -4339,7 +4351,11 @@ O escribe tu horario personalizado
             schedule_pref_id: st.data.schedule_pref_id || null,
           });
           try {
-            await saveLeadDraft(userKey, sessionId, st.data);
+            const leadId = await saveLeadDraft(userKey, sessionId, st.data);
+            if (leadId) {
+              const cached = profileCache.get(sessionId) || {};
+              profileCache.set(sessionId, { ...cached, lead_id: leadId });
+            }
           } catch (e) {
             console.warn("⚠️ No se pudo guardar lead (borrador):", extractMessage(e));
           }
