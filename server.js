@@ -495,21 +495,21 @@ function donarTexto() {
 }
 
 function horariosTexto() {
-  return `🕒 HORARIOS (modalidad virtual)
+  return `🕒 HORARIOS (presencial o virtual)
 
-Los horarios son FLEXIBLES: se ajustan a tu disponibilidad porque las clases son 100% online.
+Los horarios pueden ser presenciales o virtuales. Son FLEXIBLES y se ajustan a tu disponibilidad.
+Si lo necesitas, puedes proponer tu propio horario.
 
-📌 Dime tu preferencia:
-- Mañana
-- Tarde
-- Noche`;
+📌 Primero, dime la modalidad que prefieres:
+- Presencial
+- Virtual`;
 }
 
 function horariosConsultaTexto() {
   return `🕒 HORARIO DE CLASES
 
-En nuestra modalidad 100% online, los horarios se adaptan a tu disponibilidad.
-Puedes estudiar en los tiempos que mejor se ajusten a tu rutina (manana, tarde o noche), con acompanamiento del equipo academico.
+Los horarios pueden ser presenciales o virtuales, y se ajustan a tu disponibilidad.
+Puedes estudiar en los tiempos que mejor se adapten a tu rutina (manana, tarde o noche), con acompanamiento del equipo academico.
 
 ✅ Si deseas, puedes inscribirte segun el horario que mejor te convenga usando el boton:
 6) Horarios`;
@@ -531,12 +531,7 @@ function beneficiosTexto() {
 - Enfoque social: orientado especialmente a población vulnerable, con compromiso en progreso social, económico y en valores.
 - Cursos gratuitos y cursos con certificación a bajo costo.
 - Modalidad virtual y flexible.
-- Acompañamiento y asesoría para elegir el curso ideal.
-
-Para ver cursos escribe:
-- 1 (Cursos gratis)
-- 2 (Cursos con certificados y precios)
-O Escribe: TEST DE AYUDA`;
+- Acompañamiento y asesoría para elegir el curso ideal.`;
 }
 
 function becasTexto() {
@@ -571,18 +566,16 @@ function cursosFuturosTexto() {
 
 Con base en el enfoque formativo de la Fundacion, estas son recomendaciones de cursos que pueden aportar alto impacto academico y social:
 
-1) Alfabetizacion Digital para Adultos y Emprendedores
-2) IA Practica para Docentes (sin programacion)
-3) Manejo de Estres y Regulacion Emocional para Familias
-4) Neuroaprendizaje para Memoria y Atencion
-5) Habilidades Blandas para Primer Empleo
-6) Finanzas Personales y Economia Familiar
-7) Emprendimiento Digital con Canva, WhatsApp e Instagram
-8) Herramientas de Google para Estudio y Trabajo
-9) Comunicacion Asertiva y Resolucion de Conflictos
-10) Ciberseguridad y Prevencion de Riesgos Digitales
-
-✅ Si deseas una recomendacion personalizada para ti, escribe: TEST DE AYUDA`;
+• Alfabetizacion Digital para Adultos y Emprendedores
+• IA Practica para Docentes (sin programacion)
+• Manejo de Estres y Regulacion Emocional para Familias
+• Neuroaprendizaje para Memoria y Atencion
+• Habilidades Blandas para Primer Empleo
+• Finanzas Personales y Economia Familiar
+• Emprendimiento Digital con Canva, WhatsApp e Instagram
+• Herramientas de Google para Estudio y Trabajo
+• Comunicacion Asertiva y Resolucion de Conflictos
+• Ciberseguridad y Prevencion de Riesgos Digitales`;
 }
 
 function diferenciaCursosTexto() {
@@ -692,7 +685,14 @@ Si necesitas apoyo para crear tu cuenta, escribe: CREAR CUENTA.`;
 function fundadoraTexto() {
   return `👩‍💼 FUNDADORA DE LA FUNDACION
 
-La Fundacion Capacitamente nace hace mas de 10 anos como expresion del compromiso social de su fundadora Ingeniera Tatiana Arias: Magister en Investigacion Educativa y Docencia, Lider Social Latinoamericana con especializacion en Espana, Coordinadora Academica Metodologica, Docente de la Universidad de Guayaquil.
+La Ing. Tatiana Arias es:
+- Magister en Investigacion Educativa y Docencia.
+- Lider Social Latinoamericana.
+- Especializacion en Espana.
+- Coordinadora Academica Metodologica.
+- Docente de la Universidad de Guayaquil.
+
+La Fundacion Capacitamente nace hace mas de 10 anos como expresion de su compromiso social.
 
 Si deseas ver el menu principal, escribe: MENU.`;
 }
@@ -923,6 +923,14 @@ function suggestionsScheduleFlowStep1() {
   ];
 }
 
+function suggestionsScheduleFlowMode() {
+  return [
+    { text: "presencial", label: "🏫 Presencial" },
+    { text: "virtual", label: "💻 Virtual" },
+    { text: "menu", label: "📌 Menu" },
+  ];
+}
+
 function suggestionsScheduleFlowStep2() {
   return [
     { text: "lun-vie", label: "📅 Lun-Vie" },
@@ -1051,7 +1059,13 @@ function isWorkWithUsQuery(t) {
   return (
     s.includes("trabaja con nosotros") ||
     s.includes("trabajar con ustedes") ||
+    s.includes("laborar con ustedes") ||
+    s.includes("quiero laborar con ustedes") ||
+    s.includes("quiero laborar") ||
     s.includes("quiero trabajar") ||
+    s.includes("emplear instructor") ||
+    s.includes("ser docente") ||
+    s.includes("se docente") ||
     s.includes("empleo") ||
     s.includes("vacante") ||
     s.includes("voluntario") ||
@@ -2665,7 +2679,7 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsAfterInfo() }, 200);
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
     }
 
     if (isWorkWithUsQuery(userMessage)) {
@@ -2806,7 +2820,7 @@ Si deseas inscribirte ahora escribe: INSCRIBIRME`;
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsCourseLists() }, 200);
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsOnlyMenu() }, 200);
     }
 
     if (isAllCoursesQuery(userMessage)) {
@@ -3022,13 +3036,13 @@ Si quieres ver el menú principal, escribe: MENU`;
       }
 
       if (t === "6") {
-        scheduleFlow.set(sessionId, { step: "franja", data: {} });
+        scheduleFlow.set(sessionId, { step: "modalidad", data: {} });
         const reply = horariosTexto();
         if (supabase) {
           await insertChatMessage(sessionId, userKey, "bot", reply);
           await touchSessionLastMessage(sessionId, userKey, reply);
         }
-        return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowStep1() }, 200);
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowMode() }, 200);
       }
     }
 
@@ -3138,13 +3152,13 @@ Paso 1) Elige la modalidad:
     // ====== accesos directos ======
     if (t.includes("horario")) {
       resetFlows(sessionId);
-      scheduleFlow.set(sessionId, { step: "franja", data: {} });
+      scheduleFlow.set(sessionId, { step: "modalidad", data: {} });
       const reply = horariosTexto();
       if (supabase) {
         await insertChatMessage(sessionId, userKey, "bot", reply);
         await touchSessionLastMessage(sessionId, userKey, reply);
       }
-      return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowStep1() }, 200);
+      return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowMode() }, 200);
     }
 
     if (t.includes("donaci") || t.includes("donar")) {
@@ -3964,27 +3978,67 @@ Si quieres ver opciones: escribe MENU`;
     if (scheduleFlow.has(sessionId)) {
       const st = scheduleFlow.get(sessionId);
 
-      if (st.step === "franja") {
+      if (st.step === "modalidad") {
         const v = normalizeText(userMessage);
-        const ok = ["manana", "tarde", "noche"].includes(v);
-        if (!ok) {
-          const reply = `Dime tu preferencia escribiendo:
-- Mañana
-- Tarde
-- Noche
+        const isPresencial = v.includes("presencial");
+        const isVirtual = v.includes("virtual") || v.includes("online");
+        if (!isPresencial && !isVirtual) {
+          const reply = `Elige tu modalidad:
+- Presencial
+- Virtual
 (Para salir: MENU)`;
           if (supabase) {
             await insertChatMessage(sessionId, userKey, "bot", reply);
             await touchSessionLastMessage(sessionId, userKey, reply);
           }
-          return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowStep1() }, 200);
+          return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowMode() }, 200);
         }
 
-        st.data.franja = v;
+        st.data.modalidad = isPresencial ? "presencial" : "virtual";
+        st.step = "franja";
+        scheduleFlow.set(sessionId, st);
+
+        const reply = `✅ Modalidad: ${st.data.modalidad.toUpperCase()}.
+
+Ahora dime tu preferencia de horario:
+- Mañana
+- Tarde
+- Noche
+(Si necesitas, también puedes escribir tu horario personalizado)`;
+        if (supabase) {
+          await insertChatMessage(sessionId, userKey, "bot", reply);
+          await touchSessionLastMessage(sessionId, userKey, reply);
+        }
+        return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowStep1() }, 200);
+      }
+
+      if (st.step === "franja") {
+        const v = normalizeText(userMessage);
+        const ok = ["manana", "tarde", "noche"].includes(v);
+        if (!ok) {
+          const custom = String(userMessage || "").trim();
+          if (!custom || custom.length < 3) {
+            const reply = `Dime tu preferencia escribiendo:
+- Mañana
+- Tarde
+- Noche
+O escribe tu horario personalizado
+(Para salir: MENU)`;
+            if (supabase) {
+              await insertChatMessage(sessionId, userKey, "bot", reply);
+              await touchSessionLastMessage(sessionId, userKey, reply);
+            }
+            return sendJson(res, { reply, sessionId, suggestions: suggestionsScheduleFlowStep1() }, 200);
+          }
+          st.data.franja = custom;
+        } else {
+          st.data.franja = v;
+        }
         st.step = "dias";
         scheduleFlow.set(sessionId, st);
 
-        const reply = `✅ Anotado: ${v.toUpperCase()}.
+        const label = ok ? v.toUpperCase() : st.data.franja;
+        const reply = `✅ Anotado: ${label}.
 
 ¿En qué días se te facilita más?
 - Lun-Vie
