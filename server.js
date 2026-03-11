@@ -508,10 +508,10 @@ Si lo necesitas, puedes proponer tu propio horario.
 function horariosConsultaTexto() {
   return `🕒 HORARIO DE CLASES
 
-Los horarios pueden ser presenciales o virtuales, y se ajustan a tu disponibilidad.
-Puedes estudiar en los tiempos que mejor se adapten a tu rutina (manana, tarde o noche), con acompanamiento del equipo academico.
+Los horarios se organizan de acuerdo con la preferencia que registraste (manana, tarde o noche).
+Con base en ese horario, parte del equipo de la Fundacion se contactara contigo para confirmar el dia y la hora exactos de tus clases.
 
-✅ Si deseas, puedes inscribirte segun el horario que mejor te convenga usando el boton:
+Si aun no registraste tu horario, puedes hacerlo en la opcion:
 6) Horarios`;
 }
 
@@ -656,15 +656,15 @@ function instructorTexto() {
   return `🧑‍🏫 FORMAR PARTE DE LA FUNDACION (INSTRUCTOR/A, MAESTRO/A O DOCENTE)
 
 Si deseas ser parte del equipo de la Fundacion:
-1) Envia tu hoja de vida al correo: ${CONTACT_EMAIL}
+1) Envia tu hoja de vida al correo: cursos@fundacioncapacitamente.com
 2) Indica tu area de especialidad y experiencia
 3) Comparte tu WhatsApp de contacto
 
 Contactos oficiales:
-📱 ${CONTACT_PHONE_1}
-☎️ ${CONTACT_PHONE_2}
-✉️ ${CONTACT_EMAIL}
-📍 ${CONTACT_CITY}
+📱 0983222358
+☎️ 046026948
+✉️ cursos@fundacioncapacitamente.com
+📍 Guayaquil - Ecuador
 
 El equipo academico revisara tu perfil y se contactara contigo.`;
 }
@@ -1174,6 +1174,8 @@ function isCorporateGroupsQuery(t) {
 function isInstructorQuery(t) {
   const s = normalizeText(t);
   return (
+    s === "instructor" ||
+    s.includes("instructor") ||
     s.includes("ser instructor") ||
     s.includes("quiero ser instructor") ||
     s.includes("convertirme en instructor") ||
@@ -1368,6 +1370,9 @@ function isClassTimeQuery(t) {
     s.includes("a que hora son las clases") ||
     s.includes("a que hora dan las clases") ||
     s.includes("que hora son las clases") ||
+    s.includes("que dia son las clases") ||
+    s.includes("que dias son las clases") ||
+    s.includes("que día son las clases") ||
     s.includes("horario de clases")
   );
 }
@@ -1966,6 +1971,11 @@ function isValidEcuadorWhatsApp(input) {
   return !!normalizeEcuadorWhatsApp(input);
 }
 
+function isStrictEcuadorWhatsApp(input) {
+  const raw = String(input || "").trim();
+  return /^09\d{8}$/.test(raw) || /^5939\d{8}$/.test(raw) || /^\+5939\d{8}$/.test(raw);
+}
+
 function extractEmail(text) {
   const s = String(text || "").trim().toLowerCase();
   const m = s.match(/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/);
@@ -1981,8 +1991,8 @@ function extractCedula(text) {
 }
 
 function isValidCedula(input) {
-  const c = extractCedula(input);
-  return /^\d{10}$/.test(c);
+  const raw = String(input || "").trim();
+  return /^\d{10}$/.test(raw);
 }
 
 function maskCedula(value) {
@@ -3873,7 +3883,7 @@ Formato válido:
       }
 
       if (st.step === "whatsapp") {
-        if (!isValidEcuadorWhatsApp(userMessage)) {
+        if (!isStrictEcuadorWhatsApp(userMessage)) {
           const reply = `Por favor escribe tu WhatsApp en un formato válido.
 Ejemplos válidos:
 0991112233
